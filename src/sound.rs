@@ -1,0 +1,16 @@
+pub const SND_LAUNCH: usize = 0;
+pub const SND_CRASH: usize = 1;
+pub const SND_DOCK: usize = 2;
+pub const SND_GAMEOVER: usize = 3;
+pub const SND_PULSE: usize = 4;
+pub const SND_HIT_ENEMY: usize = 5;
+pub const SND_EXPLODE: usize = 6;
+pub const SND_ECM: usize = 7;
+pub const SND_MISSILE: usize = 8;
+pub const SND_HYPERSPACE: usize = 9;
+pub const SND_INCOMMING_FIRE_1: usize = 10;
+pub const SND_INCOMMING_FIRE_2: usize = 11;
+pub const SND_BEEP: usize = 12;
+pub const SND_BOOP: usize = 13;
+pub const SND_ELITE_THEME: usize = 0;
+pub const SND_BLUE_DANUBE: usize = 1;
