@@ -4,13 +4,53 @@ use macroquad::{
 };
 
 use crate::{
-    Config, GameParams, THICKNESS,
-    elite::Commander,
+    elite::{Commander, ShipData},
     gfx::{GFX_SCALE, GFX_VIEW_BY},
+    shipdata::{NO_OF_SHIPS, SHIP_CORIOLIS, SHIP_DODEC, SHIP_PLANET, SHIP_SUN},
     sound::SND_PULSE,
+    space::UnivObject,
     stars::rand255,
+    vector::{Matrix, Vector, START_MATRIX},
+    Config, GameParams, FLG_ANGRY, FLG_BOLD, FLG_CLOAKED, FLG_FLY_TO_PLANET, FLG_INACTIVE,
+    FLG_POLICE, FLG_SLOW, MAX_UNIV_OBJECTS, THICKNESS,
 };
 
+pub const initial_flags: [i16; NO_OF_SHIPS + 1] = [
+    0,                            // NULL,
+    0,                            // missile
+    0,                            // coriolis
+    FLG_SLOW | FLG_FLY_TO_PLANET, // escape
+    FLG_INACTIVE,                 // alloy
+    FLG_INACTIVE,                 // cargo
+    FLG_INACTIVE,                 // boulder
+    FLG_INACTIVE,                 // asteroid
+    FLG_INACTIVE,                 // rock
+    FLG_FLY_TO_PLANET | FLG_SLOW, // shuttle
+    FLG_FLY_TO_PLANET | FLG_SLOW, // transporter
+    0,                            // cobra3
+    0,                            // python
+    0,                            // boa
+    FLG_SLOW,                     // anaconda
+    FLG_SLOW,                     // hermit
+    FLG_BOLD | FLG_POLICE,        // viper
+    FLG_BOLD | FLG_ANGRY,         // sidewinder
+    FLG_BOLD | FLG_ANGRY,         // mamba
+    FLG_BOLD | FLG_ANGRY,         // krait
+    FLG_BOLD | FLG_ANGRY,         // adder
+    FLG_BOLD | FLG_ANGRY,         // gecko
+    FLG_BOLD | FLG_ANGRY,         // cobra1
+    FLG_SLOW | FLG_ANGRY,         // worm
+    FLG_BOLD | FLG_ANGRY,         // cobra3
+    FLG_BOLD | FLG_ANGRY,         // asp2
+    FLG_BOLD | FLG_ANGRY,         // python
+    FLG_POLICE,                   // fer_de_lance
+    FLG_BOLD | FLG_ANGRY,         // moray
+    FLG_BOLD | FLG_ANGRY,         // thargoid
+    FLG_ANGRY,                    // thargon
+    FLG_ANGRY,                    // constrictor
+    FLG_POLICE | FLG_CLOAKED,     // cougar
+    0,                            // dodec
+];
 pub const MISSILE_UNARMED: i16 = -2;
 pub const MISSILE_ARMED: i16 = -1;
 pub struct Swat {
@@ -151,4 +191,105 @@ pub fn fire_laser(params: &mut GameParams, cmdr: &mut Commander) -> i16 {
 
 pub fn snd_play_sample(snd_pulse: usize) {
     println!("snd_play_sample()")
+}
+pub fn clear_universe(
+    univ: &mut [UnivObject],
+    ship_count: &mut [i16; NO_OF_SHIPS + 1],
+    in_battle: &mut bool,
+) {
+    for i in 0..MAX_UNIV_OBJECTS {
+        univ[i].da_type = 0;
+    }
+
+    for i in 0..NO_OF_SHIPS {
+        ship_count[i] = 0;
+    }
+
+    *in_battle = false;
+}
+pub fn remove_ship(
+    un: usize,
+    universe: &mut [UnivObject],
+    ship_count: &mut [i16; NO_OF_SHIPS + 1],
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+) {
+    let da_type;
+    let mut rotmat: Matrix = START_MATRIX;
+    let px: i32;
+    let mut py: i32;
+    let pz: i32;
+
+    da_type = universe[un].da_type;
+
+    if (da_type == 0) {
+        return;
+    }
+
+    if (da_type > 0) {
+        ship_count[da_type as usize] -= 1;
+    }
+
+    universe[un].da_type = 0;
+
+    // check_missiles (un);
+
+    if ((da_type == SHIP_CORIOLIS) || (da_type == SHIP_DODEC)) {
+        px = universe[un].location.x as i32;
+        py = universe[un].location.y as i32;
+        pz = universe[un].location.z as i32;
+
+        py &= 0xFFFF;
+        py |= 0x60000;
+
+        add_new_ship(
+            SHIP_SUN, px, py, pz, &rotmat, 0, 0, universe, ship_list, ship_count,
+        );
+    }
+}
+fn add_new_ship(
+    ship_type: i16,
+    x: i32,
+    y: i32,
+    z: i32,
+    rotmat: &Matrix,
+    rotx: i16,
+    rotz: i16,
+    universe: &mut [UnivObject],
+    ship_list: &[ShipData; NO_OF_SHIPS + 1],
+    ship_count: &mut [i16; NO_OF_SHIPS + 1],
+) -> i16 {
+    for i in 0..MAX_UNIV_OBJECTS {
+        if (universe[i].da_type == 0) {
+            universe[i].da_type = ship_type;
+            universe[i].location.x = x as f32;
+            universe[i].location.y = y as f32;
+            universe[i].location.z = z as f32;
+
+            universe[i].distance = (x * x + y * y + z * z).isqrt();
+
+            universe[i].rotmat[0] = rotmat[0];
+            universe[i].rotmat[1] = rotmat[1];
+            universe[i].rotmat[2] = rotmat[2];
+
+            universe[i].rotx = rotx;
+            universe[i].rotz = rotz;
+
+            universe[i].velocity = 0;
+            universe[i].acceleration = 0;
+            universe[i].bravery = 0;
+            universe[i].target = 0;
+
+            universe[i].flags = initial_flags[ship_type as usize];
+
+            if ((ship_type != SHIP_PLANET) && (ship_type != SHIP_SUN)) {
+                universe[i].energy = ship_list[ship_type as usize].energy;
+                universe[i].missiles = ship_list[ship_type as usize].missiles;
+                ship_count[ship_type as usize] += 1;
+            }
+
+            return i as i16;
+        }
+    }
+
+    return -1;
 }

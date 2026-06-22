@@ -28,9 +28,9 @@
  * Fly to a given point in space.
  */
 
-use crate::{GameParams, sound::SND_BLUE_DANUBE};
+use crate::{sound::SND_BLUE_DANUBE, GameParams};
 /*
-void fly_to_vector (struct univ_object *ship, Vector vec)
+void fly_to_vector (struct UnivObject *ship, Vector vec)
 {
     Vector nvec;
     double direction;
@@ -99,7 +99,7 @@ void fly_to_vector (struct univ_object *ship, Vector vec)
  * Fly towards the planet.
  */
 
-void fly_to_planet (struct univ_object *ship)
+void fly_to_planet (struct UnivObject *ship)
 {
     Vector vec;
 
@@ -117,7 +117,7 @@ void fly_to_planet (struct univ_object *ship)
  */
 
 
-void fly_to_station_front (struct univ_object *ship)
+void fly_to_station_front (struct UnivObject *ship)
 {
     Vector vec;
 
@@ -137,7 +137,7 @@ void fly_to_station_front (struct univ_object *ship)
  * Fly towards the space station.
  */
 
-void fly_to_station (struct univ_object *ship)
+void fly_to_station (struct UnivObject *ship)
 {
     Vector vec;
 
@@ -154,7 +154,7 @@ void fly_to_station (struct univ_object *ship)
  * Fly into the docking bay.
  */
 
-void fly_to_docking_bay (struct univ_object *ship)
+void fly_to_docking_bay (struct UnivObject *ship)
 {
     Vector diff;
     Vector vec;
@@ -214,7 +214,7 @@ void fly_to_docking_bay (struct univ_object *ship)
  * Fly a ship to the planet or to the space station and dock it.
  */
 
-fn auto_pilot_ship (struct univ_object *ship)
+fn auto_pilot_ship (struct UnivObject *ship)
 {
     Vector diff;
     Vector vec;

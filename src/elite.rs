@@ -12,8 +12,123 @@
  *
  */
 
-use crate::{planet::GalaxySeed, swat::MISSILE_UNARMED, trade::NO_OF_STOCK_ITEMS};
+use crate::{
+    planet::GalaxySeed, shipdata::NO_OF_SHIPS, swat::MISSILE_UNARMED, trade::NO_OF_STOCK_ITEMS,
+};
 
+#[derive(Copy, Clone)]
+pub struct ShipPoint {
+    pub x: i16,
+    pub y: i16,
+    pub z: i16,
+    pub dist: i16,
+    pub face1: i16,
+    pub face2: i16,
+    pub face3: i16,
+    pub face4: i16,
+}
+
+impl ShipPoint {
+    pub fn new(
+        x: i16,
+        y: i16,
+        z: i16,
+        dist: i16,
+        face1: i16,
+        face2: i16,
+        face3: i16,
+        face4: i16,
+    ) -> Self {
+        Self {
+            x,
+            y,
+            z,
+            dist,
+            face1,
+            face2,
+            face3,
+            face4,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct ShipLine {
+    pub dist: i16,
+    pub face1: i16,
+    pub face2: i16,
+    pub start_point: i16,
+    pub end_point: i16,
+}
+
+impl ShipLine {
+    pub fn new(dist: i16, face1: i16, face2: i16, start_point: i16, end_point: i16) -> Self {
+        Self {
+            dist,
+            face1,
+            face2,
+            start_point,
+            end_point,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct ShipFaceNormal {
+    pub dist: i16,
+    pub x: i16,
+    pub y: i16,
+    pub z: i16,
+}
+
+impl ShipFaceNormal {
+    pub fn new(dist: i16, x: i16, y: i16, z: i16) -> Self {
+        Self { dist, x, y, z }
+    }
+}
+pub struct ShipData {
+    pub name: [char; 32],
+    pub num_points: i16,
+    pub num_lines: i16,
+    pub num_faces: i16,
+    pub max_loot: i16,
+    pub scoop_type: i16,
+    pub size: f32,
+    pub front_laser: i16,
+    pub bounty: i16,
+    pub vanish_point: i16,
+    pub energy: i16,
+    pub velocity: i16,
+    pub missiles: i16,
+    pub laser_strength: i16,
+    pub points: Vec<ShipPoint>,
+    pub lines: Vec<ShipLine>,
+    pub normals: Vec<ShipFaceNormal>,
+}
+
+impl Clone for ShipData {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            num_points: self.num_points.clone(),
+            num_lines: self.num_lines.clone(),
+            num_faces: self.num_faces.clone(),
+            max_loot: self.max_loot.clone(),
+            scoop_type: self.scoop_type.clone(),
+            size: self.size.clone(),
+            front_laser: self.front_laser.clone(),
+            bounty: self.bounty.clone(),
+            vanish_point: self.vanish_point.clone(),
+            energy: self.energy.clone(),
+            velocity: self.velocity.clone(),
+            missiles: self.missiles.clone(),
+            laser_strength: self.laser_strength.clone(),
+            points: self.points.clone(),
+            lines: self.lines.clone(),
+            normals: self.normals.clone(),
+        }
+    }
+}
 pub const SCR_INTRO_ONE: i16 = 1;
 pub const SCR_INTRO_TWO: i16 = 2;
 pub const SCR_GALACTIC_CHART: i16 = 3;
@@ -96,11 +211,21 @@ pub struct Commander {
 }
 
 impl Commander {
+    pub fn set_name(&mut self, new_name: &str) {
+        for i in 0..self.name.len() {
+            self.name[i] = ' ';
+        }
+        for (n, c) in new_name.chars().enumerate() {
+            if n < self.name.len() {
+                self.name[n] = c;
+            }
+        }
+    }
     pub fn new() -> Self {
         Self {
             name: ['x'; 32],
-            galaxy_seed: GalaxySeed::new(),
             mission: 1,
+            galaxy_seed: GalaxySeed::new(),
             ship_x: 1,
             ship_y: 1,
             credits: 1,
@@ -114,6 +239,7 @@ impl Commander {
             unused2: 1,
             unused3: 1,
             cargo_capacity: 1,
+            current_cargo: [1; NO_OF_STOCK_ITEMS],
             ecm: 1,
             fuel_scoop: 1,
             energy_bomb: 1,
@@ -127,15 +253,91 @@ impl Commander {
             unused7: 1,
             missiles: 1,
             legal_status: 1,
+            station_stock: [1; NO_OF_STOCK_ITEMS],
             market_rnd: 1,
             score: 1,
             saved: 1,
-            station_stock: [1; NO_OF_STOCK_ITEMS],
-            current_cargo: [1; NO_OF_STOCK_ITEMS],
         }
     }
+    pub fn get_saved() -> Self {
+        let mut result = Self {
+            name: ['x'; 32],
+            mission: 1,
+            galaxy_seed: GalaxySeed::new(),
+            ship_x: 1,
+            ship_y: 1,
+            credits: 1,
+            fuel: 1,
+            unused1: 1,
+            galaxy_number: 1,
+            front_laser: 1,
+            rear_laser: 1,
+            left_laser: 1,
+            right_laser: 1,
+            unused2: 1,
+            unused3: 1,
+            cargo_capacity: 1,
+            current_cargo: [1; NO_OF_STOCK_ITEMS],
+            ecm: 1,
+            fuel_scoop: 1,
+            energy_bomb: 1,
+            energy_unit: 1,
+            docking_computer: 1,
+            galactic_hyperdrive: 1,
+            escape_pod: 1,
+            unused4: 1,
+            unused5: 1,
+            unused6: 1,
+            unused7: 1,
+            missiles: 1,
+            legal_status: 1,
+            station_stock: [1; NO_OF_STOCK_ITEMS],
+            market_rnd: 1,
+            score: 1,
+            saved: 1,
+        };
+        result.set_name("JAMESON"); /* Name */
+        result.mission = 0; /* Mission Number */
+        result.ship_x = 0x14; /* Ship X,Y */
+        result.ship_y = 0xAD; /* Ship X,Y */
+        result.galaxy_seed = GalaxySeed::new();
+        result.galaxy_seed.set(0x4a, 0x5a, 0x48, 0x02, 0x53, 0xb7); /* Galaxy Seed */
+        result.credits = 1000; /* Credits * 10 */
+        result.fuel = 70; /* Fuel * 10 */
+        result.unused1 = 0;
+        result.galaxy_number = 0; /* Galaxy - 1		*/
+        result.front_laser = PULSE_LASER; /* Front Laser		*/
+        result.rear_laser = 0; /* Rear Laser		*/
+        result.left_laser = 0; /* Left Laser		*/
+        result.right_laser = 0; /* Right Laser		*/
+        result.unused2 = 0;
+        result.unused3 = 0;
+        result.cargo_capacity = 20; /* Cargo Capacity	*/
+        result.current_cargo = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; /* Current Cargo	*/
+        result.ecm = 0; /* ECM				*/
+        result.fuel_scoop = 0; /* Fuel Scoop		*/
+        result.energy_bomb = 0; /* Energy Bomb		*/
+        result.energy_unit = 0; /* Energy Unit		*/
+        result.docking_computer = 0; /* Docking Computer */
+        result.galactic_hyperdrive = 0; /* Galactic H'Drive	*/
+        result.escape_pod = 0; /* Escape Pod		*/
+        result.unused4 = 0;
+        result.unused5 = 0;
+        result.unused6 = 0;
+        result.unused7 = 0;
+        result.missiles = 3; /* No. of Missiles	*/
+        result.legal_status = 0; /* Legal Status		*/
+        result.station_stock = [
+            0x10, 0x0F, 0x11, 0x00, 0x03, 0x1C, /* Station Stock	*/
+            0x0E, 0x00, 0x00, 0x0A, 0x00, 0x11, 0x3A, 0x07, 0x09, 0x08, 0x00,
+        ];
+        result.market_rnd = 0; /* Fluctuation		*/
+        result.score = 0; /* Score			*/
+        result.saved = 0x80; /* Saved			*/
+        result
+    }
 
-    pub fn set(
+    pub fn _set(
         name: [char; 32],
         galaxy_seed: GalaxySeed,
         mission: i16,
@@ -244,7 +446,7 @@ impl PlayerShip {
             missile_target: MISSILE_UNARMED,
         }
     }
-    fn set(
+    fn _set(
         max_speed: i16,
         max_roll: i16,
         max_climb: i16,
@@ -277,6 +479,44 @@ impl PlayerShip {
     }
 }
 
+/*
+const SSHIP_LIST: [ship_data; NO_OF_SHIPS + 1] = [
+    NULL,
+    &missile_data,
+    &coriolis_data,
+    &esccaps_data,
+    &alloy_data,
+    &cargo_data,
+    &boulder_data,
+    &asteroid_data,
+    &rock_data,
+    &orbit_data,
+    &transp_data,
+    &cobra3a_data,
+    &pythona_data,
+    &boa_data,
+    &anacnda_data,
+    &hermit_data,
+    &viper_data,
+    &sidewnd_data,
+    &mamba_data,
+    &krait_data,
+    &adder_data,
+    &gecko_data,
+    &cobra1_data,
+    &worm_data,
+    &cobra3b_data,
+    &asp2_data,
+    &pythonb_data,
+    &ferdlce_data,
+    &moray_data,
+    &thargoid_data,
+    &thargon_data,
+    &constrct_data,
+    &cougar_data,
+    &dodec_data,
+];
+*/
 // extern struct player_ship myship;
 
 // extern struct commander cmdr;

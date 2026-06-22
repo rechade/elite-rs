@@ -23,8 +23,8 @@ impl GalaxySeed {
         }
     }
 
-    pub fn set(a: u8, b: u8, c: u8, d: u8, e: u8, f: u8) -> Self {
-        Self { a, b, c, d, e, f }
+    pub fn set(&mut self, a: u8, b: u8, c: u8, d: u8, e: u8, f: u8) {
+        *self = GalaxySeed { a, b, c, d, e, f };
     }
 }
 

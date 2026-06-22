@@ -1,13 +1,9 @@
+#![allow(warnings)]
 use macroquad::prelude::*;
 use std::{thread, time};
 
 use crate::{
-    elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW,*},
-    gfx::GFX_SCALE,
-    sound::SND_BEEP,
-    space::{dock_player, launch_player},
-    stars::{Stars, create_new_stars, flip_stars, update_starfield},
-    swat::{draw_laser_lines, fire_laser, snd_play_sample},
+    elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW,*}, gfx::GFX_SCALE, shipdata::NO_OF_SHIPS, sound::SND_BEEP, space::{UnivObject, dock_player, launch_player}, stars::{Stars, create_new_stars, flip_stars, update_starfield}, swat::{clear_universe, draw_laser_lines, fire_laser, snd_play_sample}, vector::{START_MATRIX, START_VECTOR}
 };
 
 pub(crate) mod elite;
@@ -19,6 +15,9 @@ pub(crate) mod space;
 pub(crate) mod stars;
 pub(crate) mod swat;
 pub(crate) mod trade;
+pub(crate) mod vector;
+pub(crate) mod shipdata;
+pub(crate) mod threed;
 const FIRE_KEY: KeyCode = KeyCode::A;
 const DOCK_KEY: KeyCode = KeyCode::C;
 const ECM_KEY: KeyCode = KeyCode::E;
@@ -75,7 +74,7 @@ const FLG_SLOW: i16 = 2048;
 const FLG_BOLD: i16 = 4096;
 const FLG_POLICE: i16 = 8192;
 
-const MAX_UNIV_OBJECTS: i16 = 20;
+const MAX_UNIV_OBJECTS: usize = 100;
 struct Config {
     speed_cap: i16,
     wireframe: i16,
@@ -145,6 +144,7 @@ struct GameParams {
     finish: bool,
     game_over: bool,
     find_name: [char; 20],
+    in_battle: bool
 }
 impl GameParams {
     pub fn increase_flight_roll(&mut self) {
@@ -232,6 +232,7 @@ impl GameParams {
         finish: bool,
         game_over: bool,
         find_name: [char; 20],
+        in_battle: bool,
     ) -> Self {
         Self {
             current_screen,
@@ -264,6 +265,7 @@ impl GameParams {
             find_name,
             finish,
             game_over,
+            in_battle
         }
     }
 
@@ -299,12 +301,99 @@ impl GameParams {
             finish: false,
             game_over: false,
             find_name: ['b'; 20],
+            in_battle: false,
         }
     }
 }
 
 #[macroquad::main("EliteRS")]
 async fn main() {
+    let mut ship_count: [i16;NO_OF_SHIPS + 1]   =[0;NO_OF_SHIPS + 1];  /* many */
+
+let esccaps_point: Vec<ShipPoint> = vec![
+    ShipPoint::new(-7, 0, 36, 31, 1, 2, 3, 3),
+    ShipPoint::new(-7, -14, -12, 31, 0, 2, 3, 3),
+    ShipPoint::new(-7, 14, -12, 31, 0, 1, 3, 3),
+    ShipPoint::new(21, 0, 0, 31, 0, 1, 2, 2),
+];
+
+let esccaps_line: Vec<ShipLine> = vec![
+    ShipLine::new(31, 2, 3, 0, 1),
+    ShipLine::new(31, 0, 3, 1, 2),
+    ShipLine::new(31, 0, 1, 2, 3),
+    ShipLine::new(31, 1, 2, 3, 0),
+    ShipLine::new(31, 1, 3, 0, 2),
+    ShipLine::new(31, 0, 2, 3, 1),
+];
+
+let esccaps_face_normal: Vec<ShipFaceNormal> = vec![
+    ShipFaceNormal::new(31, 52, 0, -122),
+    ShipFaceNormal::new(31, 39, 103, 30),
+    ShipFaceNormal::new(31, 39, -103, 30),
+    ShipFaceNormal::new(31, -112, 0, 0),
+];
+
+let esccaps_data: ShipData = ShipData {
+    name: put_into_name("Escape Capsule                  "),
+    num_points: 4,
+    num_lines: 6,
+    num_faces: 4,
+    max_loot: 0,
+    scoop_type: 2,
+    size: 256.0,
+    front_laser: 0,
+    bounty: 0,
+    vanish_point: 8,
+    energy: 17,
+    velocity: 8,
+    missiles: 0,
+    laser_strength: 0,
+    points: esccaps_point,
+    lines: esccaps_line,
+    normals: esccaps_face_normal,
+};
+// let ship_list: [ShipData; NO_OF_SHIPS + 1] = [
+let ship_list: [ShipData; NO_OF_SHIPS + 1] = [
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+    esccaps_data.clone(),
+];
+
+    let mut universe: Vec<UnivObject> = vec![];
+    for i in 0..MAX_UNIV_OBJECTS {
+        universe.push(UnivObject::new(START_VECTOR,START_MATRIX,0,0,0,0,0,0,0,0,0,0,0,0,0));
+    }
     let frame_duration = time::Duration::from_millis(40);
     let mut config: Config = Config::new();
     let mut scan_config: ScanConfig = ScanConfig::new();
@@ -313,6 +402,8 @@ async fn main() {
     let mut da_stars: Stars = Stars::new();
     create_new_stars(&mut da_stars, &params);
     initialise_game(&mut params);
+
+    clear_universe(&mut universe, &mut ship_count, &mut params.in_battle);
     while !params.finish {
         params.game_over = false;
         dock_player(&mut params);
@@ -330,13 +421,12 @@ async fn main() {
         // display_commander_status ();
         while !params.game_over {
             // snd_update_sound();
-            // gfx_update_screen();
             // gfx_set_clip_region (1, 1, 510, 383);
 
             params.rolling = false;
             params.climbing = false;
 
-            handle_flight_keys(&mut params, &config, &mut cmdr, &mut da_stars);
+            handle_flight_keys(&mut params, &config, &mut cmdr, &mut da_stars, &mut universe, &mut ship_count);
 
             if params.game_paused {
                 continue;
@@ -477,6 +567,16 @@ async fn main() {
             next_frame().await
         }
     }
+}
+
+fn put_into_name(new_name: &str)->[char;32]  {
+    let mut result =[' ';32];
+    for (i,c) in new_name.chars().enumerate() {
+        if i < result.len(){
+        result[i]=c;
+        }
+    }
+    result
 }
 /*
  * Initialise the game parameters.
@@ -858,6 +958,8 @@ fn handle_flight_keys(
     config: &Config,
     cmdr: &mut Commander,
     da_stars: &mut Stars,
+    univ: &mut [UnivObject],
+    ship_count: &mut [i16; NO_OF_SHIPS +1]
 ) {
     let mut keyasc;
 
@@ -910,7 +1012,7 @@ fn handle_flight_keys(
         params.find_input = false;
 
         if params.docked {
-            launch_player(params, cmdr, da_stars);
+            launch_player(params, cmdr, da_stars, univ,ship_count);
         } else {
             if params.current_screen != SCR_FRONT_VIEW {
                 params.current_screen = SCR_FRONT_VIEW;

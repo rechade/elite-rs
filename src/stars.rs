@@ -1,3 +1,5 @@
+use std::i32;
+
 use macroquad::{
     color::WHITE,
     prelude::rand,
@@ -448,4 +450,7 @@ pub fn update_starfield(da_stars: &mut Stars, params: &GameParams) {
 }
 pub fn rand255() -> u8 {
     rand::gen_range(0, 255)
+}
+pub fn randint() -> i32 {
+    rand::gen_range(0, i32::MAX)
 }
