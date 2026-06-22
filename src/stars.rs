@@ -1,4 +1,4 @@
-use std::i32;
+use std::i64;
 
 use macroquad::{
     color::WHITE,
@@ -68,8 +68,8 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut xx: f32;
     let mut yy: f32;
     let mut zz: f32;
-    let mut sx: i16;
-    let mut sy: i16;
+    let mut sx: My;
+    let mut sy: My;
 
     let nstars = {
         if params.witchspace {
@@ -93,8 +93,8 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
     for i in 0..nstars {
         /* Plot the stars in their current locations... */
 
-        sy = (da_stars.stars[i].y) as i16;
-        sx = (da_stars.stars[i].x) as i16;
+        sy = (da_stars.stars[i].y) as My;
+        sx = (da_stars.stars[i].x) as My;
         zz = da_stars.stars[i].z;
 
         sx += 128;
@@ -103,13 +103,13 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
         sx *= GFX_SCALE;
         sy *= GFX_SCALE;
 
-        if !da_stars.warp_stars
+        if (!da_stars.warp_stars)
             && (sx >= GFX_VIEW_TX)
             && (sx <= GFX_VIEW_BX)
             && (sy >= GFX_VIEW_TY)
             && (sy <= GFX_VIEW_BY)
         {
-            draw_rectangle(sx as f32, sy as f32, 1.0, 1.0, WHITE);
+            draw_rectangle(sx as f32, sy as f32, STAR_SIZE, STAR_SIZE, WHITE);
 
             if zz < 0xC0 as f32 {
                 draw_rectangle(sx as f32 + 1.0, sy as f32, STAR_SIZE, STAR_SIZE, WHITE);
@@ -159,8 +159,8 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
             );
         }
 
-        sx = xx as i16;
-        sy = yy as i16;
+        sx = xx as My;
+        sy = yy as My;
 
         if (sx > 120) || (sx < -120) || (sy > 120) || (sy < -120) || (zz < 16.0) {
             da_stars.stars[i].x = ((rand255() - 128) | 8) as f32;
@@ -178,10 +178,10 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut xx: f32;
     let mut yy: f32;
     let mut zz: f32;
-    let mut sx: i16;
-    let mut sy: i16;
-    let mut ex: i16;
-    let mut ey: i16;
+    let mut sx: My;
+    let mut sy: My;
+    let mut ex: My;
+    let mut ey: My;
 
     let nstars = {
         if params.witchspace {
@@ -205,8 +205,8 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
     for i in 0..nstars {
         /* Plot the stars in their current locations... */
 
-        sy = da_stars.stars[i].y as i16;
-        sx = da_stars.stars[i].x as i16;
+        sy = da_stars.stars[i].y as My;
+        sx = da_stars.stars[i].x as My;
         zz = da_stars.stars[i].z;
 
         sx += 128;
@@ -258,8 +258,8 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
         yy = yy + beta;
 
         if da_stars.warp_stars {
-            ey = yy as i16;
-            ex = xx as i16;
+            ey = yy as My;
+            ex = xx as My;
             ex = (ex + 128) * GFX_SCALE;
             ey = (ey + 96) * GFX_SCALE;
 
@@ -290,7 +290,7 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
             da_stars.stars[i].z = ((rand255() & 127) + 51) as f32;
 
             if (rand255() & 1) != 0 {
-                da_stars.stars[i].x = (rand255() as i16 - 128) as f32;
+                da_stars.stars[i].x = (rand255() - 128) as f32;
                 da_stars.stars[i].y = if (rand255() & 1) != 0 { -115.0 } else { 115.0 };
             } else {
                 da_stars.stars[i].x = if (rand255() & 1) != 0 { -126.0 } else { 126.0 };
@@ -448,9 +448,9 @@ pub fn update_starfield(da_stars: &mut Stars, params: &GameParams) {
         side_starfield(da_stars, params);
     }
 }
-pub fn rand255() -> u8 {
+pub fn rand255() -> My {
     rand::gen_range(0, 255)
 }
-pub fn randint() -> i32 {
-    rand::gen_range(0, i32::MAX)
+pub fn randint() -> My {
+    rand::gen_range(0, My::MAX)
 }

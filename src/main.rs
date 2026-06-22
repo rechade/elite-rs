@@ -3,7 +3,7 @@ use macroquad::prelude::*;
 use std::{thread, time};
 
 use crate::{
-    elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW,*}, gfx::GFX_SCALE, shipdata::NO_OF_SHIPS, sound::SND_BEEP, space::{UnivObject, dock_player, launch_player}, stars::{Stars, create_new_stars, flip_stars, update_starfield}, swat::{clear_universe, draw_laser_lines, fire_laser, snd_play_sample}, vector::{START_MATRIX, START_VECTOR}
+    elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW,*}, gfx::GFX_SCALE, shipdata::NO_OF_SHIPS, sound::SND_BEEP, space::{UnivObject, dock_player, launch_player}, stars::{Stars, create_new_stars, flip_stars, update_starfield}, swat::{clear_universe, cool_laser, draw_laser_lines, fire_laser, snd_play_sample}, vector::{START_MATRIX, START_VECTOR}
 };
 
 pub(crate) mod elite;
@@ -32,7 +32,7 @@ const INCREASE_SPEED_KEY: KeyCode = KeyCode::Space;
 const DECREASE_SPEED_KEY: KeyCode = KeyCode::Slash;
 const ENERGY_BOMB_KEY: KeyCode = KeyCode::Tab;
 const THICKNESS: f32 = 1.0;
-// const SCR_INTRO_ONE: i16 = 1;
+// const SCR_INTRO_ONE: My = 1;
 // const SCR_INTRO_TWO: i16 = 2;
 // const SCR_GALACTIC_CHART: i16 = 3;
 // const SCR_SHORT_RANGE: i16 = 4;
@@ -54,34 +54,33 @@ const THICKNESS: f32 = 1.0;
 // const SCR_SETTINGS: i16 = 20;
 // const SCR_ESCAPE_POD: i16 = 21;
 
-const PULSE_LASER: i16 = 0x0F;
-const BEAM_LASER: i16 = 0x8F;
-const MILITARY_LASER: i16 = 0x97;
-const MINING_LASER: i16 = 0x32;
+const PULSE_LASER: My = 0x0F;
+const BEAM_LASER: My = 0x8F;
+const MILITARY_LASER: My = 0x97;
+const MINING_LASER: My = 0x32;
 
-const FLG_DEAD: i16 = 1;
-const FLG_REMOVE: i16 = 2;
-const FLG_EXPLOSION: i16 = 4;
-const FLG_ANGRY: i16 = 8;
-const FLG_FIRING: i16 = 16;
-const FLG_HAS_ECM: i16 = 32;
-const FLG_HOSTILE: i16 = 64;
-const FLG_CLOAKED: i16 = 128;
-const FLG_FLY_TO_PLANET: i16 = 256;
-const FLG_FLY_TO_STATION: i16 = 512;
-const FLG_INACTIVE: i16 = 1024;
-const FLG_SLOW: i16 = 2048;
-const FLG_BOLD: i16 = 4096;
-const FLG_POLICE: i16 = 8192;
+const FLG_DEAD: My = 1;
+const FLG_REMOVE: My = 2;
+const FLG_EXPLOSION: My = 4;
+const FLG_ANGRY: My = 8;
+const FLG_FIRING: My = 16;
+const FLG_HAS_ECM: My = 32;
+const FLG_HOSTILE: My = 64;
+const FLG_CLOAKED: My = 128;
+const FLG_FLY_TO_PLANET: My = 256;
+const FLG_FLY_TO_STATION: My = 512;
+const FLG_INACTIVE: My = 1024;
+const FLG_SLOW: My = 2048;
+const FLG_BOLD: My = 4096;
+const FLG_POLICE: My = 8192;
 
-const MAX_UNIV_OBJECTS: usize = 100;
 struct Config {
-    speed_cap: i16,
-    wireframe: i16,
-    anti_alias_gfx: i16,
-    planet_render_style: i16,
-    hoopy_casinos: i16,
-    instant_dock: i16,
+    speed_cap: My,
+    wireframe: My,
+    anti_alias_gfx: My,
+    planet_render_style: My,
+    hoopy_casinos: My,
+    instant_dock: My,
 }
 
 impl Config {
@@ -96,12 +95,12 @@ impl Config {
         }
     }
     fn set(
-        speed_cap: i16,
-        wireframe: i16,
-        anti_alias_gfx: i16,
-        planet_render_style: i16,
-        hoopy_casinos: i16,
-        instant_dock: i16,
+        speed_cap: My,
+        wireframe: My,
+        anti_alias_gfx: My,
+        planet_render_style: My,
+        hoopy_casinos: My,
+        instant_dock: My,
     ) -> Self {
         Self {
             speed_cap,
@@ -113,34 +112,35 @@ impl Config {
         }
     }
 }
+pub type My = i64;
 struct GameParams {
-    current_screen: i16,
-    flight_speed: i16,
-    flight_roll: i16,
-    flight_climb: i16,
+    current_screen: My,
+    flight_speed: My,
+    flight_roll: My,
+    flight_climb: My,
     docked: bool,
-    front_shield: i16,
-    aft_shield: i16,
-    energy: i16,
-    draw_lasers: i16,
-    mcount: i16,
-    message_count: i16,
+    front_shield: My,
+    aft_shield: My,
+    energy: My,
+    draw_lasers: My,
+    mcount: My,
+    message_count: My,
     hyper_ready: bool,
-    detonate_bomb: i16,
+    detonate_bomb: My,
     find_input: bool,
     witchspace: bool,
     game_paused: bool,
     auto_pilot: bool,
-    cross_x: i16,
-    cross_y: i16,
-    old_cross_x: i16,
-    old_cross_y: i16,
-    cross_timer: i16,
+    cross_x: My,
+    cross_y: My,
+    old_cross_x: My,
+    old_cross_y: My,
+    cross_timer: My,
     myship: PlayerShip,
     message_string: [char; 80],
     rolling: bool,
     climbing: bool,
-    have_joystick: i16,
+    have_joystick: My,
     finish: bool,
     game_over: bool,
     find_name: [char; 20],
@@ -172,11 +172,11 @@ impl GameParams {
     }
 }
 struct ScanConfig {
-    scanner_cx: i16,
-    scanner_cy: i16,
+    scanner_cx: My,
+    scanner_cy: My,
 
-    compass_centre_x: i16,
-    compass_centre_y: i16,
+    compass_centre_x: My,
+    compass_centre_y: My,
 }
 
 impl ScanConfig {
@@ -188,7 +188,7 @@ impl ScanConfig {
             compass_centre_y: 0,
         }
     }
-    fn set(scanner_cx: i16, scanner_cy: i16, compass_centre_x: i16, compass_centre_y: i16) -> Self {
+    fn set(scanner_cx: My, scanner_cy: My, compass_centre_x: My, compass_centre_y: My) -> Self {
         Self {
             scanner_cx,
             scanner_cy,
@@ -202,33 +202,33 @@ impl ScanConfig {
 
 impl GameParams {
     fn set(
-        current_screen: i16,
-        flight_speed: i16,
-        flight_roll: i16,
-        flight_climb: i16,
+        current_screen: My,
+        flight_speed: My,
+        flight_roll: My,
+        flight_climb: My,
         docked: bool,
-        front_shield: i16,
-        aft_shield: i16,
-        energy: i16,
-        draw_lasers: i16,
-        mcount: i16,
-        message_count: i16,
+        front_shield: My,
+        aft_shield: My,
+        energy: My,
+        draw_lasers: My,
+        mcount: My,
+        message_count: My,
         hyper_ready: bool,
-        detonate_bomb: i16,
+        detonate_bomb: My,
         find_input: bool,
         witchspace: bool,
         game_paused: bool,
         auto_pilot: bool,
-        cross_x: i16,
-        cross_y: i16,
-        old_cross_x: i16,
-        old_cross_y: i16,
-        cross_timer: i16,
+        cross_x: My,
+        cross_y: My,
+        old_cross_x: My,
+        old_cross_y: My,
+        cross_timer: My,
         myship: PlayerShip,
         message_string: [char; 80],
         rolling: bool,
         climbing: bool,
-        have_joystick: i16,
+        have_joystick: My,
         finish: bool,
         game_over: bool,
         find_name: [char; 20],
@@ -308,7 +308,7 @@ impl GameParams {
 
 #[macroquad::main("EliteRS")]
 async fn main() {
-    let mut ship_count: [i16;NO_OF_SHIPS + 1]   =[0;NO_OF_SHIPS + 1];  /* many */
+    let mut ship_count: [My;NO_OF_SHIPS + 1]   =[0;NO_OF_SHIPS + 1];  /* many */
 
 let esccaps_point: Vec<ShipPoint> = vec![
     ShipPoint::new(-7, 0, 36, 31, 1, 2, 3, 3),
@@ -353,7 +353,7 @@ let esccaps_data: ShipData = ShipData {
     normals: esccaps_face_normal,
 };
 // let ship_list: [ShipData; NO_OF_SHIPS + 1] = [
-let ship_list: [ShipData; NO_OF_SHIPS + 1] = [
+let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
     esccaps_data.clone(),
     esccaps_data.clone(),
     esccaps_data.clone(),
@@ -397,7 +397,7 @@ let ship_list: [ShipData; NO_OF_SHIPS + 1] = [
     let frame_duration = time::Duration::from_millis(40);
     let mut config: Config = Config::new();
     let mut scan_config: ScanConfig = ScanConfig::new();
-    let mut cmdr = Commander::new();
+    let mut cmdr = Commander::get_saved();
     let mut params: GameParams = GameParams::new();
     let mut da_stars: Stars = Stars::new();
     create_new_stars(&mut da_stars, &params);
@@ -426,7 +426,7 @@ let ship_list: [ShipData; NO_OF_SHIPS + 1] = [
             params.rolling = false;
             params.climbing = false;
 
-            handle_flight_keys(&mut params, &config, &mut cmdr, &mut da_stars, &mut universe, &mut ship_count);
+            handle_flight_keys(&mut params, &config, &mut cmdr, &mut da_stars, &mut universe, &mut ship_count, &mut ship_list);
 
             if params.game_paused {
                 continue;
@@ -532,7 +532,7 @@ let ship_list: [ShipData; NO_OF_SHIPS + 1] = [
                     // random_encounter();
                 }
 
-                // cool_laser();
+                cool_laser(&mut params);
                 // time_ecm();
 
                 // update_console();
@@ -634,7 +634,7 @@ fn finish_game(params: &mut GameParams) {
  * Move the planet chart cross hairs to specified position.
  */
 
-fn move_cross(params: &mut GameParams, dx: i16, dy: i16) {
+fn move_cross(params: &mut GameParams, dx: My, dy: My) {
     params.cross_timer = 5;
 
     if params.current_screen == SCR_SHORT_RANGE {
@@ -663,7 +663,7 @@ fn move_cross(params: &mut GameParams, dx: i16, dy: i16) {
  * Draw the cross hairs at the specified position.
  */
 
-fn draw_cross(params: &GameParams, cx: i16, cy: i16) {
+fn draw_cross(params: &GameParams, cx: My, cy: My) {
     if params.current_screen == SCR_SHORT_RANGE {
         // gfx_set_clip_region(1, 37, 510, 339);
         // xor_mode(TRUE);
@@ -713,11 +713,11 @@ fn draw_cross(params: &GameParams, cx: i16, cy: i16) {
 }
 
 fn draw_laser_sights(params: &GameParams, cmdr: &Commander) {
-    let mut laser: i16 = 0;
-    let mut x1: i16;
-    let mut y1: i16;
-    let mut x2: i16;
-    let mut y2: i16;
+    let mut laser: My = 0;
+    let mut x1: My;
+    let mut y1: My;
+    let mut x2: My;
+    let mut y2: My;
 
     match params.current_screen {
         SCR_FRONT_VIEW => {
@@ -959,7 +959,8 @@ fn handle_flight_keys(
     cmdr: &mut Commander,
     da_stars: &mut Stars,
     univ: &mut [UnivObject],
-    ship_count: &mut [i16; NO_OF_SHIPS +1]
+    ship_count: &mut [My; NO_OF_SHIPS +1],
+    ship_list: &mut [ShipData; NO_OF_SHIPS +1]
 ) {
     let mut keyasc;
 
@@ -1012,7 +1013,7 @@ fn handle_flight_keys(
         params.find_input = false;
 
         if params.docked {
-            launch_player(params, cmdr, da_stars, univ,ship_count);
+            launch_player(params, cmdr, da_stars, univ,ship_count,ship_list);
         } else {
             if params.current_screen != SCR_FRONT_VIEW {
                 params.current_screen = SCR_FRONT_VIEW;

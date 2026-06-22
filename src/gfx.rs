@@ -1,6 +1,8 @@
-pub const GFX_VIEW_TX: i16 = 1;
-pub const GFX_VIEW_TY: i16 = 1;
-pub const GFX_VIEW_BX: i16 = 509;
-pub const GFX_VIEW_BY: i16 = 381;
-pub const GFX_SCALE: i16 = 1;
-pub const STAR_SIZE: f32 = 2.0;
+use crate::My;
+
+pub const GFX_VIEW_TX: My = 1;
+pub const GFX_VIEW_TY: My = 1;
+pub const GFX_VIEW_BX: My = 1920;
+pub const GFX_VIEW_BY: My = 1024;
+pub const GFX_SCALE: My = 4;
+pub const STAR_SIZE: f32 = 3.0;

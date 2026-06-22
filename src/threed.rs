@@ -15,7 +15,7 @@ use crate::{
     space::{Point, UnivObject},
     stars::{rand255, randint},
     vector::{vector_dot_product, Matrix, Vector, START_MATRIX, START_VECTOR},
-    Config, GameParams, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, THICKNESS,
+    Config, GameParams, My, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, THICKNESS,
 };
 
 pub fn draw_ship(
@@ -76,10 +76,10 @@ pub fn draw_ship(
 }
 fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1]) {
     let mut trans_mat: Matrix = START_MATRIX;
-    let mut sx: i16;
-    let mut sy: i16;
-    let mut ex: i16;
-    let mut ey: i16;
+    let mut sx: My;
+    let mut sy: My;
+    let mut ex: My;
+    let mut ey: My;
     let mut rx: f32;
     let mut ry: f32;
     let mut rz: f32;
@@ -91,7 +91,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
     let mut ship_norm: Vec<ShipFaceNormal>;
     let mut num_faces: usize;
     let mut ship: ShipData;
-    let lasv: i16;
+    let lasv: My;
 
     ship = ship_list[univ.da_type as usize].clone();
 
@@ -133,7 +133,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
     trans_mat[1].z = trans_mat[2].y;
     trans_mat[2].y = tmp;
 
-    let mut point_list: [Point; 16] = [Point { x: 0, y: 0, z: 0 }; 16];
+    let mut point_list: [Point; 60] = [Point { x: 0, y: 0, z: 0 }; 60];
     for i in 0..ship.num_points as usize {
         vec.x = ship.points[i].x as f32;
         vec.y = ship.points[i].y as f32;
@@ -145,8 +145,8 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
         ry = vec.y + univ.location.y;
         rz = vec.z + univ.location.z;
 
-        sx = ((rx * 256.0) / rz) as i16;
-        sy = ((ry * 256.0) / rz) as i16;
+        sx = ((rx * 256.0) / rz) as My;
+        sy = ((ry * 256.0) / rz) as My;
 
         sy = -sy;
 

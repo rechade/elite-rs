@@ -13,32 +13,23 @@
  */
 
 use crate::{
-    planet::GalaxySeed, shipdata::NO_OF_SHIPS, swat::MISSILE_UNARMED, trade::NO_OF_STOCK_ITEMS,
+    planet::GalaxySeed, shipdata::NO_OF_SHIPS, swat::MISSILE_UNARMED, trade::NO_OF_STOCK_ITEMS, My,
 };
 
 #[derive(Copy, Clone)]
 pub struct ShipPoint {
-    pub x: i16,
-    pub y: i16,
-    pub z: i16,
-    pub dist: i16,
-    pub face1: i16,
-    pub face2: i16,
-    pub face3: i16,
-    pub face4: i16,
+    pub x: My,
+    pub y: My,
+    pub z: My,
+    pub dist: My,
+    pub face1: My,
+    pub face2: My,
+    pub face3: My,
+    pub face4: My,
 }
 
 impl ShipPoint {
-    pub fn new(
-        x: i16,
-        y: i16,
-        z: i16,
-        dist: i16,
-        face1: i16,
-        face2: i16,
-        face3: i16,
-        face4: i16,
-    ) -> Self {
+    pub fn new(x: My, y: My, z: My, dist: My, face1: My, face2: My, face3: My, face4: My) -> Self {
         Self {
             x,
             y,
@@ -54,15 +45,15 @@ impl ShipPoint {
 
 #[derive(Copy, Clone)]
 pub struct ShipLine {
-    pub dist: i16,
-    pub face1: i16,
-    pub face2: i16,
-    pub start_point: i16,
-    pub end_point: i16,
+    pub dist: My,
+    pub face1: My,
+    pub face2: My,
+    pub start_point: My,
+    pub end_point: My,
 }
 
 impl ShipLine {
-    pub fn new(dist: i16, face1: i16, face2: i16, start_point: i16, end_point: i16) -> Self {
+    pub fn new(dist: My, face1: My, face2: My, start_point: My, end_point: My) -> Self {
         Self {
             dist,
             face1,
@@ -75,32 +66,32 @@ impl ShipLine {
 
 #[derive(Copy, Clone)]
 pub struct ShipFaceNormal {
-    pub dist: i16,
-    pub x: i16,
-    pub y: i16,
-    pub z: i16,
+    pub dist: My,
+    pub x: My,
+    pub y: My,
+    pub z: My,
 }
 
 impl ShipFaceNormal {
-    pub fn new(dist: i16, x: i16, y: i16, z: i16) -> Self {
+    pub fn new(dist: My, x: My, y: My, z: My) -> Self {
         Self { dist, x, y, z }
     }
 }
 pub struct ShipData {
     pub name: [char; 32],
-    pub num_points: i16,
-    pub num_lines: i16,
-    pub num_faces: i16,
-    pub max_loot: i16,
-    pub scoop_type: i16,
+    pub num_points: My,
+    pub num_lines: My,
+    pub num_faces: My,
+    pub max_loot: My,
+    pub scoop_type: My,
     pub size: f32,
-    pub front_laser: i16,
-    pub bounty: i16,
-    pub vanish_point: i16,
-    pub energy: i16,
-    pub velocity: i16,
-    pub missiles: i16,
-    pub laser_strength: i16,
+    pub front_laser: My,
+    pub bounty: My,
+    pub vanish_point: My,
+    pub energy: My,
+    pub velocity: My,
+    pub missiles: My,
+    pub laser_strength: My,
     pub points: Vec<ShipPoint>,
     pub lines: Vec<ShipLine>,
     pub normals: Vec<ShipFaceNormal>,
@@ -129,85 +120,85 @@ impl Clone for ShipData {
         }
     }
 }
-pub const SCR_INTRO_ONE: i16 = 1;
-pub const SCR_INTRO_TWO: i16 = 2;
-pub const SCR_GALACTIC_CHART: i16 = 3;
-pub const SCR_SHORT_RANGE: i16 = 4;
-pub const SCR_PLANET_DATA: i16 = 5;
-pub const SCR_MARKET_PRICES: i16 = 6;
-pub const SCR_CMDR_STATUS: i16 = 7;
-pub const SCR_FRONT_VIEW: i16 = 8;
-pub const SCR_REAR_VIEW: i16 = 9;
-pub const SCR_LEFT_VIEW: i16 = 10;
-pub const SCR_RIGHT_VIEW: i16 = 11;
-pub const SCR_BREAK_PATTERN: i16 = 12;
-pub const SCR_INVENTORY: i16 = 13;
-pub const SCR_EQUIP_SHIP: i16 = 14;
-pub const SCR_OPTIONS: i16 = 15;
-pub const SCR_LOAD_CMDR: i16 = 16;
-pub const SCR_SAVE_CMDR: i16 = 17;
-pub const SCR_QUIT: i16 = 18;
-pub const SCR_GAME_OVER: i16 = 19;
-pub const SCR_SETTINGS: i16 = 20;
-pub const SCR_ESCAPE_POD: i16 = 21;
+pub const SCR_INTRO_ONE: My = 1;
+pub const SCR_INTRO_TWO: My = 2;
+pub const SCR_GALACTIC_CHART: My = 3;
+pub const SCR_SHORT_RANGE: My = 4;
+pub const SCR_PLANET_DATA: My = 5;
+pub const SCR_MARKET_PRICES: My = 6;
+pub const SCR_CMDR_STATUS: My = 7;
+pub const SCR_FRONT_VIEW: My = 8;
+pub const SCR_REAR_VIEW: My = 9;
+pub const SCR_LEFT_VIEW: My = 10;
+pub const SCR_RIGHT_VIEW: My = 11;
+pub const SCR_BREAK_PATTERN: My = 12;
+pub const SCR_INVENTORY: My = 13;
+pub const SCR_EQUIP_SHIP: My = 14;
+pub const SCR_OPTIONS: My = 15;
+pub const SCR_LOAD_CMDR: My = 16;
+pub const SCR_SAVE_CMDR: My = 17;
+pub const SCR_QUIT: My = 18;
+pub const SCR_GAME_OVER: My = 19;
+pub const SCR_SETTINGS: My = 20;
+pub const SCR_ESCAPE_POD: My = 21;
 
-pub const PULSE_LASER: i16 = 0x0F;
-pub const BEAM_LASER: i16 = 0x8F;
-pub const MILITARY_LASER: i16 = 0x97;
-pub const MINING_LASER: i16 = 0x32;
+pub const PULSE_LASER: My = 0x0F;
+pub const BEAM_LASER: My = 0x8F;
+pub const MILITARY_LASER: My = 0x97;
+pub const MINING_LASER: My = 0x32;
 
-pub const FLG_DEAD: i16 = 1;
-pub const FLG_REMOVE: i16 = 2;
-pub const FLG_EXPLOSION: i16 = 4;
-pub const FLG_ANGRY: i16 = 8;
-pub const FLG_FIRING: i16 = 16;
-pub const FLG_HAS_ECM: i16 = 32;
-pub const FLG_HOSTILE: i16 = 64;
-pub const FLG_CLOAKED: i16 = 128;
-pub const FLG_FLY_TO_PLANET: i16 = 256;
-pub const FLG_FLY_TO_STATION: i16 = 512;
-pub const FLG_INACTIVE: i16 = 1024;
-pub const FLG_SLOW: i16 = 2048;
-pub const FLG_BOLD: i16 = 4096;
-pub const FLG_POLICE: i16 = 8192;
+pub const FLG_DEAD: My = 1;
+pub const FLG_REMOVE: My = 2;
+pub const FLG_EXPLOSION: My = 4;
+pub const FLG_ANGRY: My = 8;
+pub const FLG_FIRING: My = 16;
+pub const FLG_HAS_ECM: My = 32;
+pub const FLG_HOSTILE: My = 64;
+pub const FLG_CLOAKED: My = 128;
+pub const FLG_FLY_TO_PLANET: My = 256;
+pub const FLG_FLY_TO_STATION: My = 512;
+pub const FLG_INACTIVE: My = 1024;
+pub const FLG_SLOW: My = 2048;
+pub const FLG_BOLD: My = 4096;
+pub const FLG_POLICE: My = 8192;
 
-pub const MAX_UNIV_OBJECTS: i16 = 20;
+pub const MAX_UNIV_OBJECTS: usize = 20;
 
 pub struct Commander {
     pub name: [char; 32],
     pub galaxy_seed: GalaxySeed,
-    pub mission: i16,
-    pub ship_x: i16,
-    pub ship_y: i16,
-    pub credits: i16,
-    pub fuel: i16,
-    pub unused1: i16,
-    pub galaxy_number: i16,
-    pub front_laser: i16,
-    pub rear_laser: i16,
-    pub left_laser: i16,
-    pub right_laser: i16,
-    pub unused2: i16,
-    pub unused3: i16,
-    pub cargo_capacity: i16,
-    pub ecm: i16,
-    pub fuel_scoop: i16,
-    pub energy_bomb: i16,
-    pub energy_unit: i16,
-    pub docking_computer: i16,
-    pub galactic_hyperdrive: i16,
-    pub escape_pod: i16,
-    pub unused4: i16,
-    pub unused5: i16,
-    pub unused6: i16,
-    pub unused7: i16,
-    pub missiles: i16,
-    pub legal_status: i16,
-    pub market_rnd: i16,
-    pub score: i16,
-    pub saved: i16,
-    pub station_stock: [i16; NO_OF_STOCK_ITEMS],
-    pub current_cargo: [i16; NO_OF_STOCK_ITEMS],
+    pub mission: My,
+    pub ship_x: My,
+    pub ship_y: My,
+    pub credits: My,
+    pub fuel: My,
+    pub unused1: My,
+    pub galaxy_number: My,
+    pub front_laser: My,
+    pub rear_laser: My,
+    pub left_laser: My,
+    pub right_laser: My,
+    pub unused2: My,
+    pub unused3: My,
+    pub cargo_capacity: My,
+    pub ecm: My,
+    pub fuel_scoop: My,
+    pub energy_bomb: My,
+    pub energy_unit: My,
+    pub docking_computer: My,
+    pub galactic_hyperdrive: My,
+    pub escape_pod: My,
+    pub unused4: My,
+    pub unused5: My,
+    pub unused6: My,
+    pub unused7: My,
+    pub missiles: My,
+    pub legal_status: My,
+    pub market_rnd: My,
+    pub score: My,
+    pub saved: My,
+    pub station_stock: [My; NO_OF_STOCK_ITEMS],
+    pub current_cargo: [My; NO_OF_STOCK_ITEMS],
 }
 
 impl Commander {
@@ -340,38 +331,38 @@ impl Commander {
     pub fn _set(
         name: [char; 32],
         galaxy_seed: GalaxySeed,
-        mission: i16,
-        ship_x: i16,
-        ship_y: i16,
-        credits: i16,
-        fuel: i16,
-        unused1: i16,
-        galaxy_number: i16,
-        front_laser: i16,
-        rear_laser: i16,
-        left_laser: i16,
-        right_laser: i16,
-        unused2: i16,
-        unused3: i16,
-        cargo_capacity: i16,
-        ecm: i16,
-        fuel_scoop: i16,
-        energy_bomb: i16,
-        energy_unit: i16,
-        docking_computer: i16,
-        galactic_hyperdrive: i16,
-        escape_pod: i16,
-        unused4: i16,
-        unused5: i16,
-        unused6: i16,
-        unused7: i16,
-        missiles: i16,
-        legal_status: i16,
-        market_rnd: i16,
-        score: i16,
-        saved: i16,
-        station_stock: [i16; NO_OF_STOCK_ITEMS],
-        current_cargo: [i16; NO_OF_STOCK_ITEMS],
+        mission: My,
+        ship_x: My,
+        ship_y: My,
+        credits: My,
+        fuel: My,
+        unused1: My,
+        galaxy_number: My,
+        front_laser: My,
+        rear_laser: My,
+        left_laser: My,
+        right_laser: My,
+        unused2: My,
+        unused3: My,
+        cargo_capacity: My,
+        ecm: My,
+        fuel_scoop: My,
+        energy_bomb: My,
+        energy_unit: My,
+        docking_computer: My,
+        galactic_hyperdrive: My,
+        escape_pod: My,
+        unused4: My,
+        unused5: My,
+        unused6: My,
+        unused7: My,
+        missiles: My,
+        legal_status: My,
+        market_rnd: My,
+        score: My,
+        saved: My,
+        station_stock: [My; NO_OF_STOCK_ITEMS],
+        current_cargo: [My; NO_OF_STOCK_ITEMS],
     ) -> Self {
         Self {
             name,
@@ -413,19 +404,19 @@ impl Commander {
 }
 
 pub struct PlayerShip {
-    pub max_speed: i16,
-    pub max_roll: i16,
-    pub max_climb: i16,
-    pub max_fuel: i16,
-    pub altitude: i16,
-    pub cabtemp: i16,
-    pub laser_temp: i16,
-    pub laser_counter: i16,
-    pub laser: i16,
-    pub laser_x: u8,
-    pub laser_y: u8,
-    pub ecm_active: i16,
-    pub missile_target: i16,
+    pub max_speed: My,
+    pub max_roll: My,
+    pub max_climb: My,
+    pub max_fuel: My,
+    pub altitude: My,
+    pub cabtemp: My,
+    pub laser_temp: My,
+    pub laser_counter: My,
+    pub laser: My,
+    pub laser_x: My,
+    pub laser_y: My,
+    pub ecm_active: My,
+    pub missile_target: My,
 }
 
 impl PlayerShip {
@@ -447,19 +438,19 @@ impl PlayerShip {
         }
     }
     fn _set(
-        max_speed: i16,
-        max_roll: i16,
-        max_climb: i16,
-        max_fuel: i16,
-        altitude: i16,
-        cabtemp: i16,
-        laser_temp: i16,
-        laser_counter: i16,
-        laser: i16,
-        laser_x: u8,
-        laser_y: u8,
-        ecm_active: i16,
-        missile_target: i16,
+        max_speed: My,
+        max_roll: My,
+        max_climb: My,
+        max_fuel: My,
+        altitude: My,
+        cabtemp: My,
+        laser_temp: My,
+        laser_counter: My,
+        laser: My,
+        laser_x: My,
+        laser_y: My,
+        ecm_active: My,
+        missile_target: My,
     ) -> Self {
         Self {
             max_speed,

@@ -28,11 +28,36 @@ impl GalaxySeed {
     }
 }
 
-struct PlanetData {
+pub struct PlanetData {
     government: u8,
     economy: u8,
-    techlevel: u8,
+    pub techlevel: u8,
     population: u8,
     productivity: u8,
     radius: u8,
+}
+pub fn generate_planet_data(pl: &mut PlanetData, planet_seed: &GalaxySeed) {
+    pl.government = (planet_seed.c / 8) & 7;
+
+    pl.economy = planet_seed.b & 7;
+
+    if (pl.government < 2) {
+        pl.economy = pl.economy | 2;
+    }
+
+    pl.techlevel = pl.economy ^ 7;
+    pl.techlevel += planet_seed.d & 3;
+    pl.techlevel += (pl.government / 2) + (pl.government & 1);
+
+    pl.population = pl.techlevel * 4;
+    pl.population += pl.government;
+    pl.population += pl.economy;
+    pl.population += 1;
+
+    pl.productivity = (pl.economy ^ 7) + 3;
+    pl.productivity *= pl.government + 4;
+    pl.productivity *= pl.population;
+    pl.productivity *= 8;
+
+    pl.radius = (((planet_seed.f & 15) + 11) * 255) + planet_seed.d;
 }

@@ -1,5 +1,8 @@
 use crate::{
-    elite::{Commander, ShipData, SCR_ESCAPE_POD, SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO},
+    elite::{
+        Commander, ShipData, MAX_UNIV_OBJECTS, SCR_ESCAPE_POD, SCR_GAME_OVER, SCR_INTRO_ONE,
+        SCR_INTRO_TWO,
+    },
     pilot::disengage_auto_pilot,
     planet::GalaxySeed,
     shipdata::{
@@ -8,54 +11,57 @@ use crate::{
     },
     sound::{SND_EXPLODE, SND_LAUNCH},
     stars::{create_new_stars, Stars},
-    swat::{clear_universe, remove_ship, reset_weapons, snd_play_sample},
+    swat::{
+        add_new_ship, add_new_station, clear_universe, remove_ship, reset_weapons, snd_play_sample,
+    },
     threed::draw_ship,
+    trade::carrying_contraband,
     vector::{Matrix, Vector, START_MATRIX},
-    Config, GameParams, FLG_DEAD, FLG_FIRING, FLG_REMOVE, SCR_BREAK_PATTERN,
+    Config, GameParams, My, FLG_DEAD, FLG_FIRING, FLG_REMOVE, SCR_BREAK_PATTERN,
 };
 
 #[derive(Clone, Copy)]
 pub struct Point {
-    pub x: i16,
-    pub y: i16,
-    pub z: i16,
+    pub x: My,
+    pub y: My,
+    pub z: My,
 }
 #[derive(Clone, Copy)]
 pub struct UnivObject {
     pub location: Vector,
     pub rotmat: Matrix,
-    pub da_type: i16,
-    pub rotx: i16,
-    pub rotz: i16,
-    pub flags: i16,
-    pub energy: i16,
-    pub velocity: u8,
-    pub acceleration: u8,
-    pub missiles: i16,
-    pub target: u8,
-    pub bravery: u8,
-    pub exp_delta: u8,
-    pub exp_seed: i32,
-    pub distance: i32,
+    pub da_type: My,
+    pub rotx: My,
+    pub rotz: My,
+    pub flags: My,
+    pub energy: My,
+    pub velocity: My,
+    pub acceleration: My,
+    pub missiles: My,
+    pub target: My,
+    pub bravery: My,
+    pub exp_delta: My,
+    pub exp_seed: My,
+    pub distance: My,
 }
 
 impl UnivObject {
     pub fn new(
         location: Vector,
         rotmat: Matrix,
-        da_type: i16,
-        rotx: i16,
-        rotz: i16,
-        flags: i16,
-        energy: i16,
-        velocity: u8,
-        acceleration: u8,
-        missiles: i16,
-        target: u8,
-        bravery: u8,
-        exp_delta: u8,
-        exp_seed: i32,
-        distance: i32,
+        da_type: My,
+        rotx: My,
+        rotz: My,
+        flags: My,
+        energy: My,
+        velocity: My,
+        acceleration: My,
+        missiles: My,
+        target: My,
+        bravery: My,
+        exp_delta: My,
+        exp_seed: My,
+        distance: My,
     ) -> Self {
         Self {
             location,
@@ -77,16 +83,15 @@ impl UnivObject {
     }
 }
 
-const MAX_UNIV_OBJECTS: usize = 20;
 pub struct Space {
-    flight_climb: i16,
-    flight_roll: i16,
-    flight_speed: i16,
+    flight_climb: My,
+    flight_roll: My,
+    flight_speed: My,
     destination_planet: GalaxySeed,
     hyper_ready: bool,
-    hyper_countdown: i16,
+    hyper_countdown: My,
     hyper_name: [char; 16],
-    hyper_distance: i16,
+    hyper_distance: My,
     hyper_galactic: bool,
 }
 pub fn dock_player(params: &mut GameParams) {
@@ -107,7 +112,8 @@ pub fn launch_player(
     cmdr: &mut Commander,
     da_stars: &mut Stars,
     univ: &mut [UnivObject],
-    ship_count: &mut [i16; NO_OF_SHIPS + 1],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
 ) {
     let mut rotmat: Matrix = START_MATRIX;
 
@@ -115,17 +121,27 @@ pub fn launch_player(
     params.flight_speed = 12;
     params.flight_roll = -15;
     params.flight_climb = 0;
-    // cmdr.legal_status |= carrying_contraband();
+    cmdr.legal_status |= carrying_contraband(cmdr);
     create_new_stars(da_stars, params);
     clear_universe(univ, ship_count, &mut params.in_battle);
     // generate_landscape(docked_planet.a * 251 + docked_planet.b);
-    // set_init_matrix(rotmat);
-    // add_new_ship(SHIP_PLANET, 0, 0, 65536, rotmat, 0, 0);
+    add_new_ship(
+        SHIP_PLANET,
+        0.0,
+        0.0,
+        65536.0,
+        &rotmat,
+        0,
+        0,
+        univ,
+        ship_list,
+        ship_count,
+    );
 
     rotmat[2].x = -rotmat[2].x;
     rotmat[2].y = -rotmat[2].y;
     rotmat[2].z = -rotmat[2].z;
-    // add_new_station(0, 0, -256, rotmat);
+    // add_new_station(0.0, 0.0, -256.0, &rotmat, univ, ship_list, ship_count);
 
     params.current_screen = SCR_BREAK_PATTERN;
     snd_play_sample(SND_LAUNCH);
@@ -139,7 +155,7 @@ fn update_universe(
     cmdr: &mut Commander,
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
     params: &mut GameParams,
-    ship_count: &mut [i16; NO_OF_SHIPS + 1],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
     config: &Config,
 ) {
     let mut da_type;
