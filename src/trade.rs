@@ -1,4 +1,4 @@
-use crate::{elite::Commander, My};
+use crate::{My, elite::Commander};
 
 struct StockItem {
     name: [char; 16],

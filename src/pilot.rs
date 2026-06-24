@@ -28,7 +28,7 @@
  * Fly to a given point in space.
  */
 
-use crate::{sound::SND_BLUE_DANUBE, GameParams};
+use crate::{GameParams, sound::SND_BLUE_DANUBE};
 /*
 void fly_to_vector (struct UnivObject *ship, Vector vec)
 {

@@ -3,19 +3,27 @@
  * (Ship, Planet, Sun etc).
  */
 
-use macroquad::{color::WHITE, shapes::draw_line};
+use macroquad::{
+    color::{BROWN, GREEN, ORANGE, RED, WHITE, YELLOW},
+    shapes::{draw_circle, draw_line, draw_rectangle},
+};
 
 use crate::{
+    Config, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, GameParams, My, THICKNESS,
     elite::{
-        ShipData, ShipFaceNormal, ShipLine, SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER,
-        SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW,
+        SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW,
+        SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData, ShipFaceNormal, ShipLine,
     },
-    gfx::GFX_SCALE,
+    gfx::{
+        GFX_SCALE, GFX_VIEW_BX, GFX_VIEW_BY, GFX_VIEW_TX, GFX_VIEW_TY, GFX_X_OFFSET, GFX_Y_OFFSET,
+        STAR_SIZE,
+    },
     shipdata::{NO_OF_SHIPS, SHIP_PLANET, SHIP_SUN},
     space::{Point, UnivObject},
     stars::{rand255, randint},
-    vector::{vector_dot_product, Matrix, Vector, START_MATRIX, START_VECTOR},
-    Config, GameParams, My, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, THICKNESS,
+    vector::{
+        Matrix, START_MATRIX, START_VECTOR, Vector, mult_vector, unit_vector, vector_dot_product,
+    },
 };
 
 pub fn draw_ship(
@@ -53,12 +61,12 @@ pub fn draw_ship(
     }
 
     if (ship.da_type == SHIP_PLANET) {
-        // draw_planet(ship);
+        draw_planet(ship);
         return;
     }
 
     if (ship.da_type == SHIP_SUN) {
-        // draw_sun(ship);
+        draw_sun(ship);
         return;
     }
 
@@ -95,12 +103,13 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
 
     ship = ship_list[univ.da_type as usize].clone();
 
+    // dbg!(univ.da_type);
     for i in 0..3 {
         trans_mat[i] = univ.rotmat[i];
     }
 
     camera_vec = univ.location;
-    mult_vector(camera_vec, trans_mat);
+    mult_vector(&mut camera_vec, &trans_mat);
     camera_vec = unit_vector(camera_vec);
 
     num_faces = ship.num_faces as usize;
@@ -139,7 +148,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
         vec.y = ship.points[i].y as f32;
         vec.z = ship.points[i].z as f32;
 
-        mult_vector(vec, trans_mat);
+        mult_vector(&mut vec, &trans_mat);
 
         rx = vec.x + univ.location.x;
         ry = vec.y + univ.location.y;
@@ -179,25 +188,165 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
         draw_line(
             point_list[lasv as usize].x as f32,
             point_list[lasv as usize].y as f32,
-            {
-                if univ.location.x > 0.0 {
-                    0.0
-                } else {
-                    511.0
-                }
-            },
+            { if univ.location.x > 0.0 { 0.0 } else { 511.0 } },
             (rand255() * 2) as f32,
             THICKNESS,
             WHITE,
         );
     }
 }
+/*
+ * Draw a planet.
+ * We can currently do three different types of planet...
+ * - Wireframe.
+ * - Fractal landscape.
+ * - SNES Elite style.
+ */
 
-fn unit_vector(camera_vec: Vector) -> Vector {
-    todo!();
-    START_VECTOR
+fn draw_planet(planet: &UnivObject) {
+    let mut x = (planet.location.x * 256.0) / planet.location.z;
+    let mut y = (planet.location.y * 256.0) / planet.location.z;
+
+    y = -y;
+
+    x += 128.0;
+    y += 96.0;
+
+    x *= GFX_SCALE as f32;
+    y *= GFX_SCALE as f32;
+
+    let mut radius = 6291456 / planet.distance;
+    //	radius = 6291456 / ship_vec.z;   /* Planets are BIG! */
+    radius *= GFX_SCALE;
+
+    if (((x + radius as f32) < 0.0)
+        || ((x - radius as f32) > 511.0)
+        || ((y + radius as f32) < 0.0)
+        || ((y - radius as f32) > 383.0))
+    {
+        return;
+    }
+
+    // match (planet_render_style) {
+    match (1) {
+        // 0 => draw_wireframe_planet(x, y, radius, planet.rotmat),
+        1 => draw_circle(x, y, radius as f32, GREEN),
+        // 2 => render_planet(x, y, radius as f32, planet.rotmat),
+        // 3 => render_planet(x, y, radius as f32, planet.rotmat),
+        _ => draw_circle(x, y, radius as f32, GREEN),
+    }
+}
+fn render_sun_line(xo: My, yo: My, x: My, y: My, radius: My) {
+    let sy = yo + y;
+    // int sx,ex;
+    let mut colour;
+    // int dx,dy;
+    let mut distance;
+    // int inner,outer;
+    // int inner2;
+    let mut mix;
+
+    // const GFX_Y_OFFSET: _ = $0;
+    // const GFX_Y_OFFSET: My = 0;
+    if ((sy < GFX_VIEW_TY + GFX_Y_OFFSET) || (sy > GFX_VIEW_BY + GFX_Y_OFFSET)) {
+        return;
+    }
+
+    let mut sx = xo - x;
+    let mut ex = xo + x;
+
+    sx -= (radius * (2 + (randint() & 7))) >> 8;
+    ex += (radius * (2 + (randint() & 7))) >> 8;
+
+    if ((sx > GFX_VIEW_BX + GFX_X_OFFSET) || (ex < GFX_VIEW_TX + GFX_X_OFFSET)) {
+        return;
+    }
+
+    if (sx < GFX_VIEW_TX + GFX_X_OFFSET) {
+        sx = GFX_VIEW_TX + GFX_X_OFFSET;
+    }
+
+    if (ex > GFX_VIEW_BX + GFX_X_OFFSET) {
+        ex = GFX_VIEW_BX + GFX_X_OFFSET;
+    }
+    let mut inner = (radius * (200 + (randint() & 7))) >> 8;
+    inner *= inner;
+
+    let mut inner2 = (radius * (220 + (randint() & 7))) >> 8;
+    inner2 *= inner2;
+
+    let mut outer = (radius * (239 + (randint() & 7))) >> 8;
+    outer *= outer;
+
+    let dy = y * y;
+    let mut dx = sx - xo;
+
+    while sx <= ex {
+        mix = (sx ^ y) & 1;
+        distance = dx * dx + dy;
+
+        if (distance < inner) {
+            colour = WHITE;
+        } else if (distance < inner2) {
+            colour = YELLOW;
+        } else if (distance < outer) {
+            colour = ORANGE;
+        } else {
+            colour = if mix != 0 { RED } else { BROWN };
+        }
+
+        draw_rectangle(sx as f32, sy as f32, STAR_SIZE, STAR_SIZE, colour);
+        sx += 1;
+        dx += 1;
+    }
 }
 
-fn mult_vector(camera_vec: Vector, trans_mat: [Vector; 3]) {
-    todo!();
+fn render_sun(xo: My, yo: My, radius: My) {
+    let xxo = xo + GFX_X_OFFSET;
+    let yyo = yo + GFX_Y_OFFSET;
+
+    let mut s = -radius;
+    let mut x = radius;
+    let mut y = 0;
+
+    // s -= x + x;
+    while (y <= x) {
+        render_sun_line(xxo, yyo, x, y, radius);
+        render_sun_line(xxo, yyo, x, -y, radius);
+        render_sun_line(xxo, yyo, y, x, radius);
+        render_sun_line(xxo, yyo, y, -x, radius);
+
+        s += y + y + 1;
+        y += 1;
+        if (s >= 0) {
+            s -= x + x + 2;
+            x -= 1;
+        }
+    }
+}
+
+fn draw_sun(planet: &UnivObject) {
+    let mut x = (planet.location.x * 256.0) / planet.location.z;
+    let mut y = (planet.location.y * 256.0) / planet.location.z;
+
+    y = -y;
+
+    x += 128.0;
+    y += 96.0;
+
+    x *= GFX_SCALE as f32;
+    y *= GFX_SCALE as f32;
+
+    let mut radius = 6291456 / planet.distance;
+
+    radius *= GFX_SCALE;
+
+    if (((x + radius as f32) < 0.0)
+        || ((x - radius as f32) > 511.0)
+        || ((y + radius as f32) < 0.0)
+        || ((y - radius as f32) > 383.0))
+    {
+        return;
+    }
+    render_sun(x as My, y as My, radius);
 }

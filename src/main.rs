@@ -3,21 +3,34 @@ use macroquad::prelude::*;
 use std::{thread, time};
 
 use crate::{
-    elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW,*}, gfx::GFX_SCALE, shipdata::NO_OF_SHIPS, sound::SND_BEEP, space::{UnivObject, dock_player, launch_player}, stars::{Stars, create_new_stars, flip_stars, update_starfield}, swat::{clear_universe, cool_laser, draw_laser_lines, fire_laser, snd_play_sample}, vector::{START_MATRIX, START_VECTOR}
+    docked::display_commander_status,
+    elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW, *},
+    gfx::GFX_SCALE,
+    planet::{GalaxySeed, PlanetData},
+    shipdata::NO_OF_SHIPS,
+    sound::SND_BEEP,
+    space::{UnivObject, dock_player, jump_warp, launch_player, update_universe},
+    stars::{Stars, create_new_stars, flip_stars, update_starfield},
+    swat::{
+        clear_universe, cool_laser, draw_laser_lines, fire_laser, random_encounter, snd_play_sample,
+    },
+    threed::draw_ship,
+    vector::{START_MATRIX, START_VECTOR},
 };
 
+pub(crate) mod docked;
 pub(crate) mod elite;
 pub(crate) mod gfx;
 pub(crate) mod pilot;
 pub(crate) mod planet;
+pub(crate) mod shipdata;
 pub(crate) mod sound;
 pub(crate) mod space;
 pub(crate) mod stars;
 pub(crate) mod swat;
+pub(crate) mod threed;
 pub(crate) mod trade;
 pub(crate) mod vector;
-pub(crate) mod shipdata;
-pub(crate) mod threed;
 const FIRE_KEY: KeyCode = KeyCode::A;
 const DOCK_KEY: KeyCode = KeyCode::C;
 const ECM_KEY: KeyCode = KeyCode::E;
@@ -112,7 +125,7 @@ impl Config {
         }
     }
 }
-pub type My = i64;
+pub type My = i32;
 struct GameParams {
     current_screen: My,
     flight_speed: My,
@@ -123,7 +136,8 @@ struct GameParams {
     aft_shield: My,
     energy: My,
     draw_lasers: My,
-    mcount: My,
+    mcount: u8,
+    warp_stars: bool,
     message_count: My,
     hyper_ready: bool,
     detonate_bomb: My,
@@ -137,14 +151,20 @@ struct GameParams {
     old_cross_y: My,
     cross_timer: My,
     myship: PlayerShip,
-    message_string: [char; 80],
+    message_string: String,
     rolling: bool,
     climbing: bool,
     have_joystick: My,
     finish: bool,
     game_over: bool,
     find_name: [char; 20],
-    in_battle: bool
+    in_battle: bool,
+    docked_planet: GalaxySeed,
+    hyperspace_planet: GalaxySeed,
+    current_planet_data: PlanetData,
+    curr_galaxy_num: My,
+    curr_fuel: My,
+    carry_flag: My,
 }
 impl GameParams {
     pub fn increase_flight_roll(&mut self) {
@@ -211,7 +231,8 @@ impl GameParams {
         aft_shield: My,
         energy: My,
         draw_lasers: My,
-        mcount: My,
+        mcount: u8,
+        warp_stars: bool,
         message_count: My,
         hyper_ready: bool,
         detonate_bomb: My,
@@ -225,7 +246,7 @@ impl GameParams {
         old_cross_y: My,
         cross_timer: My,
         myship: PlayerShip,
-        message_string: [char; 80],
+        message_string: String,
         rolling: bool,
         climbing: bool,
         have_joystick: My,
@@ -233,6 +254,12 @@ impl GameParams {
         game_over: bool,
         find_name: [char; 20],
         in_battle: bool,
+        docked_planet: GalaxySeed,
+        hyperspace_planet: GalaxySeed,
+        current_planet_data: PlanetData,
+        curr_galaxy_num: My,
+        curr_fuel: My,
+        carry_flag: My,
     ) -> Self {
         Self {
             current_screen,
@@ -245,6 +272,7 @@ impl GameParams {
             energy,
             draw_lasers,
             mcount,
+            warp_stars,
             message_count,
             hyper_ready,
             detonate_bomb,
@@ -265,7 +293,13 @@ impl GameParams {
             find_name,
             finish,
             game_over,
-            in_battle
+            in_battle,
+            docked_planet,
+            hyperspace_planet,
+            current_planet_data,
+            curr_galaxy_num,
+            curr_fuel,
+            carry_flag,
         }
     }
 
@@ -281,6 +315,7 @@ impl GameParams {
             energy: 0,
             draw_lasers: 0,
             mcount: 0,
+            warp_stars: false,
             message_count: 0,
             hyper_ready: false,
             detonate_bomb: 0,
@@ -294,7 +329,7 @@ impl GameParams {
             old_cross_y: 0,
             cross_timer: 0,
             myship: PlayerShip::new(),
-            message_string: ['c'; 80],
+            message_string: "".to_string(),
             rolling: false,
             climbing: false,
             have_joystick: 0,
@@ -302,97 +337,2606 @@ impl GameParams {
             game_over: false,
             find_name: ['b'; 20],
             in_battle: false,
+            docked_planet: GalaxySeed::new(),
+            hyperspace_planet: GalaxySeed::new(),
+            current_planet_data: PlanetData::new(0, 0, 0, 0, 0, 0),
+            curr_galaxy_num: 1,
+            curr_fuel: 70,
+            carry_flag: 0,
         }
     }
 }
 
 #[macroquad::main("EliteRS")]
 async fn main() {
-    let mut ship_count: [My;NO_OF_SHIPS + 1]   =[0;NO_OF_SHIPS + 1];  /* many */
+    let mut ship_count: [My; NO_OF_SHIPS + 1] = [0; NO_OF_SHIPS + 1]; /* many */
 
-let esccaps_point: Vec<ShipPoint> = vec![
-    ShipPoint::new(-7, 0, 36, 31, 1, 2, 3, 3),
-    ShipPoint::new(-7, -14, -12, 31, 0, 2, 3, 3),
-    ShipPoint::new(-7, 14, -12, 31, 0, 1, 3, 3),
-    ShipPoint::new(21, 0, 0, 31, 0, 1, 2, 2),
-];
+    let missile_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 0, 68, 31, 1, 0, 3, 2),
+        ShipPoint::new(8, -8, 36, 31, 2, 1, 5, 4),
+        ShipPoint::new(8, 8, 36, 31, 3, 2, 7, 4),
+        ShipPoint::new(-8, 8, 36, 31, 3, 0, 7, 6),
+        ShipPoint::new(-8, -8, 36, 31, 1, 0, 6, 5),
+        ShipPoint::new(8, 8, -44, 31, 7, 4, 8, 8),
+        ShipPoint::new(8, -8, -44, 31, 5, 4, 8, 8),
+        ShipPoint::new(-8, -8, -44, 31, 6, 5, 8, 8),
+        ShipPoint::new(-8, 8, -44, 31, 7, 6, 8, 8),
+        ShipPoint::new(12, 12, -44, 8, 7, 4, 8, 8),
+        ShipPoint::new(12, -12, -44, 8, 5, 4, 8, 8),
+        ShipPoint::new(-12, -12, -44, 8, 6, 5, 8, 8),
+        ShipPoint::new(-12, 12, -44, 8, 7, 6, 8, 8),
+        ShipPoint::new(-8, 8, -12, 8, 7, 6, 7, 7),
+        ShipPoint::new(-8, -8, -12, 8, 6, 5, 6, 6),
+        ShipPoint::new(8, 8, -12, 8, 7, 4, 7, 7),
+        ShipPoint::new(8, -8, -12, 8, 5, 4, 5, 5),
+    ];
 
-let esccaps_line: Vec<ShipLine> = vec![
-    ShipLine::new(31, 2, 3, 0, 1),
-    ShipLine::new(31, 0, 3, 1, 2),
-    ShipLine::new(31, 0, 1, 2, 3),
-    ShipLine::new(31, 1, 2, 3, 0),
-    ShipLine::new(31, 1, 3, 0, 2),
-    ShipLine::new(31, 0, 2, 3, 1),
-];
+    let missile_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 2, 1, 0, 1),
+        ShipLine::new(31, 3, 2, 0, 2),
+        ShipLine::new(31, 3, 0, 0, 3),
+        ShipLine::new(31, 1, 0, 0, 4),
+        ShipLine::new(31, 2, 4, 1, 2),
+        ShipLine::new(31, 5, 1, 1, 4),
+        ShipLine::new(31, 6, 0, 3, 4),
+        ShipLine::new(31, 7, 3, 2, 3),
+        ShipLine::new(31, 7, 4, 2, 5),
+        ShipLine::new(31, 5, 4, 1, 6),
+        ShipLine::new(31, 6, 5, 4, 7),
+        ShipLine::new(31, 7, 6, 3, 8),
+        ShipLine::new(31, 8, 6, 7, 8),
+        ShipLine::new(31, 8, 7, 5, 8),
+        ShipLine::new(31, 8, 4, 5, 6),
+        ShipLine::new(31, 8, 5, 6, 7),
+        ShipLine::new(8, 8, 5, 6, 10),
+        ShipLine::new(8, 8, 7, 5, 9),
+        ShipLine::new(8, 8, 7, 8, 12),
+        ShipLine::new(8, 8, 5, 7, 11),
+        ShipLine::new(8, 7, 4, 9, 15),
+        ShipLine::new(8, 5, 4, 10, 16),
+        ShipLine::new(8, 7, 6, 12, 13),
+        ShipLine::new(8, 6, 5, 11, 14),
+    ];
 
-let esccaps_face_normal: Vec<ShipFaceNormal> = vec![
-    ShipFaceNormal::new(31, 52, 0, -122),
-    ShipFaceNormal::new(31, 39, 103, 30),
-    ShipFaceNormal::new(31, 39, -103, 30),
-    ShipFaceNormal::new(31, -112, 0, 0),
-];
+    let missile_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, -64, 0, 16),
+        ShipFaceNormal::new(31, 0, -64, 16),
+        ShipFaceNormal::new(31, 64, 0, 16),
+        ShipFaceNormal::new(31, 0, 64, 16),
+        ShipFaceNormal::new(31, 32, 0, 0),
+        ShipFaceNormal::new(31, 0, -32, 0),
+        ShipFaceNormal::new(31, -32, 0, 0),
+        ShipFaceNormal::new(31, 0, 32, 0),
+        ShipFaceNormal::new(31, 0, 0, -176),
+    ];
 
-let esccaps_data: ShipData = ShipData {
-    name: put_into_name("Escape Capsule                  "),
-    num_points: 4,
-    num_lines: 6,
-    num_faces: 4,
-    max_loot: 0,
-    scoop_type: 2,
-    size: 256.0,
-    front_laser: 0,
-    bounty: 0,
-    vanish_point: 8,
-    energy: 17,
-    velocity: 8,
-    missiles: 0,
-    laser_strength: 0,
-    points: esccaps_point,
-    lines: esccaps_line,
-    normals: esccaps_face_normal,
-};
-// let ship_list: [ShipData; NO_OF_SHIPS + 1] = [
-let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-    esccaps_data.clone(),
-];
+    let missile_data: ShipData = ShipData {
+        name: put_into_name("Missile"),
+        num_points: 7,
+        num_lines: 24,
+        num_faces: 9,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 1600.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 14,
+        energy: 2,
+        velocity: 44,
+        missiles: 0,
+        laser_strength: 0,
+        points: missile_point,
+        lines: missile_line,
+        normals: missile_face_normal,
+    };
+    let coriolis_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(160, 0, 160, 31, 1, 0, 6, 2),
+        ShipPoint::new(0, 160, 160, 31, 2, 0, 8, 3),
+        ShipPoint::new(-160, 0, 160, 31, 3, 0, 7, 4),
+        ShipPoint::new(0, -160, 160, 31, 1, 0, 5, 4),
+        ShipPoint::new(160, -160, 0, 31, 5, 1, 10, 6),
+        ShipPoint::new(160, 160, 0, 31, 6, 2, 11, 8),
+        ShipPoint::new(-160, 160, 0, 31, 7, 3, 12, 8),
+        ShipPoint::new(-160, -160, 0, 31, 5, 4, 9, 7),
+        ShipPoint::new(160, 0, -160, 31, 10, 6, 13, 11),
+        ShipPoint::new(0, 160, -160, 31, 11, 8, 13, 12),
+        ShipPoint::new(-160, 0, -160, 31, 9, 7, 13, 12),
+        ShipPoint::new(0, -160, -160, 31, 9, 5, 13, 10),
+        ShipPoint::new(10, -30, 160, 30, 0, 0, 0, 0),
+        ShipPoint::new(10, 30, 160, 30, 0, 0, 0, 0),
+        ShipPoint::new(-10, 30, 160, 30, 0, 0, 0, 0),
+        ShipPoint::new(-10, -30, 160, 30, 0, 0, 0, 0),
+    ];
+
+    let coriolis_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 1, 0, 0, 3),
+        ShipLine::new(31, 2, 0, 0, 1),
+        ShipLine::new(31, 3, 0, 1, 2),
+        ShipLine::new(31, 4, 0, 2, 3),
+        ShipLine::new(31, 5, 1, 3, 4),
+        ShipLine::new(31, 6, 1, 0, 4),
+        ShipLine::new(31, 6, 2, 0, 5),
+        ShipLine::new(31, 8, 2, 5, 1),
+        ShipLine::new(31, 8, 3, 1, 6),
+        ShipLine::new(31, 7, 3, 2, 6),
+        ShipLine::new(31, 7, 4, 2, 7),
+        ShipLine::new(31, 5, 4, 3, 7),
+        ShipLine::new(31, 13, 10, 8, 11),
+        ShipLine::new(31, 13, 11, 8, 9),
+        ShipLine::new(31, 13, 12, 9, 10),
+        ShipLine::new(31, 13, 9, 10, 11),
+        ShipLine::new(31, 10, 5, 4, 11),
+        ShipLine::new(31, 10, 6, 4, 8),
+        ShipLine::new(31, 11, 6, 5, 8),
+        ShipLine::new(31, 11, 8, 5, 9),
+        ShipLine::new(31, 12, 8, 6, 9),
+        ShipLine::new(31, 12, 7, 6, 10),
+        ShipLine::new(31, 9, 7, 7, 10),
+        ShipLine::new(31, 9, 5, 7, 11),
+        ShipLine::new(30, 0, 0, 12, 13),
+        ShipLine::new(30, 0, 0, 13, 14),
+        ShipLine::new(30, 0, 0, 14, 15),
+        ShipLine::new(30, 0, 0, 15, 12),
+    ];
+
+    let coriolis_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 0, 160),
+        ShipFaceNormal::new(31, 107, -107, 107),
+        ShipFaceNormal::new(31, 107, 107, 107),
+        ShipFaceNormal::new(31, -107, 107, 107),
+        ShipFaceNormal::new(31, -107, -107, 107),
+        ShipFaceNormal::new(31, 0, -160, 0),
+        ShipFaceNormal::new(31, 160, 0, 0),
+        ShipFaceNormal::new(31, -160, 0, 0),
+        ShipFaceNormal::new(31, 0, 160, 0),
+        ShipFaceNormal::new(31, -107, -107, -107),
+        ShipFaceNormal::new(31, 107, -107, -107),
+        ShipFaceNormal::new(31, 107, 107, -107),
+        ShipFaceNormal::new(31, -107, 107, -107),
+        ShipFaceNormal::new(31, 0, 0, -160),
+    ];
+
+    let coriolis_data: ShipData = ShipData {
+        name: put_into_name("Coriolis Space Station"),
+        num_points: 16,
+        num_lines: 28,
+        num_faces: 14,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 25600.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 120,
+        energy: 240,
+        velocity: 0,
+        missiles: 6,
+        laser_strength: 3,
+        points: coriolis_point,
+        lines: coriolis_line,
+        normals: coriolis_face_normal,
+    };
+    let esccaps_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(-7, 0, 36, 31, 1, 2, 3, 3),
+        ShipPoint::new(-7, -14, -12, 31, 0, 2, 3, 3),
+        ShipPoint::new(-7, 14, -12, 31, 0, 1, 3, 3),
+        ShipPoint::new(21, 0, 0, 31, 0, 1, 2, 2),
+    ];
+
+    let esccaps_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 2, 3, 0, 1),
+        ShipLine::new(31, 0, 3, 1, 2),
+        ShipLine::new(31, 0, 1, 2, 3),
+        ShipLine::new(31, 1, 2, 3, 0),
+        ShipLine::new(31, 1, 3, 0, 2),
+        ShipLine::new(31, 0, 2, 3, 1),
+    ];
+
+    let esccaps_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 52, 0, -122),
+        ShipFaceNormal::new(31, 39, 103, 30),
+        ShipFaceNormal::new(31, 39, -103, 30),
+        ShipFaceNormal::new(31, -112, 0, 0),
+    ];
+
+    let esccaps_data: ShipData = ShipData {
+        name: put_into_name("Escape Capsule                  "),
+        num_points: 4,
+        num_lines: 6,
+        num_faces: 4,
+        max_loot: 0,
+        scoop_type: 2,
+        size: 256.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 8,
+        energy: 17,
+        velocity: 8,
+        missiles: 0,
+        laser_strength: 0,
+        points: esccaps_point,
+        lines: esccaps_line,
+        normals: esccaps_face_normal,
+    };
+    let alloy_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(-15, -22, -9, 31, 15, 15, 15, 15),
+        ShipPoint::new(-15, 38, -9, 31, 15, 15, 15, 15),
+        ShipPoint::new(19, 32, 11, 20, 15, 15, 15, 15),
+        ShipPoint::new(10, -46, 6, 20, 15, 15, 15, 15),
+    ];
+
+    let alloy_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 15, 15, 0, 1),
+        ShipLine::new(16, 15, 15, 1, 2),
+        ShipLine::new(20, 15, 15, 2, 3),
+        ShipLine::new(16, 15, 15, 3, 0),
+    ];
+
+    let alloy_face_normal: Vec<ShipFaceNormal> = vec![ShipFaceNormal::new(0, 0, 0, 0)];
+
+    let alloy_data: ShipData = ShipData {
+        name: put_into_name("Alloy"),
+        num_points: 4,
+        num_lines: 4,
+        num_faces: 1,
+        max_loot: 0,
+        scoop_type: 8,
+        size: 100.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 5,
+        energy: 16,
+        velocity: 16,
+        missiles: 0,
+        laser_strength: 0,
+        points: alloy_point,
+        lines: alloy_line,
+        normals: alloy_face_normal,
+    };
+
+    let cargo_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(24, 16, 0, 31, 1, 0, 5, 5),
+        ShipPoint::new(24, 5, 15, 31, 1, 0, 2, 2),
+        ShipPoint::new(24, -13, 9, 31, 2, 0, 3, 3),
+        ShipPoint::new(24, -13, -9, 31, 3, 0, 4, 4),
+        ShipPoint::new(24, 5, -15, 31, 4, 0, 5, 5),
+        ShipPoint::new(-24, 16, 0, 31, 5, 1, 6, 6),
+        ShipPoint::new(-24, 5, 15, 31, 2, 1, 6, 6),
+        ShipPoint::new(-24, -13, 9, 31, 3, 2, 6, 6),
+        ShipPoint::new(-24, -13, -9, 31, 4, 3, 6, 6),
+        ShipPoint::new(-24, 5, -15, 31, 5, 4, 6, 6),
+    ];
+
+    let cargo_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 1, 0, 0, 1),
+        ShipLine::new(31, 2, 0, 1, 2),
+        ShipLine::new(31, 3, 0, 2, 3),
+        ShipLine::new(31, 4, 0, 3, 4),
+        ShipLine::new(31, 5, 0, 0, 4),
+        ShipLine::new(31, 5, 1, 0, 5),
+        ShipLine::new(31, 2, 1, 1, 6),
+        ShipLine::new(31, 3, 2, 2, 7),
+        ShipLine::new(31, 4, 3, 3, 8),
+        ShipLine::new(31, 5, 4, 4, 9),
+        ShipLine::new(31, 6, 1, 5, 6),
+        ShipLine::new(31, 6, 2, 6, 7),
+        ShipLine::new(31, 6, 3, 7, 8),
+        ShipLine::new(31, 6, 4, 8, 9),
+        ShipLine::new(31, 6, 5, 9, 5),
+    ];
+
+    let cargo_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 96, 0, 0),
+        ShipFaceNormal::new(31, 0, 41, 30),
+        ShipFaceNormal::new(31, 0, -18, 48),
+        ShipFaceNormal::new(31, 0, -51, 0),
+        ShipFaceNormal::new(31, 0, -18, -48),
+        ShipFaceNormal::new(31, 0, 41, -30),
+        ShipFaceNormal::new(31, -96, 0, 0),
+    ];
+
+    let cargo_data: ShipData = ShipData {
+        name: put_into_name("Cargo Canister"),
+        num_points: 10,
+        num_lines: 15,
+        num_faces: 7,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 400.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 12,
+        energy: 17,
+        velocity: 15,
+        missiles: 0,
+        laser_strength: 0,
+        points: cargo_point,
+        lines: cargo_line,
+        normals: cargo_face_normal,
+    };
+
+    let boulder_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(-18, 37, -11, 31, 0, 1, 5, 9),
+        ShipPoint::new(30, 7, 12, 31, 1, 2, 5, 6),
+        ShipPoint::new(28, -7, -12, 31, 2, 3, 6, 7),
+        ShipPoint::new(2, 0, -39, 31, 3, 4, 7, 8),
+        ShipPoint::new(-28, 34, -30, 31, 0, 4, 8, 9),
+        ShipPoint::new(5, -10, 13, 31, 15, 15, 15, 15),
+        ShipPoint::new(20, 17, -30, 31, 15, 15, 15, 15),
+    ];
+
+    let boulder_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 1, 5, 0, 1),
+        ShipLine::new(31, 2, 6, 1, 2),
+        ShipLine::new(31, 3, 7, 2, 3),
+        ShipLine::new(31, 4, 8, 3, 4),
+        ShipLine::new(31, 0, 9, 4, 0),
+        ShipLine::new(31, 0, 1, 0, 5),
+        ShipLine::new(31, 1, 2, 1, 5),
+        ShipLine::new(31, 2, 3, 2, 5),
+        ShipLine::new(31, 3, 4, 3, 5),
+        ShipLine::new(31, 0, 4, 4, 5),
+        ShipLine::new(31, 5, 9, 0, 6),
+        ShipLine::new(31, 5, 6, 1, 6),
+        ShipLine::new(31, 6, 7, 2, 6),
+        ShipLine::new(31, 7, 8, 3, 6),
+        ShipLine::new(31, 8, 9, 4, 6),
+    ];
+
+    let boulder_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, -15, -3, 8),
+        ShipFaceNormal::new(31, -7, 12, 30),
+        ShipFaceNormal::new(31, 32, -47, 24),
+        ShipFaceNormal::new(31, -3, -39, -7),
+        ShipFaceNormal::new(31, -5, -4, -1),
+        ShipFaceNormal::new(31, 49, 84, 8),
+        ShipFaceNormal::new(31, 112, 21, -21),
+        ShipFaceNormal::new(31, 76, -35, -82),
+        ShipFaceNormal::new(31, 22, 56, -137),
+        ShipFaceNormal::new(31, 40, 110, -38),
+    ];
+
+    let boulder_data: ShipData = ShipData {
+        name: put_into_name("Boulder"),
+        num_points: 7,
+        num_lines: 15,
+        num_faces: 10,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 900.0,
+        front_laser: 0,
+        bounty: 1,
+        vanish_point: 20,
+        energy: 20,
+        velocity: 30,
+        missiles: 0,
+        laser_strength: 0,
+        points: boulder_point,
+        lines: boulder_line,
+        normals: boulder_face_normal,
+    };
+
+    let asteroid_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 80, 0, 31, 15, 15, 15, 15),
+        ShipPoint::new(-80, -10, 0, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, -80, 0, 31, 15, 15, 15, 15),
+        ShipPoint::new(70, -40, 0, 31, 15, 15, 15, 15),
+        ShipPoint::new(60, 50, 0, 31, 6, 5, 13, 12),
+        ShipPoint::new(50, 0, 60, 31, 15, 15, 15, 15),
+        ShipPoint::new(-40, 0, 70, 31, 1, 0, 3, 2),
+        ShipPoint::new(0, 30, -75, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, -50, -60, 31, 9, 8, 11, 10),
+    ];
+
+    let asteroid_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 7, 2, 0, 1),
+        ShipLine::new(31, 13, 6, 0, 4),
+        ShipLine::new(31, 12, 5, 3, 4),
+        ShipLine::new(31, 11, 4, 2, 3),
+        ShipLine::new(31, 10, 3, 1, 2),
+        ShipLine::new(31, 3, 2, 1, 6),
+        ShipLine::new(31, 3, 1, 2, 6),
+        ShipLine::new(31, 4, 1, 2, 5),
+        ShipLine::new(31, 1, 0, 5, 6),
+        ShipLine::new(31, 6, 0, 0, 5),
+        ShipLine::new(31, 5, 4, 3, 5),
+        ShipLine::new(31, 2, 0, 0, 6),
+        ShipLine::new(31, 6, 5, 4, 5),
+        ShipLine::new(31, 10, 8, 1, 8),
+        ShipLine::new(31, 8, 7, 1, 7),
+        ShipLine::new(31, 13, 7, 0, 7),
+        ShipLine::new(31, 13, 12, 4, 7),
+        ShipLine::new(31, 12, 9, 3, 7),
+        ShipLine::new(31, 11, 9, 3, 8),
+        ShipLine::new(31, 11, 10, 2, 8),
+        ShipLine::new(31, 9, 8, 7, 8),
+    ];
+
+    let asteroid_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 9, 66, 81),
+        ShipFaceNormal::new(31, 9, -66, 81),
+        ShipFaceNormal::new(31, -72, 64, 31),
+        ShipFaceNormal::new(31, -64, -73, 47),
+        ShipFaceNormal::new(31, 45, -79, 65),
+        ShipFaceNormal::new(31, 135, 15, 35),
+        ShipFaceNormal::new(31, 38, 76, 70),
+        ShipFaceNormal::new(31, -66, 59, -39),
+        ShipFaceNormal::new(31, -67, -15, -80),
+        ShipFaceNormal::new(31, 66, -14, -75),
+        ShipFaceNormal::new(31, -70, -80, -40),
+        ShipFaceNormal::new(31, 58, -102, -51),
+        ShipFaceNormal::new(31, 81, 9, -67),
+        ShipFaceNormal::new(31, 47, 94, -63),
+    ];
+
+    let asteroid_data: ShipData = ShipData {
+        name: put_into_name("Asteroid"),
+        num_points: 9,
+        num_lines: 21,
+        num_faces: 14,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 6400.0,
+        front_laser: 0,
+        bounty: 5,
+        vanish_point: 50,
+        energy: 60,
+        velocity: 30,
+        missiles: 0,
+        laser_strength: 0,
+        points: asteroid_point,
+        lines: asteroid_line,
+        normals: asteroid_face_normal,
+    };
+
+    let rock_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(-24, -25, 16, 31, 1, 2, 3, 3),
+        ShipPoint::new(0, 12, -10, 31, 0, 2, 3, 3),
+        ShipPoint::new(11, -6, 2, 31, 0, 1, 3, 3),
+        ShipPoint::new(12, 42, 7, 31, 0, 1, 2, 2),
+    ];
+
+    let rock_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 2, 3, 0, 1),
+        ShipLine::new(31, 0, 3, 1, 2),
+        ShipLine::new(31, 0, 1, 2, 3),
+        ShipLine::new(31, 1, 2, 3, 0),
+        ShipLine::new(31, 1, 3, 0, 2),
+        ShipLine::new(31, 0, 2, 3, 1),
+    ];
+
+    let rock_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(18, 30, 0, 0),
+        ShipFaceNormal::new(20, 22, 32, -8),
+        ShipFaceNormal::new(0, 0, 2, 0),
+        ShipFaceNormal::new(0, 17, 23, 95),
+    ];
+
+    let rock_data: ShipData = ShipData {
+        name: put_into_name("Rock"),
+        num_points: 4,
+        num_lines: 6,
+        num_faces: 4,
+        max_loot: 0,
+        scoop_type: 11,
+        size: 256.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 8,
+        energy: 20,
+        velocity: 10,
+        missiles: 0,
+        laser_strength: 0,
+        points: rock_point,
+        lines: rock_line,
+        normals: rock_face_normal,
+    };
+
+    let orbit_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, -17, 23, 31, 15, 15, 15, 15),
+        ShipPoint::new(-17, 0, 23, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, 18, 23, 31, 15, 15, 15, 15),
+        ShipPoint::new(18, 0, 23, 31, 15, 15, 15, 15),
+        ShipPoint::new(-20, -20, -27, 31, 1, 2, 3, 9),
+        ShipPoint::new(-20, 20, -27, 31, 3, 4, 5, 9),
+        ShipPoint::new(20, 20, -27, 31, 5, 6, 7, 9),
+        ShipPoint::new(20, -20, -27, 31, 1, 7, 8, 9),
+        ShipPoint::new(5, 0, -27, 16, 9, 9, 9, 9),
+        ShipPoint::new(0, -2, -27, 16, 9, 9, 9, 9),
+        ShipPoint::new(-5, 0, -27, 9, 9, 9, 9, 9),
+        ShipPoint::new(0, 3, -27, 9, 9, 9, 9, 9),
+        ShipPoint::new(0, -9, 35, 16, 0, 10, 11, 12),
+        ShipPoint::new(3, -1, 31, 7, 15, 15, 0, 2),
+        ShipPoint::new(4, 11, 25, 8, 0, 1, 15, 4),
+        ShipPoint::new(11, 4, 25, 8, 10, 1, 3, 15),
+        ShipPoint::new(-3, -1, 31, 7, 6, 11, 2, 3),
+        ShipPoint::new(-3, 11, 25, 8, 15, 8, 12, 0),
+        ShipPoint::new(-10, 4, 25, 8, 4, 15, 1, 8),
+    ];
+
+    let orbit_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 2, 0, 1),
+        ShipLine::new(31, 4, 10, 1, 2),
+        ShipLine::new(31, 6, 11, 2, 3),
+        ShipLine::new(31, 8, 12, 0, 3),
+        ShipLine::new(31, 1, 8, 0, 7),
+        ShipLine::new(24, 1, 2, 0, 4),
+        ShipLine::new(31, 2, 3, 1, 4),
+        ShipLine::new(24, 3, 4, 1, 5),
+        ShipLine::new(31, 4, 5, 2, 5),
+        ShipLine::new(12, 5, 6, 2, 6),
+        ShipLine::new(31, 6, 7, 3, 6),
+        ShipLine::new(24, 7, 8, 3, 7),
+        ShipLine::new(31, 3, 9, 4, 5),
+        ShipLine::new(31, 5, 9, 5, 6),
+        ShipLine::new(31, 7, 9, 6, 7),
+        ShipLine::new(31, 1, 9, 4, 7),
+        ShipLine::new(16, 0, 12, 0, 12),
+        ShipLine::new(16, 0, 10, 1, 12),
+        ShipLine::new(16, 10, 11, 2, 12),
+        ShipLine::new(16, 11, 12, 3, 12),
+        ShipLine::new(16, 9, 9, 8, 9),
+        ShipLine::new(7, 9, 9, 9, 10),
+        ShipLine::new(9, 9, 9, 10, 11),
+        ShipLine::new(7, 9, 9, 8, 11),
+        ShipLine::new(5, 11, 11, 13, 14),
+        ShipLine::new(8, 11, 11, 14, 15),
+        ShipLine::new(7, 11, 11, 13, 15),
+        ShipLine::new(5, 10, 10, 16, 17),
+        ShipLine::new(8, 10, 10, 17, 18),
+        ShipLine::new(7, 10, 10, 16, 18),
+    ];
+
+    let orbit_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, -55, -55, 40),
+        ShipFaceNormal::new(31, 0, -74, 4),
+        ShipFaceNormal::new(31, -51, -51, 23),
+        ShipFaceNormal::new(31, -74, 0, 4),
+        ShipFaceNormal::new(31, -51, 51, 23),
+        ShipFaceNormal::new(31, 0, 74, 4),
+        ShipFaceNormal::new(31, 51, 51, 23),
+        ShipFaceNormal::new(31, 74, 0, 4),
+        ShipFaceNormal::new(31, 51, -51, 23),
+        ShipFaceNormal::new(31, 0, 0, -107),
+        ShipFaceNormal::new(31, -41, 41, 90),
+        ShipFaceNormal::new(31, 41, 41, 90),
+        ShipFaceNormal::new(31, 55, -55, 40),
+    ];
+
+    let orbit_data: ShipData = ShipData {
+        name: put_into_name("Orbit Shuttle"),
+        num_points: 19,
+        num_lines: 30,
+        num_faces: 13,
+        max_loot: 15,
+        scoop_type: 0,
+        size: 2500.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 22,
+        energy: 32,
+        velocity: 8,
+        missiles: 0,
+        laser_strength: 0,
+        points: orbit_point,
+        lines: orbit_line,
+        normals: orbit_face_normal,
+    };
+    let transp_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 10, -26, 31, 0, 6, 7, 7),
+        ShipPoint::new(-25, 4, -26, 31, 0, 1, 7, 7),
+        ShipPoint::new(-28, -3, -26, 31, 0, 1, 2, 2),
+        ShipPoint::new(-25, -8, -26, 31, 0, 2, 3, 3),
+        ShipPoint::new(26, -8, -26, 31, 0, 3, 4, 4),
+        ShipPoint::new(29, -3, -26, 31, 0, 4, 5, 5),
+        ShipPoint::new(26, 4, -26, 31, 0, 5, 6, 6),
+        ShipPoint::new(0, 6, 12, 19, 15, 15, 15, 15),
+        ShipPoint::new(-30, -1, 12, 31, 1, 7, 8, 9),
+        ShipPoint::new(-33, -8, 12, 31, 1, 2, 3, 9),
+        ShipPoint::new(33, -8, 12, 31, 3, 4, 5, 10),
+        ShipPoint::new(30, -1, 12, 31, 5, 6, 10, 11),
+        ShipPoint::new(-11, -2, 30, 31, 8, 9, 12, 13),
+        ShipPoint::new(-13, -8, 30, 31, 3, 9, 13, 13),
+        ShipPoint::new(14, -8, 30, 31, 3, 10, 13, 13),
+        ShipPoint::new(11, -2, 30, 31, 10, 11, 12, 13),
+        ShipPoint::new(-5, 6, 2, 7, 7, 7, 7, 7),
+        ShipPoint::new(-18, 3, 2, 7, 7, 7, 7, 7),
+        ShipPoint::new(-5, 7, -7, 7, 7, 7, 7, 7),
+        ShipPoint::new(-18, 4, -7, 7, 7, 7, 7, 7),
+        ShipPoint::new(-11, 6, -14, 7, 7, 7, 7, 7),
+        ShipPoint::new(-11, 5, -7, 7, 7, 7, 7, 7),
+        ShipPoint::new(5, 7, -14, 7, 6, 6, 6, 6),
+        ShipPoint::new(18, 4, -14, 7, 6, 6, 6, 6),
+        ShipPoint::new(11, 5, -7, 7, 6, 6, 6, 6),
+        ShipPoint::new(5, 6, -3, 7, 6, 6, 6, 6),
+        ShipPoint::new(18, 3, -3, 7, 6, 6, 6, 6),
+        ShipPoint::new(11, 4, 8, 7, 6, 6, 6, 6),
+        ShipPoint::new(11, 5, -3, 7, 6, 6, 6, 6),
+        ShipPoint::new(-16, -8, -13, 6, 3, 3, 3, 3),
+        ShipPoint::new(-16, -8, 16, 6, 3, 3, 3, 3),
+        ShipPoint::new(17, -8, -13, 6, 3, 3, 3, 3),
+        ShipPoint::new(17, -8, 16, 6, 3, 3, 3, 3),
+        ShipPoint::new(-13, -3, -26, 8, 0, 0, 0, 0),
+        ShipPoint::new(13, -3, -26, 8, 0, 0, 0, 0),
+        ShipPoint::new(9, 3, -26, 5, 0, 0, 0, 0),
+        ShipPoint::new(-8, 3, -26, 5, 0, 0, 0, 0),
+    ];
+
+    let transp_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 7, 0, 1),
+        ShipLine::new(31, 0, 1, 1, 2),
+        ShipLine::new(31, 0, 2, 2, 3),
+        ShipLine::new(31, 0, 3, 3, 4),
+        ShipLine::new(31, 0, 4, 4, 5),
+        ShipLine::new(31, 0, 5, 5, 6),
+        ShipLine::new(31, 0, 6, 0, 6),
+        ShipLine::new(16, 6, 7, 0, 7),
+        ShipLine::new(31, 1, 7, 1, 8),
+        ShipLine::new(11, 1, 2, 2, 9),
+        ShipLine::new(31, 2, 3, 3, 9),
+        ShipLine::new(31, 3, 4, 4, 10),
+        ShipLine::new(11, 4, 5, 5, 10),
+        ShipLine::new(31, 5, 6, 6, 11),
+        ShipLine::new(17, 7, 8, 7, 8),
+        ShipLine::new(17, 1, 9, 8, 9),
+        ShipLine::new(17, 5, 10, 10, 11),
+        ShipLine::new(17, 6, 11, 7, 11),
+        ShipLine::new(19, 11, 12, 7, 15),
+        ShipLine::new(19, 8, 12, 7, 12),
+        ShipLine::new(16, 8, 9, 8, 12),
+        ShipLine::new(31, 3, 9, 9, 13),
+        ShipLine::new(31, 3, 10, 10, 14),
+        ShipLine::new(16, 10, 11, 11, 15),
+        ShipLine::new(31, 9, 13, 12, 13),
+        ShipLine::new(31, 3, 13, 13, 14),
+        ShipLine::new(31, 10, 13, 14, 15),
+        ShipLine::new(31, 12, 13, 12, 15),
+        ShipLine::new(7, 7, 7, 16, 17),
+        ShipLine::new(7, 7, 7, 18, 19),
+        ShipLine::new(7, 7, 7, 19, 20),
+        ShipLine::new(7, 7, 7, 18, 20),
+        ShipLine::new(7, 7, 7, 20, 21),
+        ShipLine::new(7, 6, 6, 22, 23),
+        ShipLine::new(7, 6, 6, 23, 24),
+        ShipLine::new(7, 6, 6, 24, 22),
+        ShipLine::new(7, 6, 6, 25, 26),
+        ShipLine::new(7, 6, 6, 26, 27),
+        ShipLine::new(7, 6, 6, 25, 27),
+        ShipLine::new(7, 6, 6, 27, 28),
+        ShipLine::new(6, 3, 3, 29, 30),
+        ShipLine::new(6, 3, 3, 31, 32),
+        ShipLine::new(8, 0, 0, 33, 34),
+        ShipLine::new(5, 0, 0, 34, 35),
+        ShipLine::new(5, 0, 0, 35, 36),
+        ShipLine::new(5, 0, 0, 36, 33),
+    ];
+
+    let transp_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(41, 0, 0, -103),
+        ShipFaceNormal::new(41, -111, 48, -7),
+        ShipFaceNormal::new(41, -105, -63, -21),
+        ShipFaceNormal::new(41, 0, -34, 0),
+        ShipFaceNormal::new(41, 105, -63, -21),
+        ShipFaceNormal::new(41, 111, 48, -7),
+        ShipFaceNormal::new(41, 8, 32, 3),
+        ShipFaceNormal::new(41, -8, 32, 3),
+        ShipFaceNormal::new(29, -8, 34, 11),
+        ShipFaceNormal::new(41, -75, 32, 79),
+        ShipFaceNormal::new(41, 75, 32, 79),
+        ShipFaceNormal::new(29, 8, 34, 11),
+        ShipFaceNormal::new(41, 0, 38, 17),
+        ShipFaceNormal::new(41, 0, 0, 121),
+    ];
+
+    let transp_data: ShipData = ShipData {
+        name: put_into_name("Transporter"),
+        num_points: 37,
+        num_lines: 46,
+        num_faces: 14,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 2500.0,
+        front_laser: 12,
+        bounty: 0,
+        vanish_point: 16,
+        energy: 32,
+        velocity: 10,
+        missiles: 0,
+        laser_strength: 0,
+        points: transp_point,
+        lines: transp_line,
+        normals: transp_face_normal,
+    };
+
+    let cobra3a_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(32, 0, 76, 31, 15, 15, 15, 15),
+        ShipPoint::new(-32, 0, 76, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, 26, 24, 31, 15, 15, 15, 15),
+        ShipPoint::new(120, -3, -8, 31, 7, 3, 10, 10),
+        ShipPoint::new(120, -3, -8, 31, 8, 4, 12, 12),
+        ShipPoint::new(-88, 16, -40, 31, 15, 15, 15, 15),
+        ShipPoint::new(88, 16, -40, 31, 15, 15, 15, 15),
+        ShipPoint::new(128, -8, -40, 31, 9, 8, 12, 12),
+        ShipPoint::new(128, -8, -40, 31, 9, 7, 10, 10),
+        ShipPoint::new(0, 26, -40, 31, 6, 5, 9, 9),
+        ShipPoint::new(-32, -24, -40, 31, 10, 9, 11, 11),
+        ShipPoint::new(32, -24, -40, 31, 11, 9, 12, 12),
+        ShipPoint::new(-36, 8, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(-8, 12, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(8, 12, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(36, 8, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(36, -12, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(8, -16, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(-8, -16, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(-36, -12, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(0, 0, 76, 6, 11, 0, 11, 11),
+        ShipPoint::new(0, 0, 90, 31, 11, 0, 11, 11),
+        ShipPoint::new(-80, -6, -40, 8, 9, 9, 9, 9),
+        ShipPoint::new(-80, 6, -40, 8, 9, 9, 9, 9),
+        ShipPoint::new(-88, 0, -40, 6, 9, 9, 9, 9),
+        ShipPoint::new(80, 6, -40, 8, 9, 9, 9, 9),
+        ShipPoint::new(88, 0, -40, 6, 9, 9, 9, 9),
+        ShipPoint::new(80, -6, -40, 8, 9, 9, 9, 9),
+    ];
+
+    let cobra3a_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 11, 0, 0, 1),
+        ShipLine::new(31, 12, 4, 0, 4),
+        ShipLine::new(31, 10, 3, 1, 3),
+        ShipLine::new(31, 10, 7, 3, 8),
+        ShipLine::new(31, 12, 8, 4, 7),
+        ShipLine::new(31, 9, 8, 6, 7),
+        ShipLine::new(31, 9, 6, 6, 9),
+        ShipLine::new(31, 9, 5, 5, 9),
+        ShipLine::new(31, 9, 7, 5, 8),
+        ShipLine::new(31, 5, 1, 2, 5),
+        ShipLine::new(31, 6, 2, 2, 6),
+        ShipLine::new(31, 7, 3, 3, 5),
+        ShipLine::new(31, 8, 4, 4, 6),
+        ShipLine::new(31, 1, 0, 1, 2),
+        ShipLine::new(31, 2, 0, 0, 2),
+        ShipLine::new(31, 10, 9, 8, 10),
+        ShipLine::new(31, 11, 9, 10, 11),
+        ShipLine::new(31, 12, 9, 7, 11),
+        ShipLine::new(31, 11, 10, 1, 10),
+        ShipLine::new(31, 12, 11, 0, 11),
+        ShipLine::new(29, 3, 1, 1, 5),
+        ShipLine::new(29, 4, 2, 0, 6),
+        ShipLine::new(6, 11, 0, 20, 21),
+        ShipLine::new(20, 9, 9, 12, 13),
+        ShipLine::new(20, 9, 9, 18, 19),
+        ShipLine::new(20, 9, 9, 14, 15),
+        ShipLine::new(20, 9, 9, 16, 17),
+        ShipLine::new(19, 9, 9, 15, 16),
+        ShipLine::new(17, 9, 9, 14, 17),
+        ShipLine::new(19, 9, 9, 13, 18),
+        ShipLine::new(19, 9, 9, 12, 19),
+        ShipLine::new(30, 6, 5, 2, 9),
+        ShipLine::new(6, 9, 9, 22, 24),
+        ShipLine::new(6, 9, 9, 23, 24),
+        ShipLine::new(8, 9, 9, 22, 23),
+        ShipLine::new(6, 9, 9, 25, 26),
+        ShipLine::new(6, 9, 9, 26, 27),
+        ShipLine::new(8, 9, 9, 25, 27),
+    ];
+
+    let cobra3a_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 62, 31),
+        ShipFaceNormal::new(31, -18, 55, 16),
+        ShipFaceNormal::new(31, 18, 55, 16),
+        ShipFaceNormal::new(31, -16, 52, 14),
+        ShipFaceNormal::new(31, 16, 52, 14),
+        ShipFaceNormal::new(31, -14, 47, 0),
+        ShipFaceNormal::new(31, 14, 47, 0),
+        ShipFaceNormal::new(31, -61, 102, 0),
+        ShipFaceNormal::new(31, 61, 102, 0),
+        ShipFaceNormal::new(31, 0, 0, -80),
+        ShipFaceNormal::new(31, -7, -42, 9),
+        ShipFaceNormal::new(31, 0, -30, 6),
+        ShipFaceNormal::new(31, 7, -42, 9),
+    ];
+
+    let cobra3a_data: ShipData = ShipData {
+        name: put_into_name("Cobra MkIII"),
+        num_points: 28,
+        num_lines: 38,
+        num_faces: 13,
+        max_loot: 3,
+        scoop_type: 0,
+        size: 9025.0,
+        front_laser: 21,
+        bounty: 0,
+        vanish_point: 50,
+        energy: 150,
+        velocity: 28,
+        missiles: 3,
+        laser_strength: 9,
+        points: cobra3a_point,
+        lines: cobra3a_line,
+        normals: cobra3a_face_normal,
+    };
+    let pythona_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 0, 224, 31, 1, 0, 3, 2),
+        ShipPoint::new(0, 48, 48, 31, 1, 0, 5, 4),
+        ShipPoint::new(96, 0, -16, 31, 15, 15, 15, 15),
+        ShipPoint::new(-96, 0, -16, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, 48, -32, 31, 5, 4, 9, 8),
+        ShipPoint::new(0, 24, -112, 31, 8, 9, 12, 12),
+        ShipPoint::new(-48, 0, -112, 31, 11, 8, 12, 12),
+        ShipPoint::new(48, 0, -112, 31, 10, 9, 12, 12),
+        ShipPoint::new(0, -48, 48, 31, 3, 2, 7, 6),
+        ShipPoint::new(0, -48, -32, 31, 7, 6, 11, 10),
+        ShipPoint::new(0, -24, -112, 31, 11, 10, 12, 12),
+    ];
+
+    let pythona_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 3, 2, 0, 8),
+        ShipLine::new(31, 2, 0, 0, 3),
+        ShipLine::new(31, 3, 1, 0, 2),
+        ShipLine::new(31, 1, 0, 0, 1),
+        ShipLine::new(31, 5, 9, 2, 4),
+        ShipLine::new(31, 5, 1, 1, 2),
+        ShipLine::new(31, 3, 7, 2, 8),
+        ShipLine::new(31, 4, 0, 1, 3),
+        ShipLine::new(31, 6, 2, 3, 8),
+        ShipLine::new(31, 10, 7, 2, 9),
+        ShipLine::new(31, 8, 4, 3, 4),
+        ShipLine::new(31, 11, 6, 3, 9),
+        ShipLine::new(7, 8, 8, 3, 5),
+        ShipLine::new(7, 11, 11, 3, 10),
+        ShipLine::new(7, 9, 9, 2, 5),
+        ShipLine::new(7, 10, 10, 2, 10),
+        ShipLine::new(31, 10, 9, 2, 7),
+        ShipLine::new(31, 11, 8, 3, 6),
+        ShipLine::new(31, 12, 8, 5, 6),
+        ShipLine::new(31, 12, 9, 5, 7),
+        ShipLine::new(31, 10, 12, 7, 10),
+        ShipLine::new(31, 12, 11, 6, 10),
+        ShipLine::new(31, 9, 8, 4, 5),
+        ShipLine::new(31, 11, 10, 9, 10),
+        ShipLine::new(31, 5, 4, 1, 4),
+        ShipLine::new(31, 7, 6, 8, 9),
+    ];
+
+    let pythona_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, -27, 40, 11),
+        ShipFaceNormal::new(31, 27, 40, 11),
+        ShipFaceNormal::new(31, -27, -40, 11),
+        ShipFaceNormal::new(31, 27, -40, 11),
+        ShipFaceNormal::new(31, -19, 38, 0),
+        ShipFaceNormal::new(31, 19, 38, 0),
+        ShipFaceNormal::new(31, -19, -38, 0),
+        ShipFaceNormal::new(31, 19, -38, 0),
+        ShipFaceNormal::new(31, -25, 37, -11),
+        ShipFaceNormal::new(31, 25, 37, -11),
+        ShipFaceNormal::new(31, 25, -37, -11),
+        ShipFaceNormal::new(31, -25, -37, -11),
+        ShipFaceNormal::new(31, 0, 0, -112),
+    ];
+
+    let pythona_data: ShipData = ShipData {
+        name: put_into_name("Python"),
+        num_points: 11,
+        num_lines: 26,
+        num_faces: 13,
+        max_loot: 5,
+        scoop_type: 0,
+        size: 6400.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 40,
+        energy: 250,
+        velocity: 20,
+        missiles: 3,
+        laser_strength: 13,
+        points: pythona_point,
+        lines: pythona_line,
+        normals: pythona_face_normal,
+    };
+
+    let boa_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 0, 93, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, 40, -87, 24, 0, 2, 3, 3),
+        ShipPoint::new(38, -25, -99, 24, 0, 1, 4, 4),
+        ShipPoint::new(-38, -25, -99, 24, 1, 2, 5, 5),
+        ShipPoint::new(-38, 40, -59, 31, 2, 3, 6, 9),
+        ShipPoint::new(38, 40, -59, 31, 0, 3, 6, 11),
+        ShipPoint::new(62, 0, -67, 31, 0, 4, 8, 11),
+        ShipPoint::new(24, -65, -79, 31, 1, 4, 8, 10),
+        ShipPoint::new(-24, -65, -79, 31, 1, 5, 7, 10),
+        ShipPoint::new(-62, 0, -67, 31, 2, 5, 7, 9),
+        ShipPoint::new(0, 7, -107, 22, 0, 2, 10, 10),
+        ShipPoint::new(13, -9, -107, 22, 0, 1, 10, 10),
+        ShipPoint::new(-13, -9, -107, 22, 1, 2, 12, 12),
+    ];
+
+    let boa_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 6, 11, 0, 5),
+        ShipLine::new(31, 8, 10, 0, 7),
+        ShipLine::new(31, 7, 9, 0, 9),
+        ShipLine::new(29, 6, 9, 0, 4),
+        ShipLine::new(29, 8, 11, 0, 6),
+        ShipLine::new(29, 7, 10, 0, 8),
+        ShipLine::new(31, 3, 6, 4, 5),
+        ShipLine::new(31, 0, 11, 5, 6),
+        ShipLine::new(31, 4, 8, 6, 7),
+        ShipLine::new(31, 1, 10, 7, 8),
+        ShipLine::new(31, 5, 7, 8, 9),
+        ShipLine::new(31, 2, 9, 4, 9),
+        ShipLine::new(24, 2, 3, 1, 4),
+        ShipLine::new(24, 0, 3, 1, 5),
+        ShipLine::new(24, 2, 5, 3, 9),
+        ShipLine::new(24, 1, 5, 3, 8),
+        ShipLine::new(24, 0, 4, 2, 6),
+        ShipLine::new(24, 1, 4, 2, 7),
+        ShipLine::new(22, 0, 2, 1, 10),
+        ShipLine::new(22, 0, 1, 2, 11),
+        ShipLine::new(22, 1, 2, 3, 12),
+        ShipLine::new(14, 0, 12, 10, 11),
+        ShipLine::new(14, 1, 12, 11, 12),
+        ShipLine::new(14, 2, 12, 12, 10),
+    ];
+
+    let boa_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 43, 37, -60),
+        ShipFaceNormal::new(31, 0, -45, -89),
+        ShipFaceNormal::new(31, -43, 37, -60),
+        ShipFaceNormal::new(31, 0, 40, 0),
+        ShipFaceNormal::new(31, 62, -32, -20),
+        ShipFaceNormal::new(31, -62, -32, -20),
+        ShipFaceNormal::new(31, 0, 23, 6),
+        ShipFaceNormal::new(31, -23, -15, 9),
+        ShipFaceNormal::new(31, 23, -15, 9),
+        ShipFaceNormal::new(31, -26, 13, 10),
+        ShipFaceNormal::new(31, 0, -31, 12),
+        ShipFaceNormal::new(31, 26, 13, 10),
+        ShipFaceNormal::new(14, 0, 0, -107),
+    ];
+
+    let boa_data: ShipData = ShipData {
+        name: put_into_name("Boa"),
+        num_points: 13,
+        num_lines: 24,
+        num_faces: 13,
+        max_loot: 5,
+        scoop_type: 0,
+        size: 4900.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 40,
+        energy: 250,
+        velocity: 24,
+        missiles: 4,
+        laser_strength: 14,
+        points: boa_point,
+        lines: boa_line,
+        normals: boa_face_normal,
+    };
+
+    let anacnda_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 7, -58, 30, 0, 1, 5, 5),
+        ShipPoint::new(-43, -13, -37, 30, 0, 1, 2, 2),
+        ShipPoint::new(-26, -47, -3, 30, 0, 2, 3, 3),
+        ShipPoint::new(26, -47, -3, 30, 0, 3, 4, 4),
+        ShipPoint::new(43, -13, -37, 30, 0, 4, 5, 5),
+        ShipPoint::new(0, 48, -49, 30, 1, 5, 6, 6),
+        ShipPoint::new(-69, 15, -15, 30, 1, 2, 7, 7),
+        ShipPoint::new(-43, -39, 40, 31, 2, 3, 8, 8),
+        ShipPoint::new(43, -39, 40, 31, 3, 4, 9, 9),
+        ShipPoint::new(69, 15, -15, 30, 4, 5, 10, 10),
+        ShipPoint::new(-43, 53, -23, 31, 15, 15, 15, 15),
+        ShipPoint::new(-69, -1, 32, 31, 2, 7, 8, 8),
+        ShipPoint::new(0, 0, 254, 31, 15, 15, 15, 15),
+        ShipPoint::new(69, -1, 32, 31, 4, 9, 10, 10),
+        ShipPoint::new(43, 53, -23, 31, 15, 15, 15, 15),
+    ];
+
+    let anacnda_line: Vec<ShipLine> = vec![
+        ShipLine::new(30, 0, 1, 0, 1),
+        ShipLine::new(30, 0, 2, 1, 2),
+        ShipLine::new(30, 0, 3, 2, 3),
+        ShipLine::new(30, 0, 4, 3, 4),
+        ShipLine::new(30, 0, 5, 0, 4),
+        ShipLine::new(29, 1, 5, 0, 5),
+        ShipLine::new(29, 1, 2, 1, 6),
+        ShipLine::new(29, 2, 3, 2, 7),
+        ShipLine::new(29, 3, 4, 3, 8),
+        ShipLine::new(29, 4, 5, 4, 9),
+        ShipLine::new(30, 1, 6, 5, 10),
+        ShipLine::new(30, 1, 7, 6, 10),
+        ShipLine::new(30, 2, 7, 6, 11),
+        ShipLine::new(30, 2, 8, 7, 11),
+        ShipLine::new(31, 3, 8, 7, 12),
+        ShipLine::new(31, 3, 9, 8, 12),
+        ShipLine::new(30, 4, 9, 8, 13),
+        ShipLine::new(30, 4, 10, 9, 13),
+        ShipLine::new(30, 5, 10, 9, 14),
+        ShipLine::new(30, 5, 6, 5, 14),
+        ShipLine::new(30, 6, 11, 10, 14),
+        ShipLine::new(31, 7, 11, 10, 12),
+        ShipLine::new(31, 7, 8, 11, 12),
+        ShipLine::new(31, 9, 10, 12, 13),
+        ShipLine::new(31, 10, 11, 12, 14),
+    ];
+
+    let anacnda_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(30, 0, -51, -49),
+        ShipFaceNormal::new(30, -51, 18, -87),
+        ShipFaceNormal::new(30, -77, -57, -19),
+        ShipFaceNormal::new(31, 0, -90, 16),
+        ShipFaceNormal::new(30, 77, -57, -19),
+        ShipFaceNormal::new(30, 51, 18, -87),
+        ShipFaceNormal::new(30, 0, 111, -20),
+        ShipFaceNormal::new(31, -97, 72, 24),
+        ShipFaceNormal::new(31, -108, -68, 34),
+        ShipFaceNormal::new(31, 108, -68, 34),
+        ShipFaceNormal::new(31, 97, 72, 24),
+        ShipFaceNormal::new(31, 0, 94, 18),
+    ];
+
+    let anacnda_data: ShipData = ShipData {
+        name: put_into_name("Anaconda"),
+        num_points: 15,
+        num_lines: 25,
+        num_faces: 12,
+        max_loot: 7,
+        scoop_type: 0,
+        size: 10000.0,
+        front_laser: 12,
+        bounty: 0,
+        vanish_point: 36,
+        energy: 252,
+        velocity: 14,
+        missiles: 7,
+        laser_strength: 31,
+        points: anacnda_point,
+        lines: anacnda_line,
+        normals: anacnda_face_normal,
+    };
+
+    let hermit_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 80, 0, 31, 15, 15, 15, 15),
+        ShipPoint::new(-80, -10, 0, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, -80, 0, 31, 15, 15, 15, 15),
+        ShipPoint::new(70, -40, 0, 31, 15, 15, 15, 15),
+        ShipPoint::new(60, 50, 0, 31, 6, 5, 13, 12),
+        ShipPoint::new(50, 0, 60, 31, 15, 15, 15, 15),
+        ShipPoint::new(-40, 0, 70, 31, 1, 0, 3, 2),
+        ShipPoint::new(0, 30, -75, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, -50, -60, 31, 9, 8, 11, 10),
+    ];
+
+    let hermit_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 7, 2, 0, 1),
+        ShipLine::new(31, 13, 6, 0, 4),
+        ShipLine::new(31, 12, 5, 3, 4),
+        ShipLine::new(31, 11, 4, 2, 3),
+        ShipLine::new(31, 10, 3, 1, 2),
+        ShipLine::new(31, 3, 2, 1, 6),
+        ShipLine::new(31, 3, 1, 2, 6),
+        ShipLine::new(31, 4, 1, 2, 5),
+        ShipLine::new(31, 1, 0, 5, 6),
+        ShipLine::new(31, 6, 0, 0, 5),
+        ShipLine::new(31, 5, 4, 3, 5),
+        ShipLine::new(31, 2, 0, 0, 6),
+        ShipLine::new(31, 6, 5, 4, 5),
+        ShipLine::new(31, 10, 8, 1, 8),
+        ShipLine::new(31, 8, 7, 1, 7),
+        ShipLine::new(31, 13, 7, 0, 7),
+        ShipLine::new(31, 13, 12, 4, 7),
+        ShipLine::new(31, 12, 9, 3, 7),
+        ShipLine::new(31, 11, 9, 3, 8),
+        ShipLine::new(31, 11, 10, 2, 8),
+        ShipLine::new(31, 9, 8, 7, 8),
+    ];
+
+    let hermit_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 9, 66, 81),
+        ShipFaceNormal::new(31, 9, -66, 81),
+        ShipFaceNormal::new(31, -72, 64, 31),
+        ShipFaceNormal::new(31, -64, -73, 47),
+        ShipFaceNormal::new(31, 45, -79, 65),
+        ShipFaceNormal::new(31, 135, 15, 35),
+        ShipFaceNormal::new(31, 38, 76, 70),
+        ShipFaceNormal::new(31, -66, 59, -39),
+        ShipFaceNormal::new(31, -67, -15, -80),
+        ShipFaceNormal::new(31, 66, -14, -75),
+        ShipFaceNormal::new(31, -70, -80, -40),
+        ShipFaceNormal::new(31, 58, -102, -51),
+        ShipFaceNormal::new(31, 81, 9, -67),
+        ShipFaceNormal::new(31, 47, 94, -63),
+    ];
+
+    let hermit_data: ShipData = ShipData {
+        name: put_into_name("Rock Hermit"),
+        num_lines: 9,
+        num_points: 21,
+        num_faces: 14,
+        max_loot: 7,
+        scoop_type: 0,
+        size: 6400.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 50,
+        energy: 180,
+        velocity: 30,
+        missiles: 2,
+        laser_strength: 1,
+        points: hermit_point,
+        lines: hermit_line,
+        normals: hermit_face_normal,
+    };
+
+    let viper_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 0, 72, 31, 2, 1, 4, 3),
+        ShipPoint::new(0, 16, 24, 30, 1, 0, 2, 2),
+        ShipPoint::new(0, -16, 24, 30, 4, 3, 5, 5),
+        ShipPoint::new(48, 0, -24, 31, 4, 2, 6, 6),
+        ShipPoint::new(-48, 0, -24, 31, 3, 1, 6, 6),
+        ShipPoint::new(24, -16, -24, 30, 5, 4, 6, 6),
+        ShipPoint::new(-24, -16, -24, 30, 3, 5, 6, 6),
+        ShipPoint::new(24, 16, -24, 31, 2, 0, 6, 6),
+        ShipPoint::new(-24, 16, -24, 31, 1, 0, 6, 6),
+        ShipPoint::new(-32, 0, -24, 19, 6, 6, 6, 6),
+        ShipPoint::new(32, 0, -24, 19, 6, 6, 6, 6),
+        ShipPoint::new(8, 8, -24, 19, 6, 6, 6, 6),
+        ShipPoint::new(-8, 8, -24, 19, 6, 6, 6, 6),
+        ShipPoint::new(-8, -8, -24, 18, 6, 6, 6, 6),
+        ShipPoint::new(8, -8, -24, 18, 6, 6, 6, 6),
+    ];
+
+    let viper_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 4, 2, 0, 3),
+        ShipLine::new(30, 2, 1, 0, 1),
+        ShipLine::new(30, 4, 3, 0, 2),
+        ShipLine::new(31, 3, 1, 0, 4),
+        ShipLine::new(30, 2, 0, 1, 7),
+        ShipLine::new(30, 1, 0, 1, 8),
+        ShipLine::new(30, 5, 4, 2, 5),
+        ShipLine::new(30, 5, 3, 2, 6),
+        ShipLine::new(31, 6, 0, 7, 8),
+        ShipLine::new(30, 6, 5, 5, 6),
+        ShipLine::new(31, 6, 1, 4, 8),
+        ShipLine::new(30, 6, 3, 4, 6),
+        ShipLine::new(31, 6, 2, 3, 7),
+        ShipLine::new(30, 4, 6, 3, 5),
+        ShipLine::new(19, 6, 6, 9, 12),
+        ShipLine::new(18, 6, 6, 9, 13),
+        ShipLine::new(19, 6, 6, 10, 11),
+        ShipLine::new(18, 6, 6, 10, 14),
+        ShipLine::new(16, 6, 6, 11, 14),
+        ShipLine::new(16, 6, 6, 12, 13),
+    ];
+
+    let viper_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 32, 0),
+        ShipFaceNormal::new(31, -22, 33, 11),
+        ShipFaceNormal::new(31, 22, 33, 11),
+        ShipFaceNormal::new(31, -22, -33, 11),
+        ShipFaceNormal::new(31, 22, -33, 11),
+        ShipFaceNormal::new(31, 0, -32, 0),
+        ShipFaceNormal::new(31, 0, 0, -48),
+    ];
+
+    let viper_data: ShipData = ShipData {
+        name: put_into_name("Viper"),
+        num_points: 15,
+        num_lines: 20,
+        num_faces: 7,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 5625.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 23,
+        energy: 140,
+        velocity: 32,
+        missiles: 1,
+        laser_strength: 8,
+        points: viper_point,
+        lines: viper_line,
+        normals: viper_face_normal,
+    };
+
+    let sidewnd_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(-32, 0, 36, 31, 1, 0, 5, 4),
+        ShipPoint::new(32, 0, 36, 31, 2, 0, 6, 5),
+        ShipPoint::new(64, 0, -28, 31, 3, 2, 6, 6),
+        ShipPoint::new(-64, 0, -28, 31, 3, 1, 4, 4),
+        ShipPoint::new(0, 16, -28, 31, 1, 0, 3, 2),
+        ShipPoint::new(0, -16, -28, 31, 4, 3, 6, 5),
+        ShipPoint::new(-12, 6, -28, 15, 3, 3, 3, 3),
+        ShipPoint::new(12, 6, -28, 15, 3, 3, 3, 3),
+        ShipPoint::new(12, -6, -28, 12, 3, 3, 3, 3),
+        ShipPoint::new(-12, -6, -28, 12, 3, 3, 3, 3),
+    ];
+
+    let sidewnd_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 5, 0, 0, 1),
+        ShipLine::new(31, 6, 2, 1, 2),
+        ShipLine::new(31, 2, 0, 1, 4),
+        ShipLine::new(31, 1, 0, 0, 4),
+        ShipLine::new(31, 4, 1, 0, 3),
+        ShipLine::new(31, 3, 1, 3, 4),
+        ShipLine::new(31, 3, 2, 2, 4),
+        ShipLine::new(31, 4, 3, 3, 5),
+        ShipLine::new(31, 6, 3, 2, 5),
+        ShipLine::new(31, 6, 5, 1, 5),
+        ShipLine::new(31, 5, 4, 0, 5),
+        ShipLine::new(15, 3, 3, 6, 7),
+        ShipLine::new(12, 3, 3, 7, 8),
+        ShipLine::new(12, 3, 3, 6, 9),
+        ShipLine::new(12, 3, 3, 8, 9),
+    ];
+
+    let sidewnd_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 32, 8),
+        ShipFaceNormal::new(31, -12, 47, 6),
+        ShipFaceNormal::new(31, 12, 47, 6),
+        ShipFaceNormal::new(31, 0, 0, -112),
+        ShipFaceNormal::new(31, -12, -47, 6),
+        ShipFaceNormal::new(31, 0, -32, 8),
+        ShipFaceNormal::new(31, 12, -47, 6),
+    ];
+
+    let sidewnd_data: ShipData = ShipData {
+        name: put_into_name("Sidewinder"),
+        num_points: 10,
+        num_lines: 15,
+        num_faces: 7,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 4225.0,
+        front_laser: 0,
+        bounty: 50,
+        vanish_point: 20,
+        energy: 70,
+        velocity: 37,
+        missiles: 0,
+        laser_strength: 8,
+        points: sidewnd_point,
+        lines: sidewnd_line,
+        normals: sidewnd_face_normal,
+    };
+
+    let mamba_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 0, 64, 31, 1, 0, 3, 2),
+        ShipPoint::new(-64, -8, -32, 31, 2, 0, 4, 4),
+        ShipPoint::new(-32, 8, -32, 30, 2, 1, 4, 4),
+        ShipPoint::new(32, 8, -32, 30, 3, 1, 4, 4),
+        ShipPoint::new(64, -8, -32, 31, 3, 0, 4, 4),
+        ShipPoint::new(-4, 4, 16, 14, 1, 1, 1, 1),
+        ShipPoint::new(4, 4, 16, 14, 1, 1, 1, 1),
+        ShipPoint::new(8, 3, 28, 13, 1, 1, 1, 1),
+        ShipPoint::new(-8, 3, 28, 13, 1, 1, 1, 1),
+        ShipPoint::new(-20, -4, 16, 20, 0, 0, 0, 0),
+        ShipPoint::new(20, -4, 16, 20, 0, 0, 0, 0),
+        ShipPoint::new(-24, -7, -20, 20, 0, 0, 0, 0),
+        ShipPoint::new(-16, -7, -20, 16, 0, 0, 0, 0),
+        ShipPoint::new(16, -7, -20, 16, 0, 0, 0, 0),
+        ShipPoint::new(24, -7, -20, 20, 0, 0, 0, 0),
+        ShipPoint::new(-8, 4, -32, 13, 4, 4, 4, 4),
+        ShipPoint::new(8, 4, -32, 13, 4, 4, 4, 4),
+        ShipPoint::new(8, -4, -32, 14, 4, 4, 4, 4),
+        ShipPoint::new(-8, -4, -32, 14, 4, 4, 4, 4),
+        ShipPoint::new(-32, 4, -32, 7, 4, 4, 4, 4),
+        ShipPoint::new(32, 4, -32, 7, 4, 4, 4, 4),
+        ShipPoint::new(36, -4, -32, 7, 4, 4, 4, 4),
+        ShipPoint::new(-36, -4, -32, 7, 4, 4, 4, 4),
+        ShipPoint::new(-38, 0, -32, 5, 4, 4, 4, 4),
+        ShipPoint::new(38, 0, -32, 5, 4, 4, 4, 4),
+    ];
+
+    let mamba_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 2, 0, 0, 1),
+        ShipLine::new(31, 3, 0, 0, 4),
+        ShipLine::new(31, 4, 0, 1, 4),
+        ShipLine::new(30, 4, 2, 1, 2),
+        ShipLine::new(30, 4, 1, 2, 3),
+        ShipLine::new(30, 4, 3, 3, 4),
+        ShipLine::new(14, 1, 1, 5, 6),
+        ShipLine::new(12, 1, 1, 6, 7),
+        ShipLine::new(13, 1, 1, 7, 8),
+        ShipLine::new(12, 1, 1, 5, 8),
+        ShipLine::new(20, 0, 0, 9, 11),
+        ShipLine::new(16, 0, 0, 9, 12),
+        ShipLine::new(16, 0, 0, 10, 13),
+        ShipLine::new(20, 0, 0, 10, 14),
+        ShipLine::new(14, 0, 0, 13, 14),
+        ShipLine::new(14, 0, 0, 11, 12),
+        ShipLine::new(13, 4, 4, 15, 16),
+        ShipLine::new(14, 4, 4, 17, 18),
+        ShipLine::new(12, 4, 4, 15, 18),
+        ShipLine::new(12, 4, 4, 16, 17),
+        ShipLine::new(7, 4, 4, 20, 21),
+        ShipLine::new(5, 4, 4, 20, 24),
+        ShipLine::new(5, 4, 4, 21, 24),
+        ShipLine::new(7, 4, 4, 19, 22),
+        ShipLine::new(5, 4, 4, 19, 23),
+        ShipLine::new(5, 4, 4, 22, 23),
+        ShipLine::new(30, 2, 1, 0, 2),
+        ShipLine::new(30, 3, 1, 0, 3),
+    ];
+
+    let mamba_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(30, 0, -24, 2),
+        ShipFaceNormal::new(30, 0, 24, 2),
+        ShipFaceNormal::new(30, -32, 64, 16),
+        ShipFaceNormal::new(30, 32, 64, 16),
+        ShipFaceNormal::new(30, 0, 0, -127),
+    ];
+
+    let mamba_data: ShipData = ShipData {
+        name: put_into_name("Mamba"),
+        num_points: 25,
+        num_lines: 28,
+        num_faces: 5,
+        max_loot: 1,
+        scoop_type: 0,
+        size: 4900.0,
+        front_laser: 0,
+        bounty: 150,
+        vanish_point: 25,
+        energy: 90,
+        velocity: 30,
+        missiles: 2,
+        laser_strength: 9,
+        points: mamba_point,
+        lines: mamba_line,
+        normals: mamba_face_normal,
+    };
+
+    let krait_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 0, 96, 31, 0, 1, 2, 3),
+        ShipPoint::new(0, 18, -48, 31, 0, 3, 4, 5),
+        ShipPoint::new(0, -18, -48, 31, 1, 2, 4, 5),
+        ShipPoint::new(90, 0, -3, 31, 0, 1, 4, 4),
+        ShipPoint::new(-90, 0, -3, 31, 2, 3, 5, 5),
+        ShipPoint::new(90, 0, 87, 30, 0, 1, 1, 1),
+        ShipPoint::new(-90, 0, 87, 30, 2, 3, 3, 3),
+        ShipPoint::new(0, 5, 53, 9, 0, 0, 3, 3),
+        ShipPoint::new(0, 7, 38, 6, 0, 0, 3, 3),
+        ShipPoint::new(-18, 7, 19, 9, 3, 3, 3, 3),
+        ShipPoint::new(18, 7, 19, 9, 0, 0, 0, 0),
+        ShipPoint::new(18, 11, -39, 8, 4, 4, 4, 4),
+        ShipPoint::new(18, -11, -39, 8, 4, 4, 4, 4),
+        ShipPoint::new(36, 0, -30, 8, 4, 4, 4, 4),
+        ShipPoint::new(-18, 11, -39, 8, 5, 5, 5, 5),
+        ShipPoint::new(-18, -11, -39, 8, 5, 5, 5, 5),
+        ShipPoint::new(-36, 0, -30, 8, 5, 5, 5, 5),
+    ];
+
+    let krait_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 3, 0, 1),
+        ShipLine::new(31, 1, 2, 0, 2),
+        ShipLine::new(31, 0, 1, 0, 3),
+        ShipLine::new(31, 2, 3, 0, 4),
+        ShipLine::new(31, 3, 5, 1, 4),
+        ShipLine::new(31, 2, 5, 4, 2),
+        ShipLine::new(31, 1, 4, 2, 3),
+        ShipLine::new(31, 0, 4, 3, 1),
+        ShipLine::new(30, 0, 1, 3, 5),
+        ShipLine::new(30, 2, 3, 4, 6),
+        ShipLine::new(8, 4, 5, 1, 2),
+        ShipLine::new(9, 0, 0, 7, 10),
+        ShipLine::new(6, 0, 0, 8, 10),
+        ShipLine::new(9, 3, 3, 7, 9),
+        ShipLine::new(6, 3, 3, 8, 9),
+        ShipLine::new(8, 4, 4, 11, 13),
+        ShipLine::new(8, 4, 4, 13, 12),
+        ShipLine::new(7, 4, 4, 12, 11),
+        ShipLine::new(7, 5, 5, 14, 15),
+        ShipLine::new(8, 5, 5, 15, 16),
+        ShipLine::new(8, 5, 5, 16, 14),
+    ];
+
+    let krait_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 3, 24, 3),
+        ShipFaceNormal::new(31, 3, -24, 3),
+        ShipFaceNormal::new(31, -3, -24, 3),
+        ShipFaceNormal::new(31, -3, 24, 3),
+        ShipFaceNormal::new(31, 38, 0, -77),
+        ShipFaceNormal::new(31, -38, 0, -77),
+    ];
+
+    let krait_data: ShipData = ShipData {
+        name: put_into_name("Krait"),
+        num_points: 17,
+        num_lines: 21,
+        num_faces: 6,
+        max_loot: 1,
+        scoop_type: 0,
+        size: 3600.0,
+        front_laser: 0,
+        bounty: 100,
+        vanish_point: 20,
+        energy: 80,
+        velocity: 30,
+        missiles: 0,
+        laser_strength: 8,
+        points: krait_point,
+        lines: krait_line,
+        normals: krait_face_normal,
+    };
+
+    let adder_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(-18, 0, 40, 31, 0, 1, 11, 10),
+        ShipPoint::new(18, 0, 40, 31, 0, 1, 2, 0),
+        ShipPoint::new(30, 0, -24, 31, 2, 3, 4, 0),
+        ShipPoint::new(30, 0, -40, 31, 4, 5, 6, 0),
+        ShipPoint::new(18, -7, -40, 31, 5, 6, 7, 10),
+        ShipPoint::new(-18, -7, -40, 31, 7, 8, 10, 10),
+        ShipPoint::new(-30, 0, -40, 31, 8, 9, 10, 10),
+        ShipPoint::new(-30, 0, -24, 31, 9, 10, 11, 10),
+        ShipPoint::new(-18, 7, -40, 31, 7, 8, 9, 10),
+        ShipPoint::new(18, 7, -40, 31, 4, 6, 7, 10),
+        ShipPoint::new(-18, 7, 13, 31, 0, 9, 11, 10),
+        ShipPoint::new(18, 7, 13, 31, 0, 2, 4, 10),
+        ShipPoint::new(-18, -7, 13, 31, 1, 10, 12, 10),
+        ShipPoint::new(18, -7, 13, 31, 1, 3, 5, 10),
+        ShipPoint::new(-11, 3, 29, 5, 0, 0, 0, 0),
+        ShipPoint::new(11, 3, 29, 5, 0, 0, 0, 0),
+        ShipPoint::new(11, 4, 24, 4, 0, 0, 0, 0),
+        ShipPoint::new(-11, 4, 24, 4, 0, 0, 0, 0),
+    ];
+
+    let adder_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 1, 0, 1),
+        ShipLine::new(7, 2, 3, 1, 2),
+        ShipLine::new(31, 4, 5, 2, 3),
+        ShipLine::new(31, 5, 6, 3, 4),
+        ShipLine::new(31, 7, 14, 4, 5),
+        ShipLine::new(31, 8, 10, 5, 6),
+        ShipLine::new(31, 9, 10, 6, 7),
+        ShipLine::new(7, 11, 12, 7, 0),
+        ShipLine::new(31, 4, 6, 3, 9),
+        ShipLine::new(31, 7, 13, 9, 8),
+        ShipLine::new(31, 8, 9, 8, 6),
+        ShipLine::new(31, 0, 11, 0, 10),
+        ShipLine::new(31, 9, 11, 7, 10),
+        ShipLine::new(31, 0, 2, 1, 11),
+        ShipLine::new(31, 2, 4, 2, 11),
+        ShipLine::new(31, 1, 12, 0, 12),
+        ShipLine::new(31, 10, 12, 7, 12),
+        ShipLine::new(31, 1, 3, 1, 13),
+        ShipLine::new(31, 3, 5, 2, 13),
+        ShipLine::new(31, 0, 13, 10, 11),
+        ShipLine::new(31, 1, 14, 12, 13),
+        ShipLine::new(31, 9, 13, 8, 10),
+        ShipLine::new(31, 4, 13, 9, 11),
+        ShipLine::new(31, 10, 14, 5, 12),
+        ShipLine::new(31, 5, 14, 4, 13),
+        ShipLine::new(5, 0, 0, 14, 15),
+        ShipLine::new(3, 0, 0, 15, 16),
+        ShipLine::new(4, 0, 0, 16, 17),
+        ShipLine::new(3, 0, 0, 17, 14),
+    ];
+
+    let adder_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 39, 10),
+        ShipFaceNormal::new(31, 0, -39, 10),
+        ShipFaceNormal::new(31, 69, 50, 10),
+        ShipFaceNormal::new(31, 69, -50, 10),
+        ShipFaceNormal::new(31, 30, 52, 0),
+        ShipFaceNormal::new(31, 30, -52, 0),
+        ShipFaceNormal::new(31, 0, 0, -160),
+        ShipFaceNormal::new(31, 0, 0, -160),
+        ShipFaceNormal::new(31, 0, 0, -160),
+        ShipFaceNormal::new(31, -30, 52, 0),
+        ShipFaceNormal::new(31, -30, -52, 0),
+        ShipFaceNormal::new(31, -69, 50, 10),
+        ShipFaceNormal::new(31, -69, -50, 10),
+        ShipFaceNormal::new(31, 0, 28, 0),
+        ShipFaceNormal::new(31, 0, -28, 0),
+    ];
+
+    let adder_data: ShipData = ShipData {
+        name: put_into_name("Adder"),
+        num_points: 18,
+        num_lines: 29,
+        num_faces: 15,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 2500.0,
+        front_laser: 0,
+        bounty: 40,
+        vanish_point: 20,
+        energy: 85,
+        velocity: 24,
+        missiles: 0,
+        laser_strength: 8,
+        points: adder_point,
+        lines: adder_line,
+        normals: adder_face_normal,
+    };
+
+    let gecko_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(-10, -4, 47, 31, 0, 3, 4, 5),
+        ShipPoint::new(10, -4, 47, 31, 0, 1, 2, 3),
+        ShipPoint::new(-16, 8, -23, 31, 0, 5, 6, 7),
+        ShipPoint::new(16, 8, -23, 31, 0, 1, 7, 8),
+        ShipPoint::new(-66, 0, -3, 31, 4, 5, 6, 6),
+        ShipPoint::new(66, 0, -3, 31, 1, 2, 8, 8),
+        ShipPoint::new(-20, -14, -23, 31, 3, 4, 6, 7),
+        ShipPoint::new(20, -14, -23, 31, 2, 3, 7, 8),
+        ShipPoint::new(-8, -6, 33, 16, 3, 3, 3, 3),
+        ShipPoint::new(8, -6, 33, 17, 3, 3, 3, 3),
+        ShipPoint::new(-8, -13, -16, 16, 3, 3, 3, 3),
+        ShipPoint::new(8, -13, -16, 17, 3, 3, 3, 3),
+    ];
+
+    let gecko_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 3, 0, 1),
+        ShipLine::new(31, 1, 2, 1, 5),
+        ShipLine::new(31, 1, 8, 5, 3),
+        ShipLine::new(31, 0, 7, 3, 2),
+        ShipLine::new(31, 5, 6, 2, 4),
+        ShipLine::new(31, 4, 5, 4, 0),
+        ShipLine::new(31, 2, 8, 5, 7),
+        ShipLine::new(31, 3, 7, 7, 6),
+        ShipLine::new(31, 4, 6, 6, 4),
+        ShipLine::new(29, 0, 5, 0, 2),
+        ShipLine::new(30, 0, 1, 1, 3),
+        ShipLine::new(29, 3, 4, 0, 6),
+        ShipLine::new(30, 2, 3, 1, 7),
+        ShipLine::new(20, 6, 7, 2, 6),
+        ShipLine::new(20, 7, 8, 3, 7),
+        ShipLine::new(16, 3, 3, 8, 10),
+        ShipLine::new(17, 3, 3, 9, 11),
+    ];
+
+    let gecko_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 31, 5),
+        ShipFaceNormal::new(31, 4, 45, 8),
+        ShipFaceNormal::new(31, 25, -108, 19),
+        ShipFaceNormal::new(31, 0, -84, 12),
+        ShipFaceNormal::new(31, -25, -108, 19),
+        ShipFaceNormal::new(31, -4, 45, 8),
+        ShipFaceNormal::new(31, -88, 16, -214),
+        ShipFaceNormal::new(31, 0, 0, -187),
+        ShipFaceNormal::new(31, 88, 16, -214),
+    ];
+
+    let gecko_data: ShipData = ShipData {
+        name: put_into_name("Gecko"),
+        num_points: 12,
+        num_lines: 17,
+        num_faces: 9,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 9801.0,
+        front_laser: 0,
+        bounty: 55,
+        vanish_point: 18,
+        energy: 70,
+        velocity: 30,
+        missiles: 0,
+        laser_strength: 8,
+        points: gecko_point,
+        lines: gecko_line,
+        normals: gecko_face_normal,
+    };
+    let cobra1_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(-18, -1, 50, 31, 0, 1, 2, 3),
+        ShipPoint::new(18, -1, 50, 31, 0, 1, 4, 5),
+        ShipPoint::new(-66, 0, 7, 31, 2, 3, 8, 8),
+        ShipPoint::new(66, 0, 7, 31, 4, 5, 9, 9),
+        ShipPoint::new(-32, 12, -38, 31, 2, 6, 7, 8),
+        ShipPoint::new(32, 12, -38, 31, 4, 6, 7, 9),
+        ShipPoint::new(-54, -12, -38, 31, 1, 3, 7, 8),
+        ShipPoint::new(54, -12, -38, 31, 1, 5, 7, 9),
+        ShipPoint::new(0, 12, -6, 20, 0, 2, 4, 6),
+        ShipPoint::new(0, -1, 50, 2, 0, 1, 1, 1),
+        ShipPoint::new(0, -1, 60, 31, 0, 1, 1, 1),
+    ];
+
+    let cobra1_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 1, 1, 0),
+        ShipLine::new(31, 2, 3, 0, 2),
+        ShipLine::new(31, 3, 8, 2, 6),
+        ShipLine::new(31, 1, 7, 6, 7),
+        ShipLine::new(31, 5, 9, 7, 3),
+        ShipLine::new(31, 4, 5, 3, 1),
+        ShipLine::new(31, 2, 8, 2, 4),
+        ShipLine::new(31, 6, 7, 4, 5),
+        ShipLine::new(31, 4, 9, 5, 3),
+        ShipLine::new(20, 0, 2, 0, 8),
+        ShipLine::new(20, 0, 4, 8, 1),
+        ShipLine::new(16, 2, 6, 4, 8),
+        ShipLine::new(16, 4, 6, 8, 5),
+        ShipLine::new(31, 7, 8, 4, 6),
+        ShipLine::new(31, 7, 9, 5, 7),
+        ShipLine::new(20, 1, 3, 0, 6),
+        ShipLine::new(20, 1, 5, 1, 7),
+        ShipLine::new(2, 0, 1, 10, 9),
+    ];
+
+    let cobra1_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 41, 10),
+        ShipFaceNormal::new(31, 0, -27, 3),
+        ShipFaceNormal::new(31, -8, 46, 8),
+        ShipFaceNormal::new(31, -12, -57, 12),
+        ShipFaceNormal::new(31, 8, 46, 8),
+        ShipFaceNormal::new(31, 12, -57, 12),
+        ShipFaceNormal::new(31, 0, 49, 0),
+        ShipFaceNormal::new(31, 0, 0, -154),
+        ShipFaceNormal::new(31, -121, 111, -62),
+        ShipFaceNormal::new(31, 121, 111, -62),
+    ];
+
+    let cobra1_data: ShipData = ShipData {
+        name: put_into_name("Cobra MkI"),
+        num_points: 11,
+        num_lines: 18,
+        num_faces: 10,
+        max_loot: 3,
+        scoop_type: 0,
+        size: 9801.0,
+        front_laser: 10,
+        bounty: 75,
+        vanish_point: 19,
+        energy: 90,
+        velocity: 26,
+        missiles: 2,
+        laser_strength: 9,
+        points: cobra1_point,
+        lines: cobra1_line,
+        normals: cobra1_face_normal,
+    };
+
+    let worm_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(10, -10, 35, 31, 0, 2, 7, 7),
+        ShipPoint::new(-10, -10, 35, 31, 0, 3, 7, 7),
+        ShipPoint::new(5, 6, 15, 31, 0, 1, 2, 4),
+        ShipPoint::new(-5, 6, 15, 31, 0, 1, 3, 5),
+        ShipPoint::new(15, -10, 25, 31, 2, 4, 7, 7),
+        ShipPoint::new(-15, -10, 25, 31, 3, 5, 7, 7),
+        ShipPoint::new(26, -10, -25, 31, 4, 6, 7, 7),
+        ShipPoint::new(-26, -10, -25, 31, 5, 6, 7, 7),
+        ShipPoint::new(8, 14, -25, 31, 1, 4, 6, 6),
+        ShipPoint::new(-8, 14, -25, 31, 1, 5, 6, 6),
+    ];
+
+    let worm_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 7, 0, 1),
+        ShipLine::new(31, 3, 7, 1, 5),
+        ShipLine::new(31, 5, 7, 5, 7),
+        ShipLine::new(31, 6, 7, 7, 6),
+        ShipLine::new(31, 4, 7, 6, 4),
+        ShipLine::new(31, 2, 7, 4, 0),
+        ShipLine::new(31, 0, 2, 0, 2),
+        ShipLine::new(31, 0, 3, 1, 3),
+        ShipLine::new(31, 2, 4, 4, 2),
+        ShipLine::new(31, 3, 5, 5, 3),
+        ShipLine::new(31, 1, 4, 2, 8),
+        ShipLine::new(31, 4, 6, 8, 6),
+        ShipLine::new(31, 1, 5, 3, 9),
+        ShipLine::new(31, 5, 6, 9, 7),
+        ShipLine::new(31, 0, 1, 2, 3),
+        ShipLine::new(31, 1, 6, 8, 9),
+    ];
+
+    let worm_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 88, 70),
+        ShipFaceNormal::new(31, 0, 69, 14),
+        ShipFaceNormal::new(31, 70, 66, 35),
+        ShipFaceNormal::new(31, -70, 66, 35),
+        ShipFaceNormal::new(31, 64, 49, 14),
+        ShipFaceNormal::new(31, -64, 49, 14),
+        ShipFaceNormal::new(31, 0, 0, -200),
+        ShipFaceNormal::new(31, 0, -80, 0),
+    ];
+
+    let worm_data: ShipData = ShipData {
+        name: put_into_name("Worm"),
+        num_points: 10,
+        num_lines: 16,
+        num_faces: 8,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 9801.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 19,
+        energy: 30,
+        velocity: 23,
+        missiles: 0,
+        laser_strength: 4,
+        points: worm_point,
+        lines: worm_line,
+        normals: worm_face_normal,
+    };
+
+    let cobra3b_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(32, 0, 76, 31, 15, 15, 15, 15),
+        ShipPoint::new(-32, 0, 76, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, 26, 24, 31, 15, 15, 15, 15),
+        ShipPoint::new(-120, -3, -8, 31, 7, 3, 10, 10),
+        ShipPoint::new(120, -3, -8, 31, 8, 4, 12, 12),
+        ShipPoint::new(-88, 16, -40, 31, 15, 15, 15, 15),
+        ShipPoint::new(88, 16, -40, 31, 15, 15, 15, 15),
+        ShipPoint::new(128, -8, -40, 31, 9, 8, 12, 12),
+        ShipPoint::new(-128, -8, -40, 31, 9, 7, 10, 10),
+        ShipPoint::new(0, 26, -40, 31, 6, 5, 9, 9),
+        ShipPoint::new(-32, -24, -40, 31, 10, 9, 11, 11),
+        ShipPoint::new(32, -24, -40, 31, 11, 9, 12, 12),
+        ShipPoint::new(-36, 8, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(-8, 12, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(8, 12, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(36, 8, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(36, -12, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(8, -16, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(-8, -16, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(-36, -12, -40, 20, 9, 9, 9, 9),
+        ShipPoint::new(0, 0, 76, 6, 11, 0, 11, 11),
+        ShipPoint::new(0, 0, 90, 31, 11, 0, 11, 11),
+        ShipPoint::new(-80, -6, -40, 8, 9, 9, 9, 9),
+        ShipPoint::new(-80, 6, -40, 8, 9, 9, 9, 9),
+        ShipPoint::new(-88, 0, -40, 6, 9, 9, 9, 9),
+        ShipPoint::new(80, 6, -40, 8, 9, 9, 9, 9),
+        ShipPoint::new(88, 0, -40, 6, 9, 9, 9, 9),
+        ShipPoint::new(80, -6, -40, 8, 9, 9, 9, 9),
+    ];
+
+    let cobra3b_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 11, 0, 0, 1),
+        ShipLine::new(31, 12, 4, 0, 4),
+        ShipLine::new(31, 10, 3, 1, 3),
+        ShipLine::new(31, 10, 7, 3, 8),
+        ShipLine::new(31, 12, 8, 4, 7),
+        ShipLine::new(31, 9, 8, 6, 7),
+        ShipLine::new(31, 9, 6, 6, 9),
+        ShipLine::new(31, 9, 5, 5, 9),
+        ShipLine::new(31, 9, 7, 5, 8),
+        ShipLine::new(31, 5, 1, 2, 5),
+        ShipLine::new(31, 6, 2, 2, 6),
+        ShipLine::new(31, 7, 3, 3, 5),
+        ShipLine::new(31, 8, 4, 4, 6),
+        ShipLine::new(31, 1, 0, 1, 2),
+        ShipLine::new(31, 2, 0, 0, 2),
+        ShipLine::new(31, 10, 9, 8, 10),
+        ShipLine::new(31, 11, 9, 10, 11),
+        ShipLine::new(31, 12, 9, 7, 11),
+        ShipLine::new(31, 11, 10, 1, 10),
+        ShipLine::new(31, 12, 11, 0, 11),
+        ShipLine::new(29, 3, 1, 1, 5),
+        ShipLine::new(29, 4, 2, 0, 6),
+        ShipLine::new(6, 11, 0, 20, 21),
+        ShipLine::new(20, 9, 9, 12, 13),
+        ShipLine::new(20, 9, 9, 18, 19),
+        ShipLine::new(20, 9, 9, 14, 15),
+        ShipLine::new(20, 9, 9, 16, 17),
+        ShipLine::new(19, 9, 9, 15, 16),
+        ShipLine::new(17, 9, 9, 14, 17),
+        ShipLine::new(19, 9, 9, 13, 18),
+        ShipLine::new(19, 9, 9, 12, 19),
+        ShipLine::new(30, 6, 5, 2, 9),
+        ShipLine::new(6, 9, 9, 22, 24),
+        ShipLine::new(6, 9, 9, 23, 24),
+        ShipLine::new(8, 9, 9, 22, 23),
+        ShipLine::new(6, 9, 9, 25, 26),
+        ShipLine::new(6, 9, 9, 26, 27),
+        ShipLine::new(8, 9, 9, 25, 27),
+    ];
+
+    let cobra3b_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 62, 31),
+        ShipFaceNormal::new(31, -18, 55, 16),
+        ShipFaceNormal::new(31, 18, 55, 16),
+        ShipFaceNormal::new(31, -16, 52, 14),
+        ShipFaceNormal::new(31, 16, 52, 14),
+        ShipFaceNormal::new(31, -14, 47, 0),
+        ShipFaceNormal::new(31, 14, 47, 0),
+        ShipFaceNormal::new(31, -61, 102, 0),
+        ShipFaceNormal::new(31, 61, 102, 0),
+        ShipFaceNormal::new(31, 0, 0, -80),
+        ShipFaceNormal::new(31, -7, -42, 9),
+        ShipFaceNormal::new(31, 0, -30, 6),
+        ShipFaceNormal::new(31, 7, -42, 9),
+    ];
+
+    let cobra3b_data: ShipData = ShipData {
+        name: put_into_name("Cobra MkIII"),
+        num_points: 28,
+        num_lines: 38,
+        num_faces: 13,
+        max_loot: 1,
+        scoop_type: 0,
+        size: 9025.0,
+        front_laser: 21,
+        bounty: 175,
+        vanish_point: 50,
+        energy: 150,
+        velocity: 28,
+        missiles: 2,
+        laser_strength: 9,
+        points: cobra3b_point,
+        lines: cobra3b_line,
+        normals: cobra3b_face_normal,
+    };
+
+    let asp2_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, -18, 0, 22, 0, 1, 2, 2),
+        ShipPoint::new(0, -9, -45, 31, 1, 2, 11, 11),
+        ShipPoint::new(43, 0, -45, 31, 1, 6, 11, 11),
+        ShipPoint::new(69, -3, 0, 31, 1, 6, 7, 9),
+        ShipPoint::new(43, -14, 28, 31, 0, 1, 7, 7),
+        ShipPoint::new(-43, 0, -45, 31, 2, 5, 11, 11),
+        ShipPoint::new(-69, -3, 0, 31, 2, 5, 8, 10),
+        ShipPoint::new(-43, -14, 28, 31, 0, 2, 8, 8),
+        ShipPoint::new(26, -7, 73, 31, 0, 4, 7, 9),
+        ShipPoint::new(-26, -7, 73, 31, 0, 4, 8, 10),
+        ShipPoint::new(43, 14, 28, 31, 3, 4, 6, 9),
+        ShipPoint::new(-43, 14, 28, 31, 3, 4, 5, 10),
+        ShipPoint::new(0, 9, -45, 31, 3, 5, 6, 11),
+        ShipPoint::new(-17, 0, -45, 10, 11, 11, 11, 11),
+        ShipPoint::new(17, 0, -45, 9, 11, 11, 11, 11),
+        ShipPoint::new(0, -4, -45, 10, 11, 11, 11, 11),
+        ShipPoint::new(0, 4, -45, 8, 11, 11, 11, 11),
+        ShipPoint::new(0, -7, 73, 10, 0, 4, 0, 4),
+        ShipPoint::new(0, -7, 83, 10, 0, 4, 0, 4),
+    ];
+
+    let asp2_line: Vec<ShipLine> = vec![
+        ShipLine::new(22, 1, 2, 0, 1),
+        ShipLine::new(22, 0, 1, 0, 4),
+        ShipLine::new(22, 0, 2, 0, 7),
+        ShipLine::new(31, 1, 11, 1, 2),
+        ShipLine::new(31, 1, 6, 2, 3),
+        ShipLine::new(16, 7, 9, 3, 8),
+        ShipLine::new(31, 0, 4, 8, 9),
+        ShipLine::new(16, 8, 10, 6, 9),
+        ShipLine::new(31, 2, 5, 5, 6),
+        ShipLine::new(31, 2, 11, 1, 5),
+        ShipLine::new(31, 1, 7, 3, 4),
+        ShipLine::new(31, 0, 7, 4, 8),
+        ShipLine::new(31, 2, 8, 6, 7),
+        ShipLine::new(31, 0, 8, 7, 9),
+        ShipLine::new(31, 6, 11, 2, 12),
+        ShipLine::new(31, 5, 11, 5, 12),
+        ShipLine::new(22, 3, 6, 10, 12),
+        ShipLine::new(22, 3, 5, 11, 12),
+        ShipLine::new(22, 3, 4, 10, 11),
+        ShipLine::new(31, 5, 10, 6, 11),
+        ShipLine::new(31, 4, 10, 9, 11),
+        ShipLine::new(31, 6, 9, 3, 10),
+        ShipLine::new(31, 4, 9, 8, 10),
+        ShipLine::new(10, 11, 11, 13, 15),
+        ShipLine::new(9, 11, 11, 15, 14),
+        ShipLine::new(8, 11, 11, 14, 16),
+        ShipLine::new(8, 11, 11, 16, 13),
+        ShipLine::new(10, 0, 4, 18, 17),
+    ];
+
+    let asp2_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, -35, 5),
+        ShipFaceNormal::new(31, 8, -38, -7),
+        ShipFaceNormal::new(31, -8, -38, -7),
+        ShipFaceNormal::new(22, 0, 24, -1),
+        ShipFaceNormal::new(31, 0, 43, 19),
+        ShipFaceNormal::new(31, -6, 28, -2),
+        ShipFaceNormal::new(31, 6, 28, -2),
+        ShipFaceNormal::new(31, 59, -64, 31),
+        ShipFaceNormal::new(31, -59, -64, 31),
+        ShipFaceNormal::new(31, 80, 46, 50),
+        ShipFaceNormal::new(31, -80, 46, 50),
+        ShipFaceNormal::new(31, 0, 0, -90),
+    ];
+
+    let asp2_data: ShipData = ShipData {
+        name: put_into_name("Asp MkII"),
+        num_points: 19,
+        num_lines: 28,
+        num_faces: 12,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 3600.0,
+        front_laser: 8,
+        bounty: 200,
+        vanish_point: 40,
+        energy: 150,
+        velocity: 40,
+        missiles: 1,
+        laser_strength: 20,
+        points: asp2_point,
+        lines: asp2_line,
+        normals: asp2_face_normal,
+    };
+
+    let pythonb_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 0, 224, 31, 1, 0, 3, 2),
+        ShipPoint::new(0, 48, 48, 31, 1, 0, 5, 4),
+        ShipPoint::new(96, 0, -16, 31, 15, 15, 15, 15),
+        ShipPoint::new(-96, 0, -16, 31, 15, 15, 15, 15),
+        ShipPoint::new(0, 48, -32, 31, 5, 4, 9, 8),
+        ShipPoint::new(0, 24, -112, 31, 8, 9, 12, 12),
+        ShipPoint::new(-48, 0, -112, 31, 11, 8, 12, 12),
+        ShipPoint::new(48, 0, -112, 31, 10, 9, 12, 12),
+        ShipPoint::new(0, -48, 48, 31, 3, 2, 7, 6),
+        ShipPoint::new(0, -48, -32, 31, 7, 6, 11, 10),
+        ShipPoint::new(0, -24, -112, 31, 11, 10, 12, 12),
+    ];
+
+    let pythonb_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 3, 2, 0, 8),
+        ShipLine::new(31, 2, 0, 0, 3),
+        ShipLine::new(31, 3, 1, 0, 2),
+        ShipLine::new(31, 1, 0, 0, 1),
+        ShipLine::new(31, 5, 9, 2, 4),
+        ShipLine::new(31, 5, 1, 1, 2),
+        ShipLine::new(31, 3, 7, 2, 8),
+        ShipLine::new(31, 4, 0, 1, 3),
+        ShipLine::new(31, 6, 2, 3, 8),
+        ShipLine::new(31, 10, 7, 2, 9),
+        ShipLine::new(31, 8, 4, 3, 4),
+        ShipLine::new(31, 11, 6, 3, 9),
+        ShipLine::new(7, 8, 8, 3, 5),
+        ShipLine::new(7, 11, 11, 3, 10),
+        ShipLine::new(7, 9, 9, 2, 5),
+        ShipLine::new(7, 10, 10, 2, 10),
+        ShipLine::new(31, 10, 9, 2, 7),
+        ShipLine::new(31, 11, 8, 3, 6),
+        ShipLine::new(31, 12, 8, 5, 6),
+        ShipLine::new(31, 12, 9, 5, 7),
+        ShipLine::new(31, 10, 12, 7, 10),
+        ShipLine::new(31, 12, 11, 6, 10),
+        ShipLine::new(31, 9, 8, 4, 5),
+        ShipLine::new(31, 11, 10, 9, 10),
+        ShipLine::new(31, 5, 4, 1, 4),
+        ShipLine::new(31, 7, 6, 8, 9),
+    ];
+
+    let pythonb_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, -27, 40, 11),
+        ShipFaceNormal::new(31, 27, 40, 11),
+        ShipFaceNormal::new(31, -27, -40, 11),
+        ShipFaceNormal::new(31, 27, -40, 11),
+        ShipFaceNormal::new(31, -19, 38, 0),
+        ShipFaceNormal::new(31, 19, 38, 0),
+        ShipFaceNormal::new(31, -19, -38, 0),
+        ShipFaceNormal::new(31, 19, -38, 0),
+        ShipFaceNormal::new(31, -25, 37, -11),
+        ShipFaceNormal::new(31, 25, 37, -11),
+        ShipFaceNormal::new(31, 25, -37, -11),
+        ShipFaceNormal::new(31, -25, -37, -11),
+        ShipFaceNormal::new(31, 0, 0, -112),
+    ];
+
+    let pythonb_data: ShipData = ShipData {
+        name: put_into_name("Python"),
+        num_points: 11,
+        num_lines: 26,
+        num_faces: 13,
+        max_loot: 2,
+        scoop_type: 0,
+        size: 6400.0,
+        front_laser: 0,
+        bounty: 200,
+        vanish_point: 40,
+        energy: 250,
+        velocity: 20,
+        missiles: 3,
+        laser_strength: 13,
+        points: pythonb_point,
+        lines: pythonb_line,
+        normals: pythonb_face_normal,
+    };
+
+    let ferdlce_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, -14, 108, 31, 0, 1, 5, 9),
+        ShipPoint::new(-40, -14, -4, 31, 1, 2, 9, 9),
+        ShipPoint::new(-12, -14, -52, 31, 2, 3, 9, 9),
+        ShipPoint::new(12, -14, -52, 31, 3, 4, 9, 9),
+        ShipPoint::new(40, -14, -4, 31, 4, 5, 9, 9),
+        ShipPoint::new(-40, 14, -4, 28, 0, 1, 2, 6),
+        ShipPoint::new(-12, 2, -52, 28, 2, 3, 6, 7),
+        ShipPoint::new(12, 2, -52, 28, 3, 4, 7, 8),
+        ShipPoint::new(40, 14, -4, 28, 0, 4, 5, 8),
+        ShipPoint::new(0, 18, -20, 15, 0, 6, 7, 8),
+        ShipPoint::new(-3, -11, 97, 11, 0, 0, 0, 0),
+        ShipPoint::new(-26, 8, 18, 9, 0, 0, 0, 0),
+        ShipPoint::new(-16, 14, -4, 11, 0, 0, 0, 0),
+        ShipPoint::new(3, -11, 97, 11, 0, 0, 0, 0),
+        ShipPoint::new(26, 8, 18, 9, 0, 0, 0, 0),
+        ShipPoint::new(16, 14, -4, 11, 0, 0, 0, 0),
+        ShipPoint::new(0, -14, -20, 12, 9, 9, 9, 9),
+        ShipPoint::new(-14, -14, 44, 12, 9, 9, 9, 9),
+        ShipPoint::new(14, -14, 44, 12, 9, 9, 9, 9),
+    ];
+
+    let ferdlce_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 1, 9, 0, 1),
+        ShipLine::new(31, 2, 9, 1, 2),
+        ShipLine::new(31, 3, 9, 2, 3),
+        ShipLine::new(31, 4, 9, 3, 4),
+        ShipLine::new(31, 5, 9, 0, 4),
+        ShipLine::new(28, 0, 1, 0, 5),
+        ShipLine::new(28, 2, 6, 5, 6),
+        ShipLine::new(28, 3, 7, 6, 7),
+        ShipLine::new(28, 4, 8, 7, 8),
+        ShipLine::new(28, 0, 5, 0, 8),
+        ShipLine::new(15, 0, 6, 5, 9),
+        ShipLine::new(11, 6, 7, 6, 9),
+        ShipLine::new(11, 7, 8, 7, 9),
+        ShipLine::new(15, 0, 8, 8, 9),
+        ShipLine::new(14, 1, 2, 1, 5),
+        ShipLine::new(14, 2, 3, 2, 6),
+        ShipLine::new(14, 3, 4, 3, 7),
+        ShipLine::new(14, 4, 5, 4, 8),
+        ShipLine::new(8, 0, 0, 10, 11),
+        ShipLine::new(9, 0, 0, 11, 12),
+        ShipLine::new(11, 0, 0, 10, 12),
+        ShipLine::new(8, 0, 0, 13, 14),
+        ShipLine::new(9, 0, 0, 14, 15),
+        ShipLine::new(11, 0, 0, 13, 15),
+        ShipLine::new(12, 9, 9, 16, 17),
+        ShipLine::new(12, 9, 9, 16, 18),
+        ShipLine::new(8, 9, 9, 17, 18),
+    ];
+
+    let ferdlce_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(28, 0, 24, 6),
+        ShipFaceNormal::new(31, -68, 0, 24),
+        ShipFaceNormal::new(31, -63, 0, -37),
+        ShipFaceNormal::new(31, 0, 0, -104),
+        ShipFaceNormal::new(31, 63, 0, -37),
+        ShipFaceNormal::new(31, 68, 0, 24),
+        ShipFaceNormal::new(28, -12, 46, -19),
+        ShipFaceNormal::new(28, 0, 45, -22),
+        ShipFaceNormal::new(28, 12, 46, -19),
+        ShipFaceNormal::new(31, 0, -28, 0),
+    ];
+
+    let ferdlce_data: ShipData = ShipData {
+        name: put_into_name("Fer-de-Lance"),
+        num_points: 19,
+        num_lines: 27,
+        num_faces: 10,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 1600.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 40,
+        energy: 160,
+        velocity: 30,
+        missiles: 2,
+        laser_strength: 9,
+        points: ferdlce_point,
+        lines: ferdlce_line,
+        normals: ferdlce_face_normal,
+    };
+
+    let moray_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(15, 0, 65, 31, 0, 2, 7, 8),
+        ShipPoint::new(-15, 0, 65, 31, 0, 1, 6, 7),
+        ShipPoint::new(0, 18, -40, 17, 15, 15, 15, 15),
+        ShipPoint::new(-60, 0, 0, 31, 1, 3, 6, 6),
+        ShipPoint::new(60, 0, 0, 31, 2, 5, 8, 8),
+        ShipPoint::new(30, -27, -10, 24, 4, 5, 7, 8),
+        ShipPoint::new(-30, -27, -10, 24, 3, 4, 6, 7),
+        ShipPoint::new(-9, -4, -25, 7, 4, 4, 4, 4),
+        ShipPoint::new(9, -4, -25, 7, 4, 4, 4, 4),
+        ShipPoint::new(0, -18, -16, 7, 4, 4, 4, 4),
+        ShipPoint::new(13, 3, 49, 5, 0, 0, 0, 0),
+        ShipPoint::new(6, 0, 65, 5, 0, 0, 0, 0),
+        ShipPoint::new(-13, 3, 49, 5, 0, 0, 0, 0),
+        ShipPoint::new(-6, 0, 65, 5, 0, 0, 0, 0),
+    ];
+
+    let moray_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 7, 0, 1),
+        ShipLine::new(31, 1, 6, 1, 3),
+        ShipLine::new(24, 3, 6, 3, 6),
+        ShipLine::new(24, 4, 7, 5, 6),
+        ShipLine::new(24, 5, 8, 4, 5),
+        ShipLine::new(31, 2, 8, 0, 4),
+        ShipLine::new(15, 6, 7, 1, 6),
+        ShipLine::new(15, 7, 8, 0, 5),
+        ShipLine::new(15, 0, 2, 0, 2),
+        ShipLine::new(15, 0, 1, 1, 2),
+        ShipLine::new(17, 1, 3, 2, 3),
+        ShipLine::new(17, 2, 5, 2, 4),
+        ShipLine::new(13, 4, 5, 2, 5),
+        ShipLine::new(13, 3, 4, 2, 6),
+        ShipLine::new(5, 4, 4, 7, 8),
+        ShipLine::new(7, 4, 4, 7, 9),
+        ShipLine::new(7, 4, 4, 8, 9),
+        ShipLine::new(5, 0, 0, 10, 11),
+        ShipLine::new(5, 0, 0, 12, 13),
+    ];
+
+    let moray_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 43, 7),
+        ShipFaceNormal::new(31, -10, 49, 7),
+        ShipFaceNormal::new(31, 10, 49, 7),
+        ShipFaceNormal::new(24, -59, -28, -101),
+        ShipFaceNormal::new(24, 0, -52, -78),
+        ShipFaceNormal::new(24, 59, -28, -101),
+        ShipFaceNormal::new(31, -72, -99, 50),
+        ShipFaceNormal::new(31, 0, -83, 30),
+        ShipFaceNormal::new(31, 72, -99, 50),
+    ];
+
+    let moray_data: ShipData = ShipData {
+        name: put_into_name("Moray Star Boat"),
+        num_points: 14,
+        num_lines: 19,
+        num_faces: 9,
+        max_loot: 1,
+        scoop_type: 0,
+        size: 900.0,
+        front_laser: 0,
+        bounty: 50,
+        vanish_point: 40,
+        energy: 100,
+        velocity: 25,
+        missiles: 0,
+        laser_strength: 8,
+        points: moray_point,
+        lines: moray_line,
+        normals: moray_face_normal,
+    };
+
+    let thargoid_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(32, -48, 48, 31, 4, 0, 8, 8),
+        ShipPoint::new(32, -68, 0, 31, 1, 0, 4, 4),
+        ShipPoint::new(32, -48, -48, 31, 2, 1, 4, 4),
+        ShipPoint::new(32, 0, -68, 31, 3, 2, 4, 4),
+        ShipPoint::new(32, 48, -48, 31, 4, 3, 5, 5),
+        ShipPoint::new(32, 68, 0, 31, 5, 4, 6, 6),
+        ShipPoint::new(32, 48, 48, 31, 6, 4, 7, 7),
+        ShipPoint::new(32, 0, 68, 31, 7, 4, 8, 8),
+        ShipPoint::new(-24, -116, 116, 31, 8, 0, 9, 9),
+        ShipPoint::new(-24, -164, 0, 31, 1, 0, 9, 9),
+        ShipPoint::new(-24, -116, -116, 31, 2, 1, 9, 9),
+        ShipPoint::new(-24, 0, -164, 31, 3, 2, 9, 9),
+        ShipPoint::new(-24, 116, -116, 31, 5, 3, 9, 9),
+        ShipPoint::new(-24, 164, 0, 31, 6, 5, 9, 9),
+        ShipPoint::new(-24, 116, 116, 31, 7, 6, 9, 9),
+        ShipPoint::new(-24, 0, 164, 31, 8, 7, 9, 9),
+        ShipPoint::new(-24, 64, 80, 30, 9, 9, 9, 9),
+        ShipPoint::new(-24, 64, -80, 30, 9, 9, 9, 9),
+        ShipPoint::new(-24, -64, -80, 30, 9, 9, 9, 9),
+        ShipPoint::new(-24, -64, 80, 30, 9, 9, 9, 9),
+    ];
+
+    let thargoid_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 8, 4, 0, 7),
+        ShipLine::new(31, 4, 0, 0, 1),
+        ShipLine::new(31, 4, 1, 1, 2),
+        ShipLine::new(31, 4, 2, 2, 3),
+        ShipLine::new(31, 4, 3, 3, 4),
+        ShipLine::new(31, 5, 4, 4, 5),
+        ShipLine::new(31, 6, 4, 5, 6),
+        ShipLine::new(31, 7, 4, 6, 7),
+        ShipLine::new(31, 8, 0, 0, 8),
+        ShipLine::new(31, 1, 0, 1, 9),
+        ShipLine::new(31, 2, 1, 2, 10),
+        ShipLine::new(31, 3, 2, 3, 11),
+        ShipLine::new(31, 5, 3, 4, 12),
+        ShipLine::new(31, 6, 5, 5, 13),
+        ShipLine::new(31, 7, 6, 6, 14),
+        ShipLine::new(31, 8, 7, 7, 15),
+        ShipLine::new(31, 9, 8, 8, 15),
+        ShipLine::new(31, 9, 0, 8, 9),
+        ShipLine::new(31, 9, 1, 9, 10),
+        ShipLine::new(31, 9, 2, 10, 11),
+        ShipLine::new(31, 9, 3, 11, 12),
+        ShipLine::new(31, 9, 5, 12, 13),
+        ShipLine::new(31, 9, 6, 13, 14),
+        ShipLine::new(31, 9, 7, 14, 15),
+        ShipLine::new(30, 9, 9, 16, 17),
+        ShipLine::new(30, 9, 9, 18, 19),
+    ];
+
+    let thargoid_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 103, -60, 25),
+        ShipFaceNormal::new(31, 103, -60, -25),
+        ShipFaceNormal::new(31, 103, -25, -60),
+        ShipFaceNormal::new(31, 103, 25, -60),
+        ShipFaceNormal::new(31, 64, 0, 0),
+        ShipFaceNormal::new(31, 103, 60, -25),
+        ShipFaceNormal::new(31, 103, 60, 25),
+        ShipFaceNormal::new(31, 103, 25, 60),
+        ShipFaceNormal::new(31, 103, -25, 60),
+        ShipFaceNormal::new(31, -48, 0, 0),
+    ];
+
+    let thargoid_data: ShipData = ShipData {
+        name: put_into_name("Thargoid"),
+        num_points: 20,
+        num_lines: 26,
+        num_faces: 10,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 9801.0,
+        front_laser: 15,
+        bounty: 500,
+        vanish_point: 55,
+        energy: 240,
+        velocity: 39,
+        missiles: 6,
+        laser_strength: 11,
+        points: thargoid_point,
+        lines: thargoid_line,
+        normals: thargoid_face_normal,
+    };
+
+    let thargon_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(-9, 0, 40, 31, 0, 1, 5, 5),
+        ShipPoint::new(-9, -38, 12, 31, 0, 1, 2, 2),
+        ShipPoint::new(-9, -24, -32, 31, 0, 2, 3, 3),
+        ShipPoint::new(-9, 24, -32, 31, 0, 3, 4, 4),
+        ShipPoint::new(-9, 38, 12, 31, 0, 4, 5, 5),
+        ShipPoint::new(9, 0, -8, 31, 1, 5, 6, 6),
+        ShipPoint::new(9, -10, -15, 31, 1, 2, 6, 6),
+        ShipPoint::new(9, -6, -26, 31, 2, 3, 6, 6),
+        ShipPoint::new(9, 6, -26, 31, 3, 4, 6, 6),
+        ShipPoint::new(9, 10, -15, 31, 4, 5, 6, 6),
+    ];
+
+    let thargon_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 1, 0, 0, 1),
+        ShipLine::new(31, 2, 0, 1, 2),
+        ShipLine::new(31, 3, 0, 2, 3),
+        ShipLine::new(31, 4, 0, 3, 4),
+        ShipLine::new(31, 5, 0, 0, 4),
+        ShipLine::new(31, 5, 1, 0, 5),
+        ShipLine::new(31, 2, 1, 1, 6),
+        ShipLine::new(31, 3, 2, 2, 7),
+        ShipLine::new(31, 4, 3, 3, 8),
+        ShipLine::new(31, 5, 4, 4, 9),
+        ShipLine::new(31, 6, 1, 5, 6),
+        ShipLine::new(31, 6, 2, 6, 7),
+        ShipLine::new(31, 6, 3, 7, 8),
+        ShipLine::new(31, 6, 4, 8, 9),
+        ShipLine::new(31, 6, 5, 9, 5),
+    ];
+
+    let thargon_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, -36, 0, 0),
+        ShipFaceNormal::new(31, 20, -5, 7),
+        ShipFaceNormal::new(31, 46, -42, -14),
+        ShipFaceNormal::new(31, 36, 0, -104),
+        ShipFaceNormal::new(31, 46, 42, -14),
+        ShipFaceNormal::new(31, 20, 5, 7),
+        ShipFaceNormal::new(31, 36, 0, 0),
+    ];
+
+    let thargon_data: ShipData = ShipData {
+        name: put_into_name("Thargon"),
+        num_points: 10,
+        num_lines: 15,
+        num_faces: 7,
+        max_loot: 0,
+        scoop_type: 15,
+        size: 1600.0,
+        front_laser: 0,
+        bounty: 50,
+        vanish_point: 20,
+        energy: 20,
+        velocity: 30,
+        missiles: 0,
+        laser_strength: 8,
+        points: thargon_point,
+        lines: thargon_line,
+        normals: thargon_face_normal,
+    };
+
+    let constrct_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(20, -7, 80, 31, 0, 2, 9, 9),
+        ShipPoint::new(-20, -7, 80, 31, 0, 1, 9, 9),
+        ShipPoint::new(-54, -7, 40, 31, 1, 4, 9, 9),
+        ShipPoint::new(-54, -7, -40, 31, 4, 5, 8, 9),
+        ShipPoint::new(-20, 13, -40, 31, 5, 6, 8, 8),
+        ShipPoint::new(20, 13, -40, 31, 6, 7, 8, 8),
+        ShipPoint::new(54, -7, -40, 31, 3, 7, 8, 9),
+        ShipPoint::new(54, -7, 40, 31, 2, 3, 9, 9),
+        ShipPoint::new(20, 13, 5, 31, 15, 15, 15, 15),
+        ShipPoint::new(-20, 13, 5, 31, 15, 15, 15, 15),
+        ShipPoint::new(20, -7, 62, 18, 9, 9, 9, 9),
+        ShipPoint::new(-20, -7, 62, 18, 9, 9, 9, 9),
+        ShipPoint::new(25, -7, -25, 18, 9, 9, 9, 9),
+        ShipPoint::new(-25, -7, -25, 18, 9, 9, 9, 9),
+        ShipPoint::new(15, -7, -15, 10, 9, 9, 9, 9),
+        ShipPoint::new(-15, -7, -15, 10, 9, 9, 9, 9),
+        ShipPoint::new(0, -7, 0, 0, 9, 15, 0, 1),
+    ];
+
+    let constrct_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 9, 0, 1),
+        ShipLine::new(31, 1, 9, 1, 2),
+        ShipLine::new(31, 0, 1, 1, 9),
+        ShipLine::new(31, 0, 2, 0, 8),
+        ShipLine::new(31, 2, 9, 0, 7),
+        ShipLine::new(31, 2, 3, 7, 8),
+        ShipLine::new(31, 1, 4, 2, 9),
+        ShipLine::new(31, 4, 9, 2, 3),
+        ShipLine::new(31, 3, 9, 6, 7),
+        ShipLine::new(31, 3, 7, 6, 8),
+        ShipLine::new(31, 6, 7, 5, 8),
+        ShipLine::new(31, 5, 6, 4, 9),
+        ShipLine::new(31, 4, 5, 3, 9),
+        ShipLine::new(31, 5, 8, 3, 4),
+        ShipLine::new(31, 6, 8, 4, 5),
+        ShipLine::new(31, 7, 8, 5, 6),
+        ShipLine::new(31, 8, 9, 3, 6),
+        ShipLine::new(31, 0, 6, 8, 9),
+        ShipLine::new(18, 9, 9, 10, 12),
+        ShipLine::new(5, 9, 9, 12, 14),
+        ShipLine::new(10, 9, 9, 14, 10),
+        ShipLine::new(10, 9, 9, 11, 15),
+        ShipLine::new(5, 9, 9, 13, 15),
+        ShipLine::new(18, 9, 9, 11, 13),
+    ];
+
+    let constrct_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 55, 15),
+        ShipFaceNormal::new(31, -24, 75, 20),
+        ShipFaceNormal::new(31, 24, 75, 20),
+        ShipFaceNormal::new(31, 44, 75, 0),
+        ShipFaceNormal::new(31, -44, 75, 0),
+        ShipFaceNormal::new(31, -44, 75, 0),
+        ShipFaceNormal::new(31, 0, 53, 0),
+        ShipFaceNormal::new(31, 44, 75, 0),
+        ShipFaceNormal::new(31, 0, 0, -160),
+        ShipFaceNormal::new(31, 0, -27, 0),
+    ];
+
+    let constrct_data: ShipData = ShipData {
+        name: put_into_name("Constrictor"),
+        num_points: 17,
+        num_lines: 24,
+        num_faces: 10,
+        max_loot: 3,
+        scoop_type: 0,
+        size: 4225.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 45,
+        energy: 252,
+        velocity: 36,
+        missiles: 4,
+        laser_strength: 26,
+        points: constrct_point,
+        lines: constrct_line,
+        normals: constrct_face_normal,
+    };
+
+    let cougar_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 5, 67, 31, 0, 2, 4, 4),
+        ShipPoint::new(-20, 0, 40, 31, 0, 1, 2, 2),
+        ShipPoint::new(-40, 0, -40, 31, 0, 1, 5, 5),
+        ShipPoint::new(0, 14, -40, 30, 0, 4, 5, 5),
+        ShipPoint::new(0, -14, -40, 30, 1, 2, 3, 5),
+        ShipPoint::new(20, 0, 40, 31, 2, 3, 4, 4),
+        ShipPoint::new(40, 0, -40, 31, 3, 4, 5, 5),
+        ShipPoint::new(-36, 0, 56, 31, 0, 1, 1, 1),
+        ShipPoint::new(-60, 0, -20, 31, 0, 1, 1, 1),
+        ShipPoint::new(36, 0, 56, 31, 3, 4, 4, 4),
+        ShipPoint::new(60, 0, -20, 31, 3, 4, 4, 4),
+        ShipPoint::new(0, 7, 35, 18, 0, 0, 4, 4),
+        ShipPoint::new(0, 8, 25, 20, 0, 0, 4, 4),
+        ShipPoint::new(-12, 2, 45, 20, 0, 0, 0, 0),
+        ShipPoint::new(12, 2, 45, 20, 4, 4, 4, 4),
+        ShipPoint::new(-10, 6, -40, 20, 5, 5, 5, 5),
+        ShipPoint::new(-10, -6, -40, 20, 5, 5, 5, 5),
+        ShipPoint::new(10, -6, -40, 20, 5, 5, 5, 5),
+        ShipPoint::new(10, 6, -40, 20, 5, 5, 5, 5),
+    ];
+
+    let cougar_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 2, 0, 1),
+        ShipLine::new(31, 0, 1, 1, 7),
+        ShipLine::new(31, 0, 1, 7, 8),
+        ShipLine::new(31, 0, 1, 8, 2),
+        ShipLine::new(30, 0, 5, 2, 3),
+        ShipLine::new(30, 4, 5, 3, 6),
+        ShipLine::new(30, 1, 5, 2, 4),
+        ShipLine::new(30, 3, 5, 4, 6),
+        ShipLine::new(31, 3, 4, 6, 10),
+        ShipLine::new(31, 3, 4, 10, 9),
+        ShipLine::new(31, 3, 4, 9, 5),
+        ShipLine::new(31, 2, 4, 5, 0),
+        ShipLine::new(27, 0, 4, 0, 3),
+        ShipLine::new(27, 1, 2, 1, 4),
+        ShipLine::new(27, 2, 3, 5, 4),
+        ShipLine::new(26, 0, 1, 1, 2),
+        ShipLine::new(26, 3, 4, 5, 6),
+        ShipLine::new(20, 0, 0, 12, 13),
+        ShipLine::new(18, 0, 0, 13, 11),
+        ShipLine::new(18, 4, 4, 11, 14),
+        ShipLine::new(20, 4, 4, 14, 12),
+        ShipLine::new(18, 5, 5, 15, 16),
+        ShipLine::new(20, 5, 5, 16, 18),
+        ShipLine::new(18, 5, 5, 18, 17),
+        ShipLine::new(20, 5, 5, 17, 15),
+    ];
+
+    let cougar_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, -16, 46, 4),
+        ShipFaceNormal::new(31, -16, -46, 4),
+        ShipFaceNormal::new(31, 0, -27, 5),
+        ShipFaceNormal::new(31, 16, -46, 4),
+        ShipFaceNormal::new(31, 16, 46, 4),
+        ShipFaceNormal::new(30, 0, 0, -160),
+    ];
+
+    let cougar_data: ShipData = ShipData {
+        name: put_into_name("Cougar"),
+        num_points: 19,
+        num_lines: 25,
+        num_faces: 6,
+        max_loot: 3,
+        scoop_type: 0,
+        size: 4900.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 34,
+        energy: 252,
+        velocity: 40,
+        missiles: 4,
+        laser_strength: 26,
+        points: cougar_point,
+        lines: cougar_line,
+        normals: cougar_face_normal,
+    };
+
+    let dodec_point: Vec<ShipPoint> = vec![
+        ShipPoint::new(0, 150, 196, 31, 0, 1, 5, 5),
+        ShipPoint::new(143, 46, 196, 31, 0, 1, 2, 2),
+        ShipPoint::new(88, -121, 196, 31, 0, 2, 3, 3),
+        ShipPoint::new(-88, -121, 196, 31, 0, 3, 4, 4),
+        ShipPoint::new(-143, 46, 196, 31, 0, 4, 5, 5),
+        ShipPoint::new(0, 243, 46, 31, 1, 5, 6, 6),
+        ShipPoint::new(231, 75, 46, 31, 1, 2, 7, 7),
+        ShipPoint::new(143, -196, 46, 31, 2, 3, 8, 8),
+        ShipPoint::new(-143, -196, 46, 31, 3, 4, 9, 9),
+        ShipPoint::new(-231, 75, 46, 31, 4, 5, 10, 10),
+        ShipPoint::new(143, 196, -46, 31, 1, 6, 7, 7),
+        ShipPoint::new(231, -75, -46, 31, 2, 7, 8, 8),
+        ShipPoint::new(0, -243, -46, 31, 3, 8, 9, 9),
+        ShipPoint::new(-231, -75, -46, 31, 4, 9, 10, 10),
+        ShipPoint::new(-143, 196, -46, 31, 5, 6, 10, 10),
+        ShipPoint::new(88, 121, -196, 31, 6, 7, 11, 11),
+        ShipPoint::new(143, -46, -196, 31, 7, 8, 11, 11),
+        ShipPoint::new(0, -150, -196, 31, 8, 9, 11, 11),
+        ShipPoint::new(-143, -46, -196, 31, 9, 10, 11, 11),
+        ShipPoint::new(-88, 121, -196, 31, 6, 10, 11, 11),
+        ShipPoint::new(-16, 32, 196, 30, 0, 0, 0, 0),
+        ShipPoint::new(-16, -32, 196, 30, 0, 0, 0, 0),
+        ShipPoint::new(16, 32, 196, 23, 0, 0, 0, 0),
+        ShipPoint::new(16, -32, 196, 23, 0, 0, 0, 0),
+    ];
+
+    let dodec_line: Vec<ShipLine> = vec![
+        ShipLine::new(31, 0, 1, 0, 1),
+        ShipLine::new(31, 0, 2, 1, 2),
+        ShipLine::new(31, 0, 3, 2, 3),
+        ShipLine::new(31, 0, 4, 3, 4),
+        ShipLine::new(31, 0, 5, 4, 0),
+        ShipLine::new(31, 1, 6, 5, 10),
+        ShipLine::new(31, 1, 7, 10, 6),
+        ShipLine::new(31, 2, 7, 6, 11),
+        ShipLine::new(31, 2, 8, 11, 7),
+        ShipLine::new(31, 3, 8, 7, 12),
+        ShipLine::new(31, 3, 9, 12, 8),
+        ShipLine::new(31, 4, 9, 8, 13),
+        ShipLine::new(31, 4, 10, 13, 9),
+        ShipLine::new(31, 5, 10, 9, 14),
+        ShipLine::new(31, 5, 6, 14, 5),
+        ShipLine::new(31, 7, 11, 15, 16),
+        ShipLine::new(31, 8, 11, 16, 17),
+        ShipLine::new(31, 9, 11, 17, 18),
+        ShipLine::new(31, 10, 11, 18, 19),
+        ShipLine::new(31, 6, 11, 19, 15),
+        ShipLine::new(31, 1, 5, 0, 5),
+        ShipLine::new(31, 1, 2, 1, 6),
+        ShipLine::new(31, 2, 3, 2, 7),
+        ShipLine::new(31, 3, 4, 3, 8),
+        ShipLine::new(31, 4, 5, 4, 9),
+        ShipLine::new(31, 6, 7, 10, 15),
+        ShipLine::new(31, 7, 8, 11, 16),
+        ShipLine::new(31, 8, 9, 12, 17),
+        ShipLine::new(31, 9, 10, 13, 18),
+        ShipLine::new(31, 6, 10, 14, 19),
+        ShipLine::new(30, 0, 0, 20, 21),
+        ShipLine::new(20, 0, 0, 21, 23),
+        ShipLine::new(23, 0, 0, 23, 22),
+        ShipLine::new(20, 0, 0, 22, 20),
+    ];
+
+    let dodec_face_normal: Vec<ShipFaceNormal> = vec![
+        ShipFaceNormal::new(31, 0, 0, 196),
+        ShipFaceNormal::new(31, 103, 142, 88),
+        ShipFaceNormal::new(31, 169, -55, 89),
+        ShipFaceNormal::new(31, 0, -176, 88),
+        ShipFaceNormal::new(31, -169, -55, 89),
+        ShipFaceNormal::new(31, -103, 142, 88),
+        ShipFaceNormal::new(31, 0, 176, -88),
+        ShipFaceNormal::new(31, 169, 55, -89),
+        ShipFaceNormal::new(31, 103, -142, -88),
+        ShipFaceNormal::new(31, -103, -142, -88),
+        ShipFaceNormal::new(31, -169, 55, -89),
+        ShipFaceNormal::new(31, 0, 0, -196),
+    ];
+
+    let dodec_data: ShipData = ShipData {
+        name: put_into_name("Dodec Space Station"),
+        num_points: 24,
+        num_lines: 34,
+        num_faces: 12,
+        max_loot: 0,
+        scoop_type: 0,
+        size: 32400.0,
+        front_laser: 0,
+        bounty: 0,
+        vanish_point: 125,
+        energy: 240,
+        velocity: 0,
+        missiles: 0,
+        laser_strength: 0,
+        points: dodec_point,
+        lines: dodec_line,
+        normals: dodec_face_normal,
+    };
+
+    let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
+        boulder_data.clone(), //NULL,
+        missile_data,
+        coriolis_data,
+        esccaps_data,
+        alloy_data,
+        cargo_data,
+        boulder_data,
+        asteroid_data,
+        rock_data,
+        orbit_data,
+        transp_data,
+        cobra3a_data,
+        pythona_data,
+        boa_data,
+        anacnda_data,
+        hermit_data,
+        viper_data,
+        sidewnd_data,
+        mamba_data,
+        krait_data,
+        adder_data,
+        gecko_data,
+        cobra1_data,
+        worm_data,
+        cobra3b_data,
+        asp2_data,
+        pythonb_data,
+        ferdlce_data,
+        moray_data,
+        thargoid_data,
+        thargon_data,
+        constrct_data,
+        cougar_data,
+        dodec_data,
+    ];
 
     let mut universe: Vec<UnivObject> = vec![];
     for i in 0..MAX_UNIV_OBJECTS {
-        universe.push(UnivObject::new(START_VECTOR,START_MATRIX,0,0,0,0,0,0,0,0,0,0,0,0,0));
+        universe.push(UnivObject::new(
+            START_VECTOR,
+            START_MATRIX,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+        ));
     }
     let frame_duration = time::Duration::from_millis(40);
     let mut config: Config = Config::new();
@@ -400,12 +2944,15 @@ let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
     let mut cmdr = Commander::get_saved();
     let mut params: GameParams = GameParams::new();
     let mut da_stars: Stars = Stars::new();
-    create_new_stars(&mut da_stars, &params);
-    initialise_game(&mut params);
-
-    clear_universe(&mut universe, &mut ship_count, &mut params.in_battle);
     while !params.finish {
         params.game_over = false;
+        initialise_game(
+            &mut params,
+            &mut da_stars,
+            &mut universe,
+            &mut ship_count,
+            &mut cmdr,
+        );
         dock_player(&mut params);
 
         // update_console();
@@ -418,16 +2965,21 @@ let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
         params.old_cross_y = -1;
 
         dock_player(&mut params);
-        // display_commander_status ();
+        display_commander_status(&cmdr, &mut params, &universe);
         while !params.game_over {
-            // snd_update_sound();
-            // gfx_set_clip_region (1, 1, 510, 383);
-
             params.rolling = false;
             params.climbing = false;
 
-            handle_flight_keys(&mut params, &config, &mut cmdr, &mut da_stars, &mut universe, &mut ship_count, &mut ship_list);
-
+            handle_flight_keys(
+                &mut params,
+                &config,
+                &mut cmdr,
+                &mut da_stars,
+                &mut universe,
+                &mut ship_count,
+                &mut ship_list,
+            );
+            // dbg!(params.current_screen);
             if params.game_paused {
                 continue;
             }
@@ -462,9 +3014,9 @@ let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
                     || (params.current_screen == SCR_RIGHT_VIEW)
                     || (params.current_screen == SCR_INTRO_ONE)
                     || (params.current_screen == SCR_INTRO_TWO)
-                    || (params.current_screen == SCR_GAME_OVER) 
+                    || (params.current_screen == SCR_GAME_OVER)
                 {
-                    clear_background(BLACK);
+                    // clear_background(BLACK);
                     update_starfield(&mut da_stars, &params);
                 }
 
@@ -475,8 +3027,16 @@ let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
                     // }
                 }
 
-                // update_universe ();
+                update_universe(
+                    &mut universe,
+                    &mut cmdr,
+                    &mut ship_list,
+                    &mut params,
+                    &mut ship_count,
+                    &config,
+                );
 
+                // dbg!(params.current_screen);
                 if params.docked {
                     // update_console();
                     continue;
@@ -506,9 +3066,10 @@ let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
                     }
                 }
 
-                params.mcount -= 1;
-                if params.mcount < 0 {
+                if params.mcount == 0 {
                     params.mcount = 255;
+                } else {
+                    params.mcount -= 1;
                 }
 
                 if (params.mcount & 7) == 0 {
@@ -529,7 +3090,7 @@ let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
                 }
 
                 if (params.mcount == 0) && (!params.witchspace) {
-                    // random_encounter();
+                    random_encounter(&mut ship_count, &mut universe, &params, &cmdr, &ship_list);
                 }
 
                 cool_laser(&mut params);
@@ -538,42 +3099,80 @@ let mut ship_list: [ShipData; NO_OF_SHIPS + 1] = [
                 // update_console();
             }
 
-            // clear_background(LIGHTGRAY);
-            // if is_key_down(KeyCode::Right) {
-            //     arrow_right(&mut params)
-            // }
-            // if is_key_down(KeyCode::Left) {
-            //     arrow_left(&mut params)
-            // }
-            // if is_key_down(KeyCode::Down) {
-            //     arrow_down(&mut params)
-            // }
-            // if is_key_down(KeyCode::Up) {
-            //     arrow_up(&mut params)
-            // }
-            // dbg!(game_params.cross_x,game_params.cross_y);
-            params.old_cross_x = params.cross_x;
-            params.old_cross_y = params.cross_y;
-            draw_cross(&params, params.old_cross_x, params.old_cross_y);
-            draw_laser_sights(&params, &cmdr);
-            update_starfield(&mut da_stars, &params);
-            // draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
-            // draw_rectangle(screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, GREEN);
-            // draw_circle(screen_width() - 30.0, screen_height() - 30.0, 15.0, YELLOW);
+            if (params.current_screen == SCR_BREAK_PATTERN) {
+                for i in 1..20 {
+                    for j in 0..i {
+                        draw_circle_lines(
+                            128.0 * GFX_SCALE as f32,
+                            96.0 * GFX_SCALE as f32,
+                            ((30 + j * 15) * GFX_SCALE) as f32,
+                            THICKNESS * GFX_SCALE as f32,
+                            WHITE,
+                        );
+                    }
+                    thread::sleep(frame_duration);
+                    next_frame().await;
+                }
 
-            // draw_text("HELLO", 20.0, 20.0, 30.0, DARKGRAY);
+                if (params.docked) {
+                    // check_mission_brief();
+                    display_commander_status(&cmdr, &mut params, &universe);
+                    // update_console();
+                } else {
+                    params.current_screen = SCR_FRONT_VIEW;
+                }
+                // display_break_pattern(frame_duration,&mut params,&universe,&cmdr);
+            }
 
+            if (params.cross_timer > 0) {
+                params.cross_timer -= 1;
+                if (params.cross_timer == 0) {
+                    // show_distance_to_planet();
+                }
+            }
+
+            if ((params.cross_x != params.old_cross_x) || (params.cross_y != params.old_cross_y)) {
+                if (params.old_cross_x != -1) {
+                    draw_cross(&params, params.old_cross_x, params.old_cross_y);
+                }
+
+                params.old_cross_x = params.cross_x;
+                params.old_cross_y = params.cross_y;
+
+                draw_cross(&params, params.old_cross_x, params.old_cross_y);
+            }
+            // dbg!(&universe[0]);
+            draw_ship(&mut universe[0], &params, &config, &ship_list);
             thread::sleep(frame_duration);
             next_frame().await
         }
+
+        if (!params.finish) {
+            // run_game_over_screen();
+        }
+        /*
+        // params.old_cross_x = params.cross_x;
+        // params.old_cross_y = params.cross_y;
+        // draw_cross(&params, params.old_cross_x, params.old_cross_y);
+        // draw_laser_sights(&params, &cmdr);
+        // update_starfield(&mut da_stars, &params);
+        // draw_line(40.0, 40.0, 100.0, 200.0, 15.0, BLUE);
+        // draw_rectangle(screen_width() / 2.0 - 60.0, 100.0, 120.0, 60.0, GREEN);
+        // draw_circle(screen_width() - 30.0, screen_height() - 30.0, 15.0, YELLOW);
+
+        // draw_text("HELLO", 20.0, 20.0, 30.0, DARKGRAY);
+        */
+
+        thread::sleep(frame_duration);
+        next_frame().await
     }
 }
 
-fn put_into_name(new_name: &str)->[char;32]  {
-    let mut result =[' ';32];
-    for (i,c) in new_name.chars().enumerate() {
-        if i < result.len(){
-        result[i]=c;
+fn put_into_name(new_name: &str) -> [char; 32] {
+    let mut result = [' '; 32];
+    for (i, c) in new_name.chars().enumerate() {
+        if i < result.len() {
+            result[i] = c;
         }
     }
     result
@@ -582,12 +3181,16 @@ fn put_into_name(new_name: &str)->[char;32]  {
  * Initialise the game parameters.
  */
 
-fn initialise_game(params: &mut GameParams) {
-    // set_rand_seed(time(NULL));
+fn initialise_game(
+    params: &mut GameParams,
+    da_stars: &mut Stars,
+    universe: &mut [UnivObject],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    cmdr: &mut Commander,
+) {
     params.current_screen = SCR_INTRO_ONE;
-    params.current_screen = SCR_FRONT_VIEW;
 
-    // restore_saved_commander();
+    restore_saved_commander(cmdr, params);
 
     params.flight_speed = 1;
     params.flight_roll = 0;
@@ -606,8 +3209,8 @@ fn initialise_game(params: &mut GameParams) {
     params.game_paused = false;
     params.auto_pilot = false;
 
-    // create_new_stars();
-    // clear_universe();
+    create_new_stars(da_stars, &params);
+    clear_universe(universe, ship_count, &mut params.in_battle);
 
     params.old_cross_x = -1;
     params.old_cross_y = -1;
@@ -619,7 +3222,7 @@ fn initialise_game(params: &mut GameParams) {
     params.myship.max_roll = 31;
     params.myship.max_climb = 8; /* CF 8 */
     params.myship.max_fuel = 70; /* 7.0 Light Years */
-    params.message_string = ['c'; 80];
+    params.message_string = "".to_string();
     params.rolling = false;
     params.climbing = false;
     params.have_joystick = 0;
@@ -958,9 +3561,9 @@ fn handle_flight_keys(
     config: &Config,
     cmdr: &mut Commander,
     da_stars: &mut Stars,
-    univ: &mut [UnivObject],
-    ship_count: &mut [My; NO_OF_SHIPS +1],
-    ship_list: &mut [ShipData; NO_OF_SHIPS +1]
+    universe: &mut [UnivObject],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
 ) {
     let mut keyasc;
 
@@ -1013,7 +3616,7 @@ fn handle_flight_keys(
         params.find_input = false;
 
         if params.docked {
-            launch_player(params, cmdr, da_stars, univ,ship_count,ship_list);
+            launch_player(params, cmdr, da_stars, universe, ship_count, ship_list);
         } else {
             if params.current_screen != SCR_FRONT_VIEW {
                 params.current_screen = SCR_FRONT_VIEW;
@@ -1081,7 +3684,7 @@ fn handle_flight_keys(
 
     if is_key_down(KeyCode::F9) {
         params.find_input = false;
-        // display_commander_status();
+        display_commander_status(cmdr, params, universe);
     }
 
     if is_key_down(KeyCode::F10) {
@@ -1161,7 +3764,7 @@ fn handle_flight_keys(
     }
 
     if is_key_down(JUMP_KEY) && (!params.docked) && (!params.witchspace) {
-        // jump_warp();
+        jump_warp(universe, params);
     }
 
     if is_key_down(FIRE_MISSILE_KEY) {
@@ -1206,19 +3809,19 @@ fn handle_flight_keys(
         }
     }
 
-    if is_key_down(KeyCode::Up) {
-        arrow_up(params);
-    }
-
-    if is_key_down(KeyCode::Down) {
+    if is_key_down(KeyCode::Up) || is_key_down(KeyCode::S) {
         arrow_down(params);
     }
 
-    if is_key_down(KeyCode::Left) {
+    if is_key_down(KeyCode::Down)|| is_key_down(KeyCode::X)  {
+        arrow_up(params);
+    }
+
+    if is_key_down(KeyCode::Left)|| is_key_down(KeyCode::Comma)  {
         arrow_left(params);
     }
 
-    if is_key_down(KeyCode::Right) {
+    if is_key_down(KeyCode::Right)|| is_key_down(KeyCode::Period)  {
         arrow_right(params);
     }
 
@@ -1260,4 +3863,43 @@ fn y_pressed() {
 fn isalpha(keyasc: KeyCode) -> bool {
     println!("is_alpha()");
     false
+}
+/*
+ * Draw a break pattern (for launching, docking and hyperspacing).
+ * Just draw a very simple one for the moment.
+ */
+
+async fn display_break_pattern(
+    frame_duration: time::Duration,
+    params: &mut GameParams,
+    universe: &[UnivObject],
+    cmdr: &Commander,
+) {
+    println!("aiien");
+
+    for i in 0..20 {
+        dbg!(i);
+        draw_circle(
+            256.0 * GFX_SCALE as f32,
+            192.0 * GFX_SCALE as f32,
+            (30 + i * 15 * GFX_SCALE) as f32,
+            WHITE,
+        );
+        thread::sleep(frame_duration);
+        next_frame().await;
+    }
+
+    if (params.docked) {
+        // check_mission_brief();
+        display_commander_status(cmdr, params, universe);
+        // update_console();
+    } else {
+        params.current_screen = SCR_FRONT_VIEW;
+    }
+}
+
+pub fn info_message(message: String, params: &mut GameParams) {
+    params.message_string = message;
+    params.message_count = 37;
+    //	snd_play_sample (SND_BEEP);
 }

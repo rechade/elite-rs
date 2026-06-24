@@ -13,7 +13,11 @@
  */
 
 use crate::{
-    planet::GalaxySeed, shipdata::NO_OF_SHIPS, swat::MISSILE_UNARMED, trade::NO_OF_STOCK_ITEMS, My,
+    GameParams, My,
+    planet::{GalaxySeed, find_planet, generate_planet_data},
+    shipdata::NO_OF_SHIPS,
+    swat::MISSILE_UNARMED,
+    trade::NO_OF_STOCK_ITEMS,
 };
 
 #[derive(Copy, Clone)]
@@ -470,6 +474,24 @@ impl PlayerShip {
     }
 }
 
+pub fn restore_saved_commander(cmdr: &mut Commander, params: &mut GameParams) {
+    *cmdr = Commander::get_saved();
+
+    params.docked_planet = find_planet(cmdr.ship_x, cmdr.ship_y, cmdr, params);
+    params.hyperspace_planet = params.docked_planet;
+
+    params.current_planet_data = generate_planet_data(&params.docked_planet);
+    generate_stock_market();
+    set_stock_quantities(cmdr.station_stock);
+}
+
+fn set_stock_quantities(station_stock: [My; 17]) {
+    println!("set_stock_quantities");
+}
+
+fn generate_stock_market() {
+    println!("generate_stock_market");
+}
 /*
 const SSHIP_LIST: [ship_data; NO_OF_SHIPS + 1] = [
     NULL,
