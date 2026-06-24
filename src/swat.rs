@@ -58,34 +58,34 @@ pub const initial_flags: [My; NO_OF_SHIPS + 1] = [
 ];
 pub const MISSILE_UNARMED: My = -2;
 pub const MISSILE_ARMED: My = -1;
-pub struct Swat {
-    ecm_active: My,
-    missile_target: My,
-    // in_battle: My,
-}
+// pub struct Swat {
+//     ecm_active: My,
+//     missile_target: My,
+//     // in_battle: My,
+// }
 
-impl Swat {
-    pub fn new() -> Self {
-        Self {
-            ecm_active: 0,
-            missile_target: MISSILE_UNARMED,
-            // in_battle: 0,
-        }
-    }
+// impl Swat {
+//     pub fn new() -> Self {
+//         Self {
+//             ecm_active: 0,
+//             missile_target: MISSILE_UNARMED,
+//             // in_battle: 0,
+//         }
+//     }
 
-    pub fn set(ecm_active: My, missile_target: My, in_battle: My) -> Self {
-        Self {
-            ecm_active,
-            missile_target,
-            // in_battle,
-        }
-    }
-}
+//     pub fn set(ecm_active: My, missile_target: My, in_battle: My) -> Self {
+//         Self {
+//             ecm_active,
+//             missile_target,
+//             // in_battle,
+//         }
+//     }
+// }
 pub fn reset_weapons(params: &mut GameParams) {
     params.myship.laser_temp = 0;
     params.myship.laser_counter = 0;
     params.myship.laser = 0;
-    params.myship.ecm_active = 0;
+    params.myship.ecm_active = false;
     params.myship.missile_target = MISSILE_UNARMED;
 }
 pub fn draw_laser_lines(params: &GameParams, config: &Config) {

@@ -419,7 +419,7 @@ pub struct PlayerShip {
     pub laser: My,
     pub laser_x: My,
     pub laser_y: My,
-    pub ecm_active: My,
+    pub ecm_active: bool,
     pub missile_target: My,
 }
 
@@ -437,7 +437,7 @@ impl PlayerShip {
             laser: 0,
             laser_x: 0,
             laser_y: 0,
-            ecm_active: 0,
+            ecm_active: false,
             missile_target: MISSILE_UNARMED,
         }
     }
@@ -453,7 +453,7 @@ impl PlayerShip {
         laser: My,
         laser_x: My,
         laser_y: My,
-        ecm_active: My,
+        ecm_active: bool,
         missile_target: My,
     ) -> Self {
         Self {

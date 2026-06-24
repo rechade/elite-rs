@@ -1,9 +1,16 @@
+use macroquad::{
+    color::{GOLD, GREEN, MAGENTA, PINK, RED, WHITE, YELLOW},
+    shapes::{draw_circle, draw_line, draw_rectangle, draw_triangle},
+};
+
 use crate::{
-    Config, FLG_DEAD, FLG_FIRING, FLG_REMOVE, GameParams, My, SCR_BREAK_PATTERN,
+    Config, FLG_CLOAKED, FLG_DEAD, FLG_FIRING, FLG_HOSTILE, FLG_REMOVE, GameParams, My,
+    SCR_BREAK_PATTERN, THICKNESS,
     elite::{
         Commander, MAX_UNIV_OBJECTS, SCR_ESCAPE_POD, SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO,
         SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData,
     },
+    gfx::STAR_SIZE,
     info_message,
     pilot::disengage_auto_pilot,
     planet::GalaxySeed,
@@ -15,11 +22,12 @@ use crate::{
     sound::{SND_EXPLODE, SND_LAUNCH},
     stars::{Stars, create_new_stars},
     swat::{
-        add_new_ship, add_new_station, clear_universe, remove_ship, reset_weapons, snd_play_sample,
+        MISSILE_UNARMED, add_new_ship, add_new_station, clear_universe, remove_ship, reset_weapons,
+        snd_play_sample,
     },
     threed::draw_ship,
     trade::carrying_contraband,
-    vector::{Matrix, START_MATRIX, Vector, tidy_matrix},
+    vector::{Matrix, START_MATRIX, Vector, tidy_matrix, unit_vector},
 };
 
 #[derive(Clone, Copy)]
@@ -521,4 +529,371 @@ fn rotate_vec(vec: &mut Vector, alpha: f32, beta: f32) {
     vec.x = x;
     vec.y = y;
     vec.z = z;
+}
+pub fn update_scanner(universe: &[UnivObject], params: &GameParams) {
+    let mut x;
+    let mut y;
+    let mut z;
+    let mut x1;
+    let mut y1;
+    // let mut z1;
+    let mut y2;
+    let mut colour;
+
+    for i in 0..MAX_UNIV_OBJECTS {
+        if ((universe[i].da_type <= 0)
+            || (universe[i].flags & FLG_DEAD) != 0
+            || (universe[i].flags & FLG_CLOAKED != 0))
+        {
+            continue;
+        }
+
+        x = universe[i].location.x / 256.0;
+        y = universe[i].location.y / 256.0;
+        z = universe[i].location.z / 256.0;
+
+        x1 = x;
+        y1 = -z / 4.0;
+        y2 = y1 - y / 2.0;
+
+        if ((y2 < -28.0) || (y2 > 28.0) || (x1 < -50.0) || (x1 > 50.0)) {
+            continue;
+        }
+
+        x1 += params.screen_width * 0.5; //scanner_cx
+        y1 += params.screen_height * 0.75; //scanner_cy;
+        y2 += params.screen_height * 0.75; //scanner_cy;
+
+        colour = if (universe[i].flags & FLG_HOSTILE) != 0 {
+            YELLOW
+        } else {
+            WHITE
+        };
+
+        match (universe[i].da_type) {
+            SHIP_MISSILE => colour = PINK,
+
+            SHIP_DODEC => colour = GREEN,
+            SHIP_CORIOLIS => colour = GREEN,
+
+            SHIP_VIPER => colour = MAGENTA,
+        }
+
+        draw_line(x1 + 2.0, y2, x1 - 3.0, y2, THICKNESS, colour);
+        draw_line(x1 + 2.0, y2 + 1.0, x1 - 3.0, y2 + 1.0, THICKNESS, colour);
+        draw_line(x1 + 2.0, y2 + 2.0, x1 - 3.0, y2 + 2.0, THICKNESS, colour);
+        draw_line(x1 + 2.0, y2 + 3.0, x1 - 3.0, y2 + 3.0, THICKNESS, colour);
+
+        draw_line(x1, y1, x1, y2, THICKNESS, colour);
+        draw_line(x1 + 1.0, y1, x1 + 1.0, y2, THICKNESS, colour);
+        draw_line(x1 + 2.0, y1, x1 + 2.0, y2, THICKNESS, colour);
+    }
+}
+
+/*
+ * Update the compass which tracks the space station / planet.
+ */
+
+pub fn update_compass(
+    params: &GameParams,
+    ship_count: &[My; NO_OF_SHIPS + 1],
+    universe: &[UnivObject],
+) {
+    let mut dest: Vector;
+    let mut un = 0;
+
+    if (params.witchspace) {
+        return;
+    }
+
+    if (ship_count[SHIP_CORIOLIS as usize] != 0 || ship_count[SHIP_DODEC as usize] != 0) {
+        un = 1;
+    }
+
+    dest = unit_vector(universe[un].location);
+
+    // let compass_x = compass_centre_x + (dest.x * 16.0);
+    // let compass_y = compass_centre_y + (dest.y * -16.0);
+    let compass_x = (params.screen_width * 0.66) + (dest.x * 16.0);
+    let compass_y = (params.screen_height * 0.66) + (dest.y * -16.0);
+
+    if (dest.z < 0.0) {
+        draw_circle(compass_x, compass_y, STAR_SIZE * 2.0, RED);
+        // gfx_draw_sprite (IMG_RED_DOT, compass_x, compass_y);
+    } else {
+        draw_circle(compass_x, compass_y, STAR_SIZE * 2.0, GREEN);
+        // gfx_draw_sprite (IMG_GREEN_DOT, compass_x, compass_y);
+    }
+}
+
+/*
+ * Display the speed bar.
+ */
+
+pub fn display_speed(params: &GameParams) {
+    let sx = 417;
+    let sy = 384 + 9;
+
+    let len = ((params.flight_speed * 64) / params.myship.max_speed) - 1;
+
+    let colour = if (params.flight_speed > (params.myship.max_speed * 2 / 3)) {
+        RED
+    } else {
+        GOLD
+    };
+
+    for i in 0..6 {
+        draw_line(
+            sx as f32,
+            sy as f32 + i as f32,
+            sx as f32 + len as f32,
+            sy as f32 + i as f32,
+            THICKNESS,
+            colour,
+        );
+    }
+}
+
+/*
+ * Draw an indicator bar.
+ * Used for shields and energy banks.
+ */
+
+pub fn display_dial_bar(len: My, x: My, y: My) {
+    let mut i = 0;
+
+    draw_line(
+        x as f32,
+        y as f32 + 384 as f32,
+        x as f32 + len as f32,
+        y as f32 + 384 as f32,
+        THICKNESS * 2.0,
+        GOLD,
+    );
+    i += 1;
+    draw_line(
+        x as f32,
+        y as f32 + i as f32 + 384 as f32,
+        x as f32 + len as f32,
+        y as f32 + i as f32 + 384 as f32,
+        THICKNESS * 2.0,
+        GOLD,
+    );
+    i = 2;
+    while i < 7 {
+        draw_line(
+            x as f32,
+            y as f32 + i as f32 + 384 as f32,
+            x as f32 + len as f32,
+            y as f32 + i as f32 + 384 as f32,
+            THICKNESS * 2.0,
+            YELLOW,
+        );
+        i += 1;
+    }
+
+    draw_line(
+        x as f32,
+        y as f32 + i as f32 + 384 as f32,
+        x as f32 + len as f32,
+        y as f32 + i as f32 + 384 as f32,
+        THICKNESS * 2.0,
+        RED,
+    );
+}
+
+/*
+ * Display the current shield strengths.
+ */
+
+pub fn display_shields(params: &GameParams) {
+    if (params.front_shield > 3) {
+        display_dial_bar(params.front_shield / 4, 31, 7);
+    }
+
+    if (params.aft_shield > 3) {
+        display_dial_bar(params.aft_shield / 4, 31, 23);
+    }
+}
+
+pub fn display_altitude(params: &GameParams) {
+    if (params.myship.altitude > 3) {
+        display_dial_bar(params.myship.altitude / 4, 31, 92);
+    }
+}
+
+pub fn display_cabin_temp(params: &GameParams) {
+    if (params.myship.cabtemp > 3) {
+        display_dial_bar(params.myship.cabtemp / 4, 31, 60);
+    }
+}
+
+pub fn display_laser_temp(params: &GameParams) {
+    if (params.myship.laser_temp > 0) {
+        display_dial_bar(params.myship.laser_temp / 4, 31, 76);
+    }
+}
+
+/*
+ * Display the energy banks.
+ */
+
+pub fn display_energy(params: &GameParams) {
+    let e1 = if params.energy > 64 {
+        64
+    } else {
+        params.energy
+    };
+    let e2 = if params.energy > 128 {
+        64
+    } else {
+        params.energy - 64
+    };
+    let e3 = if params.energy > 192 {
+        64
+    } else {
+        params.energy - 128
+    };
+    let e4 = params.energy - 192;
+
+    if (e4 > 0) {
+        display_dial_bar(e4, 416, 61);
+    }
+
+    if (e3 > 0) {
+        display_dial_bar(e3, 416, 79);
+    }
+
+    if (e2 > 0) {
+        display_dial_bar(e2, 416, 97);
+    }
+
+    if (e1 > 0) {
+        display_dial_bar(e1, 416, 115);
+    }
+}
+
+pub fn display_flight_roll(params: &GameParams) {
+    let sx = 416;
+    let sy = 384 + 9 + 14;
+
+    let mut pos = sx - ((params.flight_roll * 28) / params.myship.max_roll);
+    pos += 32;
+
+    for i in 0..4 {
+        draw_line(
+            pos as f32 + i as f32,
+            sy as f32,
+            pos as f32 + i as f32,
+            sy as f32 + 7 as f32,
+            THICKNESS * 2.0,
+            GOLD,
+        );
+    }
+}
+
+pub fn display_flight_climb(params: &GameParams) {
+    let sx = 416.0;
+    let sy = 384.0 + 9.0 + 14.0 + 16.0;
+
+    let mut pos = sx + ((params.flight_climb * 28) / params.myship.max_climb) as f32;
+    pos += 32.0;
+
+    for i in 0..4 {
+        draw_line(
+            pos + i as f32,
+            sy,
+            pos + i as f32,
+            sy + 7.0,
+            THICKNESS * 2.0,
+            GOLD,
+        );
+    }
+}
+
+pub fn display_fuel(cmdr: &Commander, params: &GameParams) {
+    if (cmdr.fuel > 0) {
+        display_dial_bar((cmdr.fuel * 64) / params.myship.max_fuel, 31, 44);
+    }
+}
+
+pub fn display_missiles(params: &GameParams, cmdr: &Commander) {
+    if (cmdr.missiles == 0) {
+        return;
+    }
+
+    let mut nomiss = if cmdr.missiles > 4 { 4 } else { cmdr.missiles };
+
+    let mut x = (4 - nomiss) * 16 + 35;
+    let y = 113 + 385;
+
+    if (params.myship.missile_target != MISSILE_UNARMED) {
+        if params.myship.missile_target < 0 {
+            draw_rectangle(
+                x as f32,
+                y as f32,
+                params.screen_width * 0.05,
+                params.screen_height * 0.5,
+                YELLOW,
+            );
+        } else {
+            draw_rectangle(
+                x as f32,
+                y as f32,
+                params.screen_width * 0.05,
+                params.screen_height * 0.5,
+                RED,
+            );
+        }
+        x += 16;
+        nomiss -= 1;
+    }
+
+    while nomiss > 0 {
+        draw_rectangle(
+            x as f32,
+            y as f32,
+            params.screen_width * 0.05,
+            params.screen_height * 0.5,
+            GREEN,
+        );
+        // gfx_draw_sprite(IMG_MISSILE_GREEN, x, y);
+        x += 16;
+        nomiss -= 1;
+    }
+}
+pub fn update_console(
+    params: &GameParams,
+    ship_list: &[ShipData; NO_OF_SHIPS + 1],
+    ship_count: &[My; NO_OF_SHIPS + 1],
+    universe: &[UnivObject],
+    cmdr: &Commander,
+) {
+    // gfx_draw_scanner();
+
+    display_speed(params);
+    display_flight_climb(params);
+    display_flight_roll(params);
+    display_shields(params);
+    display_altitude(params);
+    display_energy(params);
+    display_cabin_temp(params);
+    display_laser_temp(params);
+    display_fuel(cmdr, params);
+    display_missiles(params, cmdr);
+
+    if (params.docked) {
+        return;
+    }
+
+    update_scanner(universe, params);
+    update_compass(params, ship_count, universe);
+
+    if (ship_count[SHIP_CORIOLIS as usize] != 0 || ship_count[SHIP_DODEC as usize] != 0) {
+        // gfx_draw_sprite(IMG_BIG_S, 387, 490);
+    }
+
+    if (params.myship.ecm_active) {
+        // gfx_draw_sprite(IMG_BIG_E, 115, 490);
+    }
 }

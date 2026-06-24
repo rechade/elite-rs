@@ -5,7 +5,7 @@
 
 use macroquad::{
     color::{BROWN, GREEN, ORANGE, RED, WHITE, YELLOW},
-    shapes::{draw_circle, draw_line, draw_rectangle},
+    shapes::{draw_circle, draw_circle_lines, draw_line, draw_rectangle},
 };
 
 use crate::{
@@ -70,11 +70,11 @@ pub fn draw_ship(
         return;
     }
 
-    //   if ((fabs(ship.location.x) > ship.location.z) ||	/* Check for field of vision. */
-    // (fabs(ship.location.y) > ship.location.z))
-    //   {
-    //       return;
-    //   }
+    if (((ship.location.x).abs() > ship.location.z) ||	/* Check for field of vision. */
+        ((ship.location.y).abs() > ship.location.z))
+    {
+        return;
+    }
 
     if (config.wireframe) != 0 {
         draw_wireframe_ship(ship, &ship_list);
@@ -230,10 +230,10 @@ fn draw_planet(planet: &UnivObject) {
     // match (planet_render_style) {
     match (1) {
         // 0 => draw_wireframe_planet(x, y, radius, planet.rotmat),
-        1 => draw_circle(x, y, radius as f32, GREEN),
+        1 => draw_circle_lines(x, y, radius as f32, THICKNESS, WHITE),
         // 2 => render_planet(x, y, radius as f32, planet.rotmat),
         // 3 => render_planet(x, y, radius as f32, planet.rotmat),
-        _ => draw_circle(x, y, radius as f32, GREEN),
+        _ => draw_circle_lines(x, y, radius as f32, THICKNESS, WHITE),
     }
 }
 fn render_sun_line(xo: My, yo: My, x: My, y: My, radius: My) {

@@ -9,7 +9,7 @@ use crate::{
     planet::{GalaxySeed, PlanetData},
     shipdata::NO_OF_SHIPS,
     sound::SND_BEEP,
-    space::{UnivObject, dock_player, jump_warp, launch_player, update_universe},
+    space::{UnivObject, dock_player, jump_warp, launch_player, update_console, update_universe},
     stars::{Stars, create_new_stars, flip_stars, update_starfield},
     swat::{
         clear_universe, cool_laser, draw_laser_lines, fire_laser, random_encounter, snd_play_sample,
@@ -125,7 +125,7 @@ impl Config {
         }
     }
 }
-pub type My = i32;
+pub type My = i64;
 struct GameParams {
     current_screen: My,
     flight_speed: My,
@@ -165,6 +165,8 @@ struct GameParams {
     curr_galaxy_num: My,
     curr_fuel: My,
     carry_flag: My,
+    screen_width: f32,
+    screen_height: f32,
 }
 impl GameParams {
     pub fn increase_flight_roll(&mut self) {
@@ -194,7 +196,6 @@ impl GameParams {
 struct ScanConfig {
     scanner_cx: My,
     scanner_cy: My,
-
     compass_centre_x: My,
     compass_centre_y: My,
 }
@@ -260,6 +261,8 @@ impl GameParams {
         curr_galaxy_num: My,
         curr_fuel: My,
         carry_flag: My,
+        screen_width: f32,
+        screen_height: f32,
     ) -> Self {
         Self {
             current_screen,
@@ -300,6 +303,8 @@ impl GameParams {
             curr_galaxy_num,
             curr_fuel,
             carry_flag,
+            screen_width,
+            screen_height,
         }
     }
 
@@ -343,6 +348,8 @@ impl GameParams {
             curr_galaxy_num: 1,
             curr_fuel: 70,
             carry_flag: 0,
+            screen_width: screen_width(),
+            screen_height: screen_height(),
         }
     }
 }
@@ -2938,7 +2945,7 @@ async fn main() {
             0,
         ));
     }
-    let frame_duration = time::Duration::from_millis(40);
+    let frame_duration = time::Duration::from_millis(60);
     let mut config: Config = Config::new();
     let mut scan_config: ScanConfig = ScanConfig::new();
     let mut cmdr = Commander::get_saved();
@@ -2954,8 +2961,10 @@ async fn main() {
             &mut cmdr,
         );
         dock_player(&mut params);
+        params.screen_width = screen_width();
+        params.screen_height = screen_height();
 
-        // update_console();
+        update_console(&params, &ship_list, &ship_count, &universe, &cmdr);
 
         params.current_screen = SCR_FRONT_VIEW;
         // run_first_intro_screen();
@@ -2967,6 +2976,8 @@ async fn main() {
         dock_player(&mut params);
         display_commander_status(&cmdr, &mut params, &universe);
         while !params.game_over {
+            params.screen_width = screen_width();
+            params.screen_height = screen_height();
             params.rolling = false;
             params.climbing = false;
 
@@ -3038,7 +3049,7 @@ async fn main() {
 
                 // dbg!(params.current_screen);
                 if params.docked {
-                    // update_console();
+                    update_console(&params, &ship_list, &ship_count, &universe, &cmdr);
                     continue;
                 }
 
@@ -3096,7 +3107,7 @@ async fn main() {
                 cool_laser(&mut params);
                 // time_ecm();
 
-                // update_console();
+                update_console(&params, &ship_list, &ship_count, &universe, &cmdr);
             }
 
             if (params.current_screen == SCR_BREAK_PATTERN) {
@@ -3117,7 +3128,7 @@ async fn main() {
                 if (params.docked) {
                     // check_mission_brief();
                     display_commander_status(&cmdr, &mut params, &universe);
-                    // update_console();
+                    update_console(&params, &ship_list, &ship_count, &universe, &cmdr);
                 } else {
                     params.current_screen = SCR_FRONT_VIEW;
                 }
@@ -3813,15 +3824,15 @@ fn handle_flight_keys(
         arrow_down(params);
     }
 
-    if is_key_down(KeyCode::Down)|| is_key_down(KeyCode::X)  {
+    if is_key_down(KeyCode::Down) || is_key_down(KeyCode::X) {
         arrow_up(params);
     }
 
-    if is_key_down(KeyCode::Left)|| is_key_down(KeyCode::Comma)  {
+    if is_key_down(KeyCode::Left) || is_key_down(KeyCode::Comma) {
         arrow_left(params);
     }
 
-    if is_key_down(KeyCode::Right)|| is_key_down(KeyCode::Period)  {
+    if is_key_down(KeyCode::Right) || is_key_down(KeyCode::Period) {
         arrow_right(params);
     }
 
@@ -3874,6 +3885,8 @@ async fn display_break_pattern(
     params: &mut GameParams,
     universe: &[UnivObject],
     cmdr: &Commander,
+    ship_list: &[ShipData; NO_OF_SHIPS + 1],
+    ship_count: &[My; NO_OF_SHIPS + 1],
 ) {
     println!("aiien");
 
@@ -3892,7 +3905,7 @@ async fn display_break_pattern(
     if (params.docked) {
         // check_mission_brief();
         display_commander_status(cmdr, params, universe);
-        // update_console();
+        update_console(params, ship_list, &ship_count, &universe, &cmdr);
     } else {
         params.current_screen = SCR_FRONT_VIEW;
     }

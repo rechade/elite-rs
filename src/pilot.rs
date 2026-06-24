@@ -267,7 +267,7 @@ pub fn engage_auto_pilot(params: &mut GameParams) {
         return;
     }
 
-    params.auto_pilot = false;
+    params.auto_pilot = true;
     snd_play_midi(SND_BLUE_DANUBE, 1);
 }
 
