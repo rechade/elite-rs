@@ -1,15 +1,10 @@
 use macroquad::{
-    color::{BLACK, RED, WHITE, YELLOW},
-    math::Vec2,
-    miniquad::TextureParams,
-    shapes::{draw_circle_lines, draw_ellipse, draw_ellipse_lines, draw_line},
+    color::{RED, YELLOW},
+    shapes::{draw_circle_lines, draw_ellipse_lines, draw_line},
     text::draw_text,
-    texture::{draw_texture, draw_texture_ex, DrawTextureParams, Texture2D},
-    window::{screen_height, screen_width},
 };
 
-use crate::{GameParams, My, SCANNER_Y_PROPORTION, THICKNESS};
-pub const TAU: f32 = std::f32::consts::TAU;
+use crate::{GameParams, My, THICKNESS};
 pub const GFX_VIEW_TX: My = 1;
 pub const GFX_VIEW_TY: My = 1;
 pub const GFX_VIEW_BX: My = 1920;

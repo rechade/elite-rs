@@ -13,11 +13,10 @@
  */
 
 use crate::{
-    planet::{find_planet, generate_planet_data, GalaxySeed},
-    shipdata::NO_OF_SHIPS,
+    GameParams, My,
+    planet::{GalaxySeed, find_planet, generate_planet_data},
     swat::MISSILE_UNARMED,
     trade::NO_OF_STOCK_ITEMS,
-    GameParams, My,
 };
 
 #[derive(Copy, Clone)]
@@ -104,20 +103,20 @@ pub struct ShipData {
 impl Clone for ShipData {
     fn clone(&self) -> Self {
         Self {
-            name: self.name.clone(),
-            num_points: self.num_points.clone(),
-            num_lines: self.num_lines.clone(),
-            num_faces: self.num_faces.clone(),
-            max_loot: self.max_loot.clone(),
-            scoop_type: self.scoop_type.clone(),
-            size: self.size.clone(),
-            front_laser: self.front_laser.clone(),
-            bounty: self.bounty.clone(),
-            vanish_point: self.vanish_point.clone(),
-            energy: self.energy.clone(),
-            velocity: self.velocity.clone(),
-            missiles: self.missiles.clone(),
-            laser_strength: self.laser_strength.clone(),
+            name: self.name,
+            num_points: self.num_points,
+            num_lines: self.num_lines,
+            num_faces: self.num_faces,
+            max_loot: self.max_loot,
+            scoop_type: self.scoop_type,
+            size: self.size,
+            front_laser: self.front_laser,
+            bounty: self.bounty,
+            vanish_point: self.vanish_point,
+            energy: self.energy,
+            velocity: self.velocity,
+            missiles: self.missiles,
+            laser_strength: self.laser_strength,
             points: self.points.clone(),
             lines: self.lines.clone(),
             normals: self.normals.clone(),

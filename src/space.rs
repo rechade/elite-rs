@@ -1,34 +1,33 @@
 use macroquad::{
     color::{Color, GOLD, GREEN, MAGENTA, PINK, RED, WHITE, YELLOW},
-    shapes::{draw_circle, draw_line, draw_rectangle, draw_triangle},
-    texture::Texture2D,
+    shapes::{draw_circle, draw_line, draw_rectangle},
 };
 
 use crate::{
+    Config, FLG_CLOAKED, FLG_DEAD, FLG_FIRING, FLG_HOSTILE, FLG_REMOVE, GameParams, My,
+    SCR_BREAK_PATTERN, THICKNESS,
     elite::{
-        Commander, ShipData, MAX_UNIV_OBJECTS, SCR_ESCAPE_POD, SCR_GAME_OVER, SCR_INTRO_ONE,
-        SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW,
+        Commander, MAX_UNIV_OBJECTS, SCR_ESCAPE_POD, SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO,
+        SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData,
     },
-    gfx::{gfx_draw_scanner, STAR_SIZE},
+    gfx::{STAR_SIZE, gfx_draw_scanner},
     info_message,
     pilot::disengage_auto_pilot,
     planet::GalaxySeed,
     shipdata::{
         NO_OF_SHIPS, SHIP_ALLOY, SHIP_ASTEROID, SHIP_BOULDER, SHIP_CARGO, SHIP_CONSTRICTOR,
-        SHIP_CORIOLIS, SHIP_COUGAR, SHIP_DODEC, SHIP_ESCAPE_CAPSULE, SHIP_PLANET, SHIP_ROCK,
-        SHIP_SUN, SHIP_VIPER,
+        SHIP_CORIOLIS, SHIP_COUGAR, SHIP_DODEC, SHIP_ESCAPE_CAPSULE, SHIP_MISSILE, SHIP_PLANET,
+        SHIP_ROCK, SHIP_SUN, SHIP_VIPER,
     },
     sound::{SND_EXPLODE, SND_LAUNCH},
-    stars::{create_new_stars, Stars},
+    stars::{Stars, create_new_stars},
     swat::{
-        add_new_ship, add_new_station, clear_universe, remove_ship, reset_weapons, snd_play_sample,
-        MISSILE_UNARMED,
+        MISSILE_UNARMED, add_new_ship, add_new_station, clear_universe, remove_ship, reset_weapons,
+        snd_play_sample,
     },
     threed::draw_ship,
     trade::carrying_contraband,
-    vector::{tidy_matrix, unit_vector, Matrix, Vector, START_MATRIX},
-    Config, GameParams, My, FLG_CLOAKED, FLG_DEAD, FLG_FIRING, FLG_HOSTILE, FLG_REMOVE,
-    SCR_BREAK_PATTERN, THICKNESS,
+    vector::{Matrix, START_MATRIX, Vector, tidy_matrix, unit_vector},
 };
 
 #[derive(Clone, Copy)]
@@ -125,36 +124,36 @@ pub fn jump_warp(universe: &mut [UnivObject], params: &mut GameParams) {
     for i in 0..MAX_UNIV_OBJECTS {
         da_type = universe[i].da_type;
 
-        if ((da_type > 0)
+        if (da_type > 0)
             && (da_type != SHIP_ASTEROID)
             && (da_type != SHIP_CARGO)
             && (da_type != SHIP_ALLOY)
             && (da_type != SHIP_ROCK)
             && (da_type != SHIP_BOULDER)
-            && (da_type != SHIP_ESCAPE_CAPSULE))
+            && (da_type != SHIP_ESCAPE_CAPSULE)
         {
             info_message("Mass Locked".to_string(), params);
             return;
         }
     }
 
-    if ((universe[0].distance < 75001) || (universe[1].distance < 75001)) {
+    if (universe[0].distance < 75001) || (universe[1].distance < 75001) {
         info_message("Mass Locked".to_string(), params);
         return;
     }
 
-    if (universe[0].distance < universe[1].distance) {
+    if universe[0].distance < universe[1].distance {
         jump = universe[0].distance - 75000;
     } else {
         jump = universe[1].distance - 75000;
     }
-    if (jump > 1024) {
+    if jump > 1024 {
         jump = 1024;
     }
 
-    for i in 0..MAX_UNIV_OBJECTS {
-        if (universe[i].da_type != 0) {
-            universe[i].location.z -= jump as f32;
+    for obj in universe.iter_mut() {
+        if obj.da_type != 0 {
+            obj.location.z -= jump as f32;
         }
     }
 
@@ -213,7 +212,7 @@ pub fn launch_player(
 fn switch_to_view(flip: &mut UnivObject, params: &GameParams) {
     let mut tmp: f32;
 
-    if ((params.current_screen == SCR_REAR_VIEW) || (params.current_screen == SCR_GAME_OVER)) {
+    if (params.current_screen == SCR_REAR_VIEW) || (params.current_screen == SCR_GAME_OVER) {
         flip.location.x = -flip.location.x;
         flip.location.z = -flip.location.z;
 
@@ -228,12 +227,12 @@ fn switch_to_view(flip: &mut UnivObject, params: &GameParams) {
         return;
     }
 
-    if (params.current_screen == SCR_LEFT_VIEW) {
+    if params.current_screen == SCR_LEFT_VIEW {
         tmp = flip.location.x;
         flip.location.x = flip.location.z;
         flip.location.z = -tmp;
 
-        if (flip.da_type < 0) {
+        if flip.da_type < 0 {
             return;
         }
 
@@ -251,12 +250,12 @@ fn switch_to_view(flip: &mut UnivObject, params: &GameParams) {
         return;
     }
 
-    if (params.current_screen == SCR_RIGHT_VIEW) {
+    if params.current_screen == SCR_RIGHT_VIEW {
         tmp = flip.location.x;
         flip.location.x = -flip.location.z;
         flip.location.z = tmp;
 
-        if (flip.da_type < 0) {
+        if flip.da_type < 0 {
             return;
         }
 
@@ -287,7 +286,6 @@ pub fn update_universe(
 ) {
     let mut da_type;
     let mut bounty;
-    let mut da_string: String;
     let mut flip: UnivObject;
 
     for i in 0..MAX_UNIV_OBJECTS {
@@ -301,7 +299,7 @@ pub fn update_universe(
 
                 bounty = ship_list[da_type].bounty;
 
-                if ((bounty != 0) && (!params.witchspace)) {
+                if (bounty != 0) && (!params.witchspace) {
                     cmdr.credits += bounty;
                     let msg = format!("{}.{} CR", cmdr.credits / 10, cmdr.credits % 10);
                     info_message(msg, params);
@@ -312,36 +310,36 @@ pub fn update_universe(
             }
 
             let var_name = FLG_DEAD;
-            if ((params.detonate_bomb != 0)
+            if (params.detonate_bomb != 0)
                 && ((universe[i].flags & var_name) == 0)
                 && (da_type != SHIP_PLANET)
                 && (da_type != SHIP_SUN)
                 && (da_type != SHIP_CONSTRICTOR)
                 && (da_type != SHIP_COUGAR)
                 && (da_type != SHIP_CORIOLIS)
-                && (da_type != SHIP_DODEC))
+                && (da_type != SHIP_DODEC)
             {
                 snd_play_sample(SND_EXPLODE);
                 universe[i].flags |= FLG_DEAD;
             }
 
-            if ((params.current_screen != SCR_INTRO_ONE)
+            if (params.current_screen != SCR_INTRO_ONE)
                 && (params.current_screen != SCR_INTRO_TWO)
                 && (params.current_screen != SCR_GAME_OVER)
-                && (params.current_screen != SCR_ESCAPE_POD))
+                && (params.current_screen != SCR_ESCAPE_POD)
             {
                 // tactics (i);
             }
 
-            move_univ_object(&mut universe[i], &params, &ship_list);
+            move_univ_object(&mut universe[i], params, ship_list);
 
             flip = universe[i];
-            switch_to_view(&mut flip, &params);
+            switch_to_view(&mut flip, params);
 
-            if (da_type == SHIP_PLANET) {
-                if ((ship_count[SHIP_CORIOLIS] == 0)
+            if da_type == SHIP_PLANET {
+                if (ship_count[SHIP_CORIOLIS] == 0)
                     && (ship_count[SHIP_DODEC] == 0)
-                    && (universe[i].distance < 65792))
+                    && (universe[i].distance < 65792)
                 // was 49152
                 {
                     // make_station_appear();
@@ -351,13 +349,13 @@ pub fn update_universe(
                 continue;
             }
 
-            if (da_type == SHIP_SUN) {
+            if da_type == SHIP_SUN {
                 draw_ship(&mut flip, params, config, ship_list);
                 continue;
             }
 
-            if (universe[i].distance < 170) {
-                if ((da_type == SHIP_CORIOLIS) || (da_type == SHIP_DODEC)) {
+            if universe[i].distance < 170 {
+                if (da_type == SHIP_CORIOLIS) || (da_type == SHIP_DODEC) {
                     // check_docking (i);
                 } else {
                     // scoop_item(i);
@@ -366,7 +364,7 @@ pub fn update_universe(
                 continue;
             }
 
-            if (universe[i].distance > 57344) {
+            if universe[i].distance > 57344 {
                 remove_ship(i, universe, ship_count, ship_list);
                 continue;
             }
@@ -398,25 +396,17 @@ fn move_univ_object(
     params: &GameParams,
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
 ) {
-    let mut x: f32;
-    let mut y: f32;
-    let mut z: f32;
-    let mut k2: f32;
-    let mut alpha: f32;
-    let mut beta: f32;
-    let mut rotx: My;
-    let mut rotz: My;
     let mut speed: f32;
 
-    alpha = params.flight_roll as f32 / 256.0;
-    beta = params.flight_climb as f32 / 256.0;
+    let alpha = params.flight_roll as f32 / 256.0;
+    let mut beta = params.flight_climb as f32 / 256.0;
 
-    x = obj.location.x;
-    y = obj.location.y;
-    z = obj.location.z;
+    let mut x = obj.location.x;
+    let mut y = obj.location.y;
+    let mut z = obj.location.z;
 
-    if (!(obj.flags & FLG_DEAD) != 0) {
-        if (obj.velocity != 0) {
+    if !(obj.flags & FLG_DEAD) != 0 {
+        if obj.velocity != 0 {
             speed = obj.velocity as f32;
             speed *= 1.5;
             x += obj.rotmat[2].x * speed;
@@ -424,25 +414,25 @@ fn move_univ_object(
             z += obj.rotmat[2].z * speed;
         }
 
-        if (obj.acceleration != 0) {
+        if obj.acceleration != 0 {
             obj.velocity += obj.acceleration;
             obj.acceleration = 0;
-            if (obj.velocity > ship_list[obj.da_type].velocity) {
+            if obj.velocity > ship_list[obj.da_type].velocity {
                 obj.velocity = ship_list[obj.da_type].velocity;
             }
 
-            if (obj.velocity <= 0) {
+            if obj.velocity <= 0 {
                 obj.velocity = 1;
             }
         }
     }
 
-    k2 = y - alpha * x;
-    z = z + beta * k2;
+    let k2 = y - alpha * x;
+    z += beta * k2;
     y = k2 - z * beta;
-    x = x + alpha * y;
+    x += alpha * y;
 
-    z = z - params.flight_speed as f32;
+    z -= params.flight_speed as f32;
 
     obj.location.x = x;
     obj.location.y = y;
@@ -450,7 +440,7 @@ fn move_univ_object(
 
     obj.distance = (x * x + y * y + z * z).sqrt() as My;
 
-    if (obj.da_type == SHIP_PLANET) {
+    if obj.da_type == SHIP_PLANET {
         beta = 0.0;
     }
 
@@ -462,30 +452,30 @@ fn move_univ_object(
         return;
     }
 
-    rotx = obj.rotx;
-    rotz = obj.rotz;
+    let rotx = obj.rotx;
+    let rotz = obj.rotz;
 
     /* If necessary rotate the object around the X axis... */
 
-    if (rotx != 0) {
+    if rotx != 0 {
         (obj.rotmat[2].x, obj.rotmat[1].x) = rotate_x_first(obj.rotmat[2].x, obj.rotmat[1].x, rotx);
         (obj.rotmat[2].y, obj.rotmat[1].y) = rotate_x_first(obj.rotmat[2].y, obj.rotmat[1].y, rotx);
         (obj.rotmat[2].z, obj.rotmat[1].z) = rotate_x_first(obj.rotmat[2].z, obj.rotmat[1].z, rotx);
 
-        if ((rotx != 127) && (rotx != -127)) {
+        if (rotx != 127) && (rotx != -127) {
             obj.rotx -= if rotx < 0 { -1 } else { 1 };
         }
     }
 
     /* If necessary rotate the object around the Z axis... */
 
-    if (rotz != 0) {
+    if rotz != 0 {
         (obj.rotmat[0].x, obj.rotmat[1].x) = rotate_x_first(obj.rotmat[0].x, obj.rotmat[1].x, rotz);
         (obj.rotmat[0].y, obj.rotmat[1].y) = rotate_x_first(obj.rotmat[0].y, obj.rotmat[1].y, rotz);
         (obj.rotmat[0].z, obj.rotmat[1].z) = rotate_x_first(obj.rotmat[0].z, obj.rotmat[1].z, rotz);
 
-        if ((rotz != 127) && (rotz != -127)) {
-            obj.rotz -= if (rotz < 0) { -1 } else { 1 };
+        if (rotz != 127) && (rotz != -127) {
+            obj.rotz -= if rotz < 0 { -1 } else { 1 };
         }
     }
 
@@ -494,15 +484,13 @@ fn move_univ_object(
     tidy_matrix(&mut obj.rotmat);
 }
 fn rotate_x_first(a: f32, b: f32, direction: My) -> (f32, f32) {
-    let mut fx: f32;
-    let mut ux: f32;
-    let mut aa;
-    let mut bb;
+    let aa;
+    let bb;
 
-    fx = a;
-    ux = b;
+    let fx = a;
+    let ux = b;
 
-    if (direction < 0) {
+    if direction < 0 {
         aa = fx - (fx / 512.0) + (ux / 19.0);
         bb = ux - (ux / 512.0) - (fx / 19.0);
     } else {
@@ -521,10 +509,10 @@ fn rotate_vec(vec: &mut Vector, alpha: f32, beta: f32) {
     y = vec.y;
     z = vec.z;
 
-    y = y - alpha * x;
-    x = x + alpha * y;
-    y = y - beta * z;
-    z = z + beta * y;
+    y -= alpha * x;
+    x += alpha * y;
+    y -= beta * z;
+    z += beta * y;
 
     vec.x = x;
     vec.y = y;
@@ -539,43 +527,40 @@ pub fn update_scanner(universe: &[UnivObject], params: &GameParams) {
     let mut y2;
     let mut colour;
 
-    let scanner_y_proportion = 0.25;
-    for i in 0..MAX_UNIV_OBJECTS {
-        if ((universe[i].da_type <= 0)
-            || (universe[i].flags & FLG_DEAD) != 0
-            || (universe[i].flags & FLG_CLOAKED != 0))
-        {
+    for obj in universe {
+        if (obj.da_type <= 0) || (obj.flags & FLG_DEAD) != 0 || (obj.flags & FLG_CLOAKED != 0) {
             continue;
         }
 
-        x = universe[i].location.x / 256.0;
-        y = universe[i].location.y / 256.0;
-        z = universe[i].location.z / 256.0;
+        x = obj.location.x / 256.0;
+        y = obj.location.y / 256.0;
+        z = obj.location.z / 256.0;
 
         x1 = x;
         y1 = -z / 4.0;
         y2 = y1 - y / 2.0;
 
-        if ((y2 < -28.0) || (y2 > 28.0) || (x1 < -50.0) || (x1 > 50.0)) {
+        if !(-28.0..=28.0).contains(&y2) || !(-50.0..=50.0).contains(&x1) {
             continue;
         }
 
         x1 += params.scanner_cx;
         y1 += params.scanner_cy;
         y2 += params.scanner_cy;
-        colour = if (universe[i].flags & FLG_HOSTILE) != 0 {
+        colour = if (obj.flags & FLG_HOSTILE) != 0 {
             YELLOW
         } else {
             WHITE
         };
 
-        match (universe[i].da_type) {
-            SHIP_MISSILE => colour = PINK,
-
-            SHIP_DODEC => colour = GREEN,
-            SHIP_CORIOLIS => colour = GREEN,
-
-            SHIP_VIPER => colour = MAGENTA,
+        if obj.da_type == SHIP_MISSILE {
+            colour = PINK;
+        } else if obj.da_type == SHIP_DODEC {
+            colour = GREEN;
+        } else if obj.da_type == SHIP_CORIOLIS {
+            colour = GREEN;
+        } else if obj.da_type == SHIP_VIPER {
+            colour = MAGENTA;
         }
 
         draw_line(x1 + 2.0, y2, x1 - 3.0, y2, THICKNESS, colour);
@@ -598,23 +583,22 @@ pub fn update_compass(
     ship_count: &[My; NO_OF_SHIPS + 1],
     universe: &[UnivObject],
 ) {
-    let mut dest: Vector;
     let mut un = 0;
 
-    if (params.witchspace) {
+    if params.witchspace {
         return;
     }
 
-    if (ship_count[SHIP_CORIOLIS] != 0 || ship_count[SHIP_DODEC] != 0) {
+    if ship_count[SHIP_CORIOLIS] != 0 || ship_count[SHIP_DODEC] != 0 {
         un = 1;
     }
 
-    dest = unit_vector(universe[un].location);
+    let dest = unit_vector(universe[un].location);
 
     let compass_x = params.compass_x + (dest.x * params.compass_r);
     let compass_y = params.compass_y + (dest.y * params.compass_r);
 
-    if (dest.z < 0.0) {
+    if dest.z < 0.0 {
         draw_circle(compass_x, compass_y, STAR_SIZE * 2.0, RED);
     } else {
         draw_circle(compass_x, compass_y, STAR_SIZE * 2.0, GREEN);
@@ -630,7 +614,7 @@ pub fn display_speed(params: &GameParams) {
         * params.dial_bar_width
         - 1.0;
 
-    let color = if (params.flight_speed > (params.myship.max_speed * 2 / 3)) {
+    let color = if params.flight_speed > (params.myship.max_speed * 2 / 3) {
         RED
     } else {
         GOLD
@@ -659,7 +643,7 @@ pub fn display_dial_bar2(len: My, x: My, y: My, params: &GameParams, colour: Col
  */
 
 pub fn display_shields(params: &GameParams) {
-    if (params.front_shield > 3) {
+    if params.front_shield > 3 {
         display_dial_bar2(
             (params.front_shield as f32 / 255.0 * params.dial_bar_width) as My,
             params.dial_bar_margin as My,
@@ -669,7 +653,7 @@ pub fn display_shields(params: &GameParams) {
         );
     }
 
-    if (params.aft_shield > 3) {
+    if params.aft_shield > 3 {
         display_dial_bar2(
             (params.aft_shield as f32 / 255.0 * params.dial_bar_width) as My,
             params.dial_bar_margin as My,
@@ -681,7 +665,7 @@ pub fn display_shields(params: &GameParams) {
 }
 
 pub fn display_altitude(params: &GameParams) {
-    if (params.myship.altitude > 3) {
+    if params.myship.altitude > 3 {
         display_dial_bar2(
             (params.myship.altitude as f32 / 255.0 * params.dial_bar_width) as My,
             params.dial_bar_margin as My,
@@ -693,7 +677,7 @@ pub fn display_altitude(params: &GameParams) {
 }
 
 pub fn display_cabin_temp(params: &GameParams) {
-    if (params.myship.cabtemp > 3) {
+    if params.myship.cabtemp > 3 {
         display_dial_bar2(
             (params.myship.cabtemp as f32 / 255.0 * params.dial_bar_width) as My,
             params.dial_bar_margin as My,
@@ -705,7 +689,7 @@ pub fn display_cabin_temp(params: &GameParams) {
 }
 
 pub fn display_laser_temp(params: &GameParams) {
-    if (params.myship.laser_temp > 0) {
+    if params.myship.laser_temp > 0 {
         display_dial_bar2(
             (params.myship.laser_temp as f32 / 255.0 * params.dial_bar_width) as My,
             params.dial_bar_margin as My,
@@ -738,42 +722,42 @@ pub fn display_energy(params: &GameParams) {
     };
     let e4 = params.energy - 192;
 
-    if (e4 > 0) {
+    if e4 > 0 {
         display_dial_bar2(
             (e4 as f32 / 64.0 * params.dial_bar_width) as My,
             (params.screen_width - params.row_width) as My,
             (params.row_y_pos + 6.0 * params.row_inc) as My,
-            &params,
+            params,
             GOLD,
         );
     }
 
-    if (e3 > 0) {
+    if e3 > 0 {
         display_dial_bar2(
             (e3 as f32 / 64.0 * params.dial_bar_width) as My,
             (params.screen_width - params.row_width) as My,
             (params.row_y_pos + 5.0 * params.row_inc) as My,
-            &params,
+            params,
             GOLD,
         );
     }
 
-    if (e2 > 0) {
+    if e2 > 0 {
         display_dial_bar2(
             (e2 as f32 / 64.0 * params.dial_bar_width) as My,
             (params.screen_width - params.row_width) as My,
             (params.row_y_pos + 4.0 * params.row_inc) as My,
-            &params,
+            params,
             GOLD,
         );
     }
 
-    if (e1 > 0) {
+    if e1 > 0 {
         display_dial_bar2(
             (e1 as f32 / 64.0 * params.dial_bar_width) as My,
             (params.screen_width - params.row_width) as My,
             (params.row_y_pos + 3.0 * params.row_inc) as My,
-            &params,
+            params,
             GOLD,
         );
     }
@@ -782,15 +766,15 @@ pub fn display_energy(params: &GameParams) {
 pub fn display_flight_roll(params: &GameParams) {
     let middle = params.screen_width - (params.dial_bar_width * 0.5) - params.dial_bar_margin;
 
-    let mut pos = middle
+    let pos = middle
         - (params.flight_roll as f32 / params.myship.max_roll as f32 * params.dial_bar_width * 0.5);
 
     for i in 0..4 {
         draw_line(
-            pos as f32 + i as f32,
-            (params.row_y_pos + 1.0 * params.row_inc),
-            pos as f32 + i as f32,
-            (params.row_y_pos + 2.0 * params.row_inc),
+            pos + i as f32,
+            params.row_y_pos + 1.0 * params.row_inc,
+            pos + i as f32,
+            params.row_y_pos + 2.0 * params.row_inc,
             THICKNESS * 2.0,
             GOLD,
         );
@@ -800,17 +784,17 @@ pub fn display_flight_roll(params: &GameParams) {
 pub fn display_flight_climb(params: &GameParams) {
     let middle = params.screen_width - (params.dial_bar_width * 0.5) - params.dial_bar_margin;
 
-    let mut pos = middle
+    let pos = middle
         - (params.flight_climb as f32 / params.myship.max_climb as f32
             * params.dial_bar_width
             * 0.5);
 
     for i in 0..4 {
         draw_line(
-            pos as f32 + i as f32,
-            (params.row_y_pos + 2.0 * params.row_inc),
-            pos as f32 + i as f32,
-            (params.row_y_pos + 3.0 * params.row_inc),
+            pos + i as f32,
+            params.row_y_pos + 2.0 * params.row_inc,
+            pos + i as f32,
+            params.row_y_pos + 3.0 * params.row_inc,
             THICKNESS * 2.0,
             GOLD,
         );
@@ -818,7 +802,7 @@ pub fn display_flight_climb(params: &GameParams) {
 }
 
 pub fn display_fuel(cmdr: &Commander, params: &GameParams) {
-    if (cmdr.fuel > 0) {
+    if cmdr.fuel > 0 {
         display_dial_bar2(
             (cmdr.fuel as f32 / 255.0 * params.dial_bar_width) as My,
             params.dial_bar_margin as My,
@@ -830,7 +814,7 @@ pub fn display_fuel(cmdr: &Commander, params: &GameParams) {
 }
 
 pub fn display_missiles(params: &GameParams, cmdr: &Commander) {
-    if (cmdr.missiles == 0) {
+    if cmdr.missiles == 0 {
         return;
     }
 
@@ -838,9 +822,9 @@ pub fn display_missiles(params: &GameParams, cmdr: &Commander) {
 
     let mut x =
         ((4 - nomiss) * (params.dial_bar_width * 0.25) as My) as f32 + params.dial_bar_margin;
-    let y = (params.row_y_pos + 6.0 * params.row_inc);
-    let color;
-    if (params.myship.missile_target != MISSILE_UNARMED) {
+    let y = params.row_y_pos + 6.0 * params.row_inc;
+    let mut color = GREEN;
+    if params.myship.missile_target != MISSILE_UNARMED {
         if params.myship.missile_target < 0 {
             color = YELLOW;
             draw_rectangle(x, y, params.dial_bar_width * 0.24, params.row_inc, YELLOW);
@@ -853,13 +837,7 @@ pub fn display_missiles(params: &GameParams, cmdr: &Commander) {
     }
 
     while nomiss > 0 {
-        draw_rectangle(
-            x as f32,
-            y as f32,
-            params.dial_bar_width * 0.24,
-            params.row_inc,
-            GREEN,
-        );
+        draw_rectangle(x, y, params.dial_bar_width * 0.24, params.row_inc, color);
         x += params.dial_bar_width * 0.25;
         nomiss -= 1;
     }
@@ -885,18 +863,18 @@ pub fn update_console(
     display_fuel(cmdr, params); // FU
     display_missiles(params, cmdr); // X X X X
 
-    if (params.docked) {
+    if params.docked {
         return;
     }
 
     update_scanner(universe, params);
     update_compass(params, ship_count, universe);
 
-    if (ship_count[SHIP_CORIOLIS] != 0 || ship_count[SHIP_DODEC] != 0) {
+    if ship_count[SHIP_CORIOLIS] != 0 || ship_count[SHIP_DODEC] != 0 {
         // gfx_draw_sprite(IMG_BIG_S, 387, 490);
     }
 
-    if (params.myship.ecm_active) {
+    if params.myship.ecm_active {
         // gfx_draw_sprite(IMG_BIG_E, 115, 490);
     }
 }

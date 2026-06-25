@@ -1,5 +1,3 @@
-use std::u8;
-
 use macroquad::prelude::rand;
 
 use crate::{GameParams, My, elite::Commander};
@@ -64,8 +62,8 @@ pub fn generate_planet_data(planet_seed: &GalaxySeed) -> PlanetData {
 
     pl.economy = planet_seed.b & 7;
 
-    if (pl.government < 2) {
-        pl.economy = pl.economy | 2;
+    if pl.government < 2 {
+        pl.economy |= 2;
     }
 
     pl.techlevel = pl.economy ^ 7;
@@ -93,20 +91,20 @@ pub fn find_planet(cx: My, cy: My, cmdr: &Commander, params: &mut GameParams) ->
     let mut dx;
     let mut dy;
 
-    glx = cmdr.galaxy_seed.clone();
+    glx = cmdr.galaxy_seed;
     planet = glx;
 
-    for i in 0..256 {
+    for _ in 0..256 {
         dx = (cx - glx.d as My).abs();
         dy = (cy - glx.b as My).abs();
 
-        if (dx > dy) {
+        if dx > dy {
             distance = (dx + dx + dy) / 2;
         } else {
             distance = (dx + dy + dy) / 2;
         }
 
-        if (distance < min_dist) {
+        if distance < min_dist {
             min_dist = distance;
             planet = glx;
         }
@@ -117,7 +115,7 @@ pub fn find_planet(cx: My, cy: My, cmdr: &Commander, params: &mut GameParams) ->
         waggle_galaxy(&mut glx, &mut params.carry_flag);
     }
 
-    return planet;
+    planet
 }
 fn waggle_galaxy(glx_ptr: &mut GalaxySeed, carry_flag: &mut My) {
     let mut x: u16;
@@ -126,7 +124,7 @@ fn waggle_galaxy(glx_ptr: &mut GalaxySeed, carry_flag: &mut My) {
     x = glx_ptr.a as u16 + glx_ptr.c as u16;
     y = glx_ptr.b as u16 + glx_ptr.d as u16;
 
-    if (x > 0xFF) {
+    if x > 0xFF {
         y += 1;
     }
 
@@ -141,11 +139,11 @@ fn waggle_galaxy(glx_ptr: &mut GalaxySeed, carry_flag: &mut My) {
     x += glx_ptr.c as u16;
     y += glx_ptr.d as u16;
 
-    if (x > 0xFF) {
+    if x > 0xFF {
         y += 1;
     }
 
-    if (y > 0xFF) {
+    if y > 0xFF {
         *carry_flag = 1;
     } else {
         *carry_flag = 0;
@@ -157,28 +155,24 @@ fn waggle_galaxy(glx_ptr: &mut GalaxySeed, carry_flag: &mut My) {
     glx_ptr.e = x as u8;
     glx_ptr.f = y as u8;
 }
-const digrams: &str =
+const DIGRAMS: &str =
     "ABOUSEITILETSTONLONUTHNOALLEXEGEZACEBISOUSESARMAINDIREA?ERATENBERALAVETIEDORQUANTEISRION";
-pub fn name_planet(gname: &mut String, glx: &mut GalaxySeed, carry_flag: &mut My) {
-    let size: My;
+pub fn name_planet(gname: &mut str, glx: &mut GalaxySeed, carry_flag: &mut My) {
     let mut x: u8;
 
     let mut new_name: String = "".to_string();
 
-    if (glx.a & 0x40) == 0 {
-        size = 3;
-    } else {
-        size = 4;
-    }
+    let size = if (glx.a & 0x40) == 0 { 3 } else { 4 };
 
-    for i in 0..size {
+    for _ in 0..size {
         x = glx.f & 0x1F;
-        if (x != 0) {
+        if x != 0 {
             x += 12;
             x *= 2;
-            new_name += &digrams[x as usize..(x + 1) as usize];
-            if (digrams[(x + 1) as usize..(x + 2) as usize].contains('?')) {
-                new_name += &digrams[(x + 1) as usize..(x + 2) as usize];
+            new_name += &DIGRAMS[x as usize..(x + 1) as usize];
+            let contains = DIGRAMS[(x + 1) as usize..(x + 2) as usize].contains('?');
+            if contains {
+                new_name += &DIGRAMS[(x + 1) as usize..(x + 2) as usize];
             }
         }
         waggle_galaxy(glx, carry_flag);

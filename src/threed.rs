@@ -4,14 +4,15 @@
  */
 
 use macroquad::{
-    color::{BROWN, GREEN, ORANGE, RED, WHITE, YELLOW},
-    shapes::{draw_circle, draw_circle_lines, draw_line, draw_rectangle},
+    color::{BROWN, ORANGE, RED, WHITE, YELLOW},
+    shapes::{draw_circle_lines, draw_line, draw_rectangle},
 };
 
 use crate::{
+    Config, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, GameParams, My, THICKNESS,
     elite::{
-        ShipData, ShipFaceNormal, ShipLine, SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER,
-        SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW,
+        SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW,
+        SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData, ShipFaceNormal,
     },
     gfx::{
         GFX_SCALE, GFX_VIEW_BX, GFX_VIEW_BY, GFX_VIEW_TX, GFX_VIEW_TY, GFX_X_OFFSET, GFX_Y_OFFSET,
@@ -21,9 +22,8 @@ use crate::{
     space::{Point, UnivObject},
     stars::{rand255, randint},
     vector::{
-        mult_vector, unit_vector, vector_dot_product, Matrix, Vector, START_MATRIX, START_VECTOR,
+        Matrix, START_MATRIX, START_VECTOR, Vector, mult_vector, unit_vector, vector_dot_product,
     },
-    Config, GameParams, My, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, THICKNESS,
 };
 
 pub fn draw_ship(
@@ -32,19 +32,19 @@ pub fn draw_ship(
     config: &Config,
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
 ) {
-    if ((params.current_screen != SCR_FRONT_VIEW)
+    if (params.current_screen != SCR_FRONT_VIEW)
         && (params.current_screen != SCR_REAR_VIEW)
         && (params.current_screen != SCR_LEFT_VIEW)
         && (params.current_screen != SCR_RIGHT_VIEW)
         && (params.current_screen != SCR_INTRO_ONE)
         && (params.current_screen != SCR_INTRO_TWO)
         && (params.current_screen != SCR_GAME_OVER)
-        && (params.current_screen != SCR_ESCAPE_POD))
+        && (params.current_screen != SCR_ESCAPE_POD)
     {
         return;
     }
 
-    if ((ship.flags & FLG_DEAD) != 0 && !(ship.flags & FLG_EXPLOSION) == 0) {
+    if (ship.flags & FLG_DEAD) != 0 && !(ship.flags & FLG_EXPLOSION) == 0 {
         ship.flags |= FLG_EXPLOSION;
         ship.exp_seed = randint();
         ship.exp_delta = 18;
@@ -55,29 +55,29 @@ pub fn draw_ship(
         return;
     }
 
-    if (ship.location.z <= 0.0) {
+    if ship.location.z <= 0.0 {
         /* Only display ships in front of us. */
         return;
     }
 
-    if (ship.da_type == SHIP_PLANET) {
+    if ship.da_type == SHIP_PLANET {
         draw_planet(ship);
         return;
     }
 
-    if (ship.da_type == SHIP_SUN) {
+    if ship.da_type == SHIP_SUN {
         draw_sun(ship);
         return;
     }
 
-    if (((ship.location.x).abs() > ship.location.z) ||	/* Check for field of vision. */
-        ((ship.location.y).abs() > ship.location.z))
+    if ((ship.location.x).abs() > ship.location.z) ||	/* Check for field of vision. */
+        ((ship.location.y).abs() > ship.location.z)
     {
         return;
     }
 
     if (config.wireframe) != 0 {
-        draw_wireframe_ship(ship, &ship_list);
+        draw_wireframe_ship(ship, ship_list);
     } else {
         // draw_solid_ship(ship);
     }
@@ -93,25 +93,20 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
     let mut rz: f32;
     let mut visible: [bool; 32] = [false; 32];
     let mut vec: Vector = START_VECTOR;
-    let mut camera_vec: Vector = START_VECTOR;
     let mut cos_angle: f32;
     let mut tmp: f32;
     let mut ship_norm: Vec<ShipFaceNormal>;
-    let mut num_faces: usize;
-    let mut ship: ShipData;
+    let ship = ship_list[univ.da_type].clone();
 
-    ship = ship_list[univ.da_type].clone();
-
-    // dbg!(univ.da_type);
     for i in 0..3 {
         trans_mat[i] = univ.rotmat[i];
     }
 
-    camera_vec = univ.location;
+    let mut camera_vec = univ.location;
     mult_vector(&mut camera_vec, &trans_mat);
     camera_vec = unit_vector(camera_vec);
 
-    num_faces = ship.num_faces;
+    let num_faces = ship.num_faces;
 
     for i in 0..num_faces {
         ship_norm = ship.normals.clone();
@@ -120,12 +115,12 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
         vec.y = ship_norm[i].y as f32;
         vec.z = ship_norm[i].z as f32;
 
-        if ((vec.x == 0.0) && (vec.y == 0.0) && (vec.z == 0.0)) {
+        if (vec.x == 0.0) && (vec.y == 0.0) && (vec.z == 0.0) {
             visible[i] = true;
         } else {
             vec = unit_vector(vec);
             cos_angle = vector_dot_product(&vec, &camera_vec);
-            visible[i] = (cos_angle < -0.2);
+            visible[i] = cos_angle < -0.2;
         }
     }
 
@@ -169,7 +164,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
     }
 
     for i in 0..ship.num_lines {
-        if (visible[ship.lines[i].face1] | visible[ship.lines[i].face2]) {
+        if visible[ship.lines[i].face1] | visible[ship.lines[i].face2] {
             sx = point_list[ship.lines[i].start_point].x;
             sy = point_list[ship.lines[i].start_point].y;
 
@@ -185,13 +180,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
         draw_line(
             point_list[lasv].x as f32,
             point_list[lasv].y as f32,
-            {
-                if univ.location.x > 0.0 {
-                    0.0
-                } else {
-                    511.0
-                }
-            },
+            { if univ.location.x > 0.0 { 0.0 } else { 511.0 } },
             (rand255() * 2) as f32,
             THICKNESS,
             WHITE,
@@ -222,16 +211,16 @@ fn draw_planet(planet: &UnivObject) {
     //	radius = 6291456 / ship_vec.z;   /* Planets are BIG! */
     radius *= GFX_SCALE;
 
-    if (((x + radius as f32) < 0.0)
+    if ((x + radius as f32) < 0.0)
         || ((x - radius as f32) > 511.0)
         || ((y + radius as f32) < 0.0)
-        || ((y - radius as f32) > 383.0))
+        || ((y - radius as f32) > 383.0)
     {
         return;
     }
 
     // match (planet_render_style) {
-    match (1) {
+    match 1 {
         // 0 => draw_wireframe_planet(x, y, radius, planet.rotmat),
         1 => draw_circle_lines(x, y, radius as f32, THICKNESS, WHITE),
         // 2 => render_planet(x, y, radius as f32, planet.rotmat),
@@ -251,7 +240,7 @@ fn render_sun_line(xo: My, yo: My, x: My, y: My, radius: My) {
 
     // const GFX_Y_OFFSET: _ = $0;
     // const GFX_Y_OFFSET: My = 0;
-    if ((sy < GFX_VIEW_TY + GFX_Y_OFFSET) || (sy > GFX_VIEW_BY + GFX_Y_OFFSET)) {
+    if !(GFX_VIEW_TY + GFX_Y_OFFSET..=GFX_VIEW_BY + GFX_Y_OFFSET).contains(&sy) {
         return;
     }
 
@@ -261,15 +250,15 @@ fn render_sun_line(xo: My, yo: My, x: My, y: My, radius: My) {
     sx -= (radius * (2 + (randint() & 7))) >> 8;
     ex += (radius * (2 + (randint() & 7))) >> 8;
 
-    if ((sx > GFX_VIEW_BX + GFX_X_OFFSET) || (ex < GFX_VIEW_TX + GFX_X_OFFSET)) {
+    if (sx > GFX_VIEW_BX + GFX_X_OFFSET) || (ex < GFX_VIEW_TX + GFX_X_OFFSET) {
         return;
     }
 
-    if (sx < GFX_VIEW_TX + GFX_X_OFFSET) {
+    if sx < GFX_VIEW_TX + GFX_X_OFFSET {
         sx = GFX_VIEW_TX + GFX_X_OFFSET;
     }
 
-    if (ex > GFX_VIEW_BX + GFX_X_OFFSET) {
+    if ex > GFX_VIEW_BX + GFX_X_OFFSET {
         ex = GFX_VIEW_BX + GFX_X_OFFSET;
     }
     let mut inner = (radius * (200 + (randint() & 7))) >> 8;
@@ -288,11 +277,11 @@ fn render_sun_line(xo: My, yo: My, x: My, y: My, radius: My) {
         mix = (sx ^ y) & 1;
         distance = dx * dx + dy;
 
-        if (distance < inner) {
+        if distance < inner {
             colour = WHITE;
-        } else if (distance < inner2) {
+        } else if distance < inner2 {
             colour = YELLOW;
-        } else if (distance < outer) {
+        } else if distance < outer {
             colour = ORANGE;
         } else {
             colour = if mix != 0 { RED } else { BROWN };
@@ -313,7 +302,7 @@ fn render_sun(xo: My, yo: My, radius: My) {
     let mut y = 0;
 
     // s -= x + x;
-    while (y <= x) {
+    while y <= x {
         render_sun_line(xxo, yyo, x, y, radius);
         render_sun_line(xxo, yyo, x, -y, radius);
         render_sun_line(xxo, yyo, y, x, radius);
@@ -321,7 +310,7 @@ fn render_sun(xo: My, yo: My, radius: My) {
 
         s += y + y + 1;
         y += 1;
-        if (s >= 0) {
+        if s >= 0 {
             s -= x + x + 2;
             x -= 1;
         }
@@ -344,10 +333,10 @@ fn draw_sun(planet: &UnivObject) {
 
     radius *= GFX_SCALE;
 
-    if (((x + radius as f32) < 0.0)
+    if ((x + radius as f32) < 0.0)
         || ((x - radius as f32) > 511.0)
         || ((y + radius as f32) < 0.0)
-        || ((y - radius as f32) > 383.0))
+        || ((y - radius as f32) > 383.0)
     {
         return;
     }

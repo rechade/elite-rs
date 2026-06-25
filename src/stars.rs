@@ -1,5 +1,3 @@
-use std::i64;
-
 use macroquad::{
     color::WHITE,
     prelude::rand,
@@ -7,9 +5,10 @@ use macroquad::{
 };
 
 use crate::{
+    GameParams, SCR_LEFT_VIEW, THICKNESS,
     elite::SCR_FRONT_VIEW,
     gfx::{GFX_SCALE, GFX_VIEW_BX, GFX_VIEW_BY, GFX_VIEW_TX, GFX_VIEW_TY, STAR_SIZE},
-    GameParams, SCR_LEFT_VIEW, THICKNESS, *,
+    *,
 };
 
 pub struct Stars {
@@ -47,13 +46,7 @@ impl Star {
 }
 
 pub fn create_new_stars(da_stars: &mut Stars, params: &GameParams) {
-    let nstars = {
-        if params.witchspace {
-            3
-        } else {
-            12
-        }
-    };
+    let nstars = { if params.witchspace { 3 } else { 12 } };
 
     for i in 0..nstars {
         da_stars.stars[i].x = ((rand255() - 128) | 8) as f32;
@@ -71,13 +64,7 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut sx: My;
     let mut sy: My;
 
-    let nstars = {
-        if params.witchspace {
-            3
-        } else {
-            12
-        }
-    };
+    let nstars = { if params.witchspace { 3 } else { 12 } };
 
     let mut delta = if da_stars.warp_stars {
         50.0
@@ -97,17 +84,15 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
         sx = (da_stars.stars[i].x) as My;
         zz = da_stars.stars[i].z;
 
-        sx += 256;
+        sx += 256; // create the centre_x and y.
         sy += 96;
 
         sx *= GFX_SCALE;
         sy *= GFX_SCALE;
 
         if (!da_stars.warp_stars)
-            && (sx >= GFX_VIEW_TX)
-            && (sx <= GFX_VIEW_BX)
-            && (sy >= GFX_VIEW_TY)
-            && (sy <= GFX_VIEW_BY)
+            && (GFX_VIEW_TX..=GFX_VIEW_BX).contains(&sx)
+            && (GFX_VIEW_TY..=GFX_VIEW_BY).contains(&sy)
         {
             draw_rectangle(sx as f32, sy as f32, STAR_SIZE, STAR_SIZE, WHITE);
 
@@ -136,14 +121,14 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
         xx = da_stars.stars[i].x + (da_stars.stars[i].x * q);
         zz = da_stars.stars[i].z;
 
-        yy = yy + (xx * alpha);
-        xx = xx - (yy * alpha);
+        yy += xx * alpha;
+        xx -= yy * alpha;
 
         /*
                 tx = yy * beta;
                 xx = xx + (tx * tx * 2);
         */
-        yy = yy + beta;
+        yy += beta;
 
         da_stars.stars[i].y = yy;
         da_stars.stars[i].x = xx;
@@ -162,7 +147,7 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
         sx = xx as My;
         sy = yy as My;
 
-        if (sx > 240) || (sx < -240) || (sy > 240) || (sy < -240) || (zz < 16.0) {
+        if !(-240..=240).contains(&sx) || !(-240..=240).contains(&sy) || (zz < 16.0) {
             da_stars.stars[i].x = ((rand255() - 128) | 8) as f32;
             da_stars.stars[i].y = ((rand255() - 128) | 4) as f32;
             da_stars.stars[i].z = (rand255() | 0x90) as f32;
@@ -183,13 +168,7 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut ex: My;
     let mut ey: My;
 
-    let nstars = {
-        if params.witchspace {
-            3
-        } else {
-            12
-        }
-    };
+    let nstars = { if params.witchspace { 3 } else { 12 } };
 
     let mut delta = if da_stars.warp_stars {
         50.0
@@ -216,10 +195,8 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
         sy *= GFX_SCALE;
 
         if (!da_stars.warp_stars)
-            && (sx >= GFX_VIEW_TX)
-            && (sx <= GFX_VIEW_BX)
-            && (sy >= GFX_VIEW_TY)
-            && (sy <= GFX_VIEW_BY)
+            && (GFX_VIEW_TX..=GFX_VIEW_BX).contains(&sx)
+            && (GFX_VIEW_TY..=GFX_VIEW_BY).contains(&sy)
         {
             draw_rectangle(sx as f32, sy as f32, STAR_SIZE, STAR_SIZE, WHITE);
 
@@ -248,14 +225,14 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
         xx = da_stars.stars[i].x - (da_stars.stars[i].x * q);
         zz = da_stars.stars[i].z;
 
-        yy = yy + (xx * alpha);
-        xx = xx - (yy * alpha);
+        yy += xx * alpha;
+        xx -= yy * alpha;
 
         /*
                 tx = yy * beta;
                 xx = xx + (tx * tx * 2);
         */
-        yy = yy + beta;
+        yy += beta;
 
         if da_stars.warp_stars {
             ey = yy as My;
@@ -263,14 +240,10 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
             ex = (ex + 128) * GFX_SCALE;
             ey = (ey + 96) * GFX_SCALE;
 
-            if (sx >= GFX_VIEW_TX)
-                && (sx <= GFX_VIEW_BX)
-                && (sy >= GFX_VIEW_TY)
-                && (sy <= GFX_VIEW_BY)
-                && (ex >= GFX_VIEW_TX)
-                && (ex <= GFX_VIEW_BX)
-                && (ey >= GFX_VIEW_TY)
-                && (ey <= GFX_VIEW_BY)
+            if (GFX_VIEW_TX..=GFX_VIEW_BX).contains(&sx)
+                && (GFX_VIEW_TY..=GFX_VIEW_BY).contains(&sy)
+                && (GFX_VIEW_TX..=GFX_VIEW_BX).contains(&ex)
+                && (GFX_VIEW_TY..=GFX_VIEW_BY).contains(&ey)
             {
                 draw_line(
                     sx as f32,
@@ -312,9 +285,7 @@ fn side_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut sx;
     let mut sy;
     let mut delt8;
-    let nstars;
-
-    nstars = if params.witchspace { 3 } else { 12 };
+    let nstars = if params.witchspace { 3 } else { 12 };
 
     delta = if da_stars.warp_stars {
         50
@@ -347,21 +318,15 @@ fn side_starfield(da_stars: &mut Stars, params: &GameParams) {
             && (sy >= GFX_VIEW_TY as f32)
             && (sy <= GFX_VIEW_BY as f32)
         {
-            draw_rectangle(sx as f32, sy as f32, STAR_SIZE, STAR_SIZE, WHITE);
+            draw_rectangle(sx, sy, STAR_SIZE, STAR_SIZE, WHITE);
 
             if zz < 0xC0 as f32 {
-                draw_rectangle(sx as f32 + 1.0, sy as f32, STAR_SIZE, STAR_SIZE, WHITE);
+                draw_rectangle(sx + 1.0, sy, STAR_SIZE, STAR_SIZE, WHITE);
             }
 
             if zz < 0x90 as f32 {
-                draw_rectangle(sx as f32, sy as f32 + 1.0, STAR_SIZE, STAR_SIZE, WHITE);
-                draw_rectangle(
-                    sx as f32 + 1.0,
-                    sy as f32 + 1.0,
-                    STAR_SIZE,
-                    STAR_SIZE,
-                    WHITE,
-                );
+                draw_rectangle(sx, sy + 1.0, STAR_SIZE, STAR_SIZE, WHITE);
+                draw_rectangle(sx + 1.0, sy + 1.0, STAR_SIZE, STAR_SIZE, WHITE);
             }
         }
 
@@ -370,7 +335,7 @@ fn side_starfield(da_stars: &mut Stars, params: &GameParams) {
         zz = da_stars.stars[i].z;
 
         delt8 = delta as f32 / (zz / 32.0);
-        xx = xx + delt8;
+        xx += delt8;
 
         xx += yy * (beta / 256) as f32;
         yy -= xx * (beta / 256) as f32;

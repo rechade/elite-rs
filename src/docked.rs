@@ -1,16 +1,16 @@
 use macroquad::{
     color::{GOLD, GREEN, WHITE},
     shapes::draw_line,
-    text::{draw_text, draw_text_ex},
+    text::draw_text,
 };
 
 use crate::{
-    elite::{Commander, MAX_UNIV_OBJECTS, SCR_CMDR_STATUS},
+    BEAM_LASER, GameParams, MILITARY_LASER, MINING_LASER, My, PULSE_LASER, THICKNESS,
+    elite::{Commander, SCR_CMDR_STATUS},
     gfx::GFX_SCALE,
     planet::{capitalise_name, name_planet},
     shipdata::{SHIP_DODEC, SHIP_MISSILE, SHIP_ROCK},
     space::UnivObject,
-    GameParams, My, THICKNESS,
 };
 
 struct Rank {
@@ -27,30 +27,31 @@ const EQUIP_WIDTH: My = 200;
 const Y_INC: My = 16;
 
 const CONDITION_TXT: [&str; 4] = ["Docked", "Green", "Yellow", "Red"];
+fn laser_type(strength: My) -> String {
+    let laser_name: [String; 5] = [
+        "Pulse".to_string(),
+        "Beam".to_string(),
+        "Military".to_string(),
+        "Mining".to_string(),
+        "Custom".to_string(),
+    ];
+    if strength == PULSE_LASER {
+        laser_name[0].clone()
+    } else if strength == BEAM_LASER {
+        laser_name[1].clone()
+    } else if strength == MILITARY_LASER {
+        laser_name[2].clone()
+    } else if strength == MINING_LASER {
+        laser_name[3].clone()
+    } else {
+        laser_name[4].clone()
+    }
+}
 pub fn display_commander_status(
     cmdr: &Commander,
     params: &mut GameParams,
     universe: &[UnivObject],
 ) {
-    fn laser_type(strength: My) -> String {
-        let laser_name: [String; 5] = [
-            "Pulse".to_string(),
-            "Beam".to_string(),
-            "Military".to_string(),
-            "Mining".to_string(),
-            "Custom".to_string(),
-        ];
-        match (strength) {
-            PULSE_LASER => laser_name[0].clone(),
-
-            BEAM_LASER => laser_name[1].clone(),
-
-            MILITARY_LASER => laser_name[2].clone(),
-
-            MINING_LASER => laser_name[3].clone(),
-            _ => laser_name[4].clone(),
-        }
-    }
     let rating: [Rank; NO_OF_RANKS] = [
         Rank {
             score: 0x0000,
@@ -90,7 +91,6 @@ pub fn display_commander_status(
         },
     ];
     let mut planet_name: String = "".to_string(); //[16];
-    let mut da_str: String = "".to_string(); //[100];
     let mut x: My;
     let mut y: My;
 
@@ -99,7 +99,7 @@ pub fn display_commander_status(
 
     params.current_screen = SCR_CMDR_STATUS;
 
-    da_str = "COMMANDER {}".to_string();
+    let mut da_str = "COMMANDER ".to_string();
     for c in cmdr.name {
         da_str += &c.to_string();
     }
@@ -123,7 +123,7 @@ pub fn display_commander_status(
         GREEN,
     );
 
-    if (!params.witchspace) {
+    if !params.witchspace {
         name_planet(
             &mut planet_name,
             &mut params.docked_planet,
@@ -160,21 +160,21 @@ pub fn display_commander_status(
         );
     }
 
-    if (params.docked) {
+    if params.docked {
         condition = 0;
     } else {
         condition = 1;
 
-        for i in 0..MAX_UNIV_OBJECTS {
-            da_type = universe[i].da_type;
+        for uni_object in universe {
+            da_type = uni_object.da_type;
 
-            if ((da_type == SHIP_MISSILE) || ((da_type > SHIP_ROCK) && (da_type < SHIP_DODEC))) {
+            if (da_type == SHIP_MISSILE) || ((da_type > SHIP_ROCK) && (da_type < SHIP_DODEC)) {
                 condition = 2;
                 break;
             }
         }
 
-        if ((condition == 2) && (params.energy < 128)) {
+        if (condition == 2) && (params.energy < 128) {
             condition = 3;
         }
     }
@@ -226,7 +226,7 @@ pub fn display_commander_status(
         WHITE,
     );
 
-    if (cmdr.legal_status == 0) {
+    if cmdr.legal_status == 0 {
         da_str = "Clean".to_string();
     } else {
         if cmdr.legal_status > 50 {
@@ -252,9 +252,9 @@ pub fn display_commander_status(
     );
 
     da_str = rating[0].title.clone();
-    for i in 0..NO_OF_RANKS {
-        if (cmdr.score >= rating[i].score) {
-            da_str = rating[i].title.clone();
+    for da_rating in rating {
+        if cmdr.score >= da_rating.score {
+            da_str = da_rating.title.clone();
         }
     }
 
@@ -284,7 +284,7 @@ pub fn display_commander_status(
     x = EQUIP_START_X;
     y = EQUIP_START_Y;
 
-    if (cmdr.cargo_capacity > 20) {
+    if cmdr.cargo_capacity > 20 {
         draw_text(
             "Large Cargo Bay",
             x as f32 * GFX_SCALE as f32,
@@ -295,7 +295,7 @@ pub fn display_commander_status(
         y += Y_INC * GFX_SCALE;
     }
 
-    if (cmdr.escape_pod != 0) {
+    if cmdr.escape_pod != 0 {
         draw_text(
             "Escape Pod",
             x as f32 * GFX_SCALE as f32,
@@ -306,7 +306,7 @@ pub fn display_commander_status(
         y += Y_INC * GFX_SCALE;
     }
 
-    if (cmdr.fuel_scoop != 0) {
+    if cmdr.fuel_scoop != 0 {
         draw_text(
             "Fuel Scoops",
             x as f32 * GFX_SCALE as f32,
@@ -317,7 +317,7 @@ pub fn display_commander_status(
         y += Y_INC * GFX_SCALE;
     }
 
-    if (cmdr.ecm != 0) {
+    if cmdr.ecm != 0 {
         draw_text(
             "E.C.M. System",
             x as f32 * GFX_SCALE as f32,
@@ -328,7 +328,7 @@ pub fn display_commander_status(
         y += Y_INC * GFX_SCALE;
     }
 
-    if (cmdr.energy_bomb != 0) {
+    if cmdr.energy_bomb != 0 {
         draw_text(
             "Energy Bomb",
             x as f32 * GFX_SCALE as f32,
@@ -339,7 +339,7 @@ pub fn display_commander_status(
         y += Y_INC * GFX_SCALE;
     }
 
-    if (cmdr.energy_unit != 0) {
+    if cmdr.energy_unit != 0 {
         draw_text(
             if cmdr.energy_unit == 1 {
                 "Extra Energy Unit"
@@ -352,13 +352,13 @@ pub fn display_commander_status(
             WHITE,
         );
         y += Y_INC * GFX_SCALE;
-        if (y > EQUIP_MAX_Y) {
+        if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
         }
     }
 
-    if (cmdr.docking_computer != 0) {
+    if cmdr.docking_computer != 0 {
         draw_text(
             "Docking Computers",
             x as f32 * GFX_SCALE as f32,
@@ -367,13 +367,13 @@ pub fn display_commander_status(
             WHITE,
         );
         y += Y_INC * GFX_SCALE;
-        if (y > EQUIP_MAX_Y) {
+        if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
         }
     }
 
-    if (cmdr.galactic_hyperdrive != 0) {
+    if cmdr.galactic_hyperdrive != 0 {
         draw_text(
             "Galactic Hyperspace",
             x as f32 * GFX_SCALE as f32,
@@ -382,13 +382,13 @@ pub fn display_commander_status(
             WHITE,
         );
         y += Y_INC * GFX_SCALE;
-        if (y > EQUIP_MAX_Y) {
+        if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
         }
     }
 
-    if (cmdr.front_laser != 0) {
+    if cmdr.front_laser != 0 {
         da_str = format!("Front {} Laser", laser_type(cmdr.front_laser));
         draw_text(
             da_str,
@@ -398,13 +398,13 @@ pub fn display_commander_status(
             WHITE,
         );
         y += Y_INC * GFX_SCALE;
-        if (y > EQUIP_MAX_Y) {
+        if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
         }
     }
 
-    if (cmdr.rear_laser != 0) {
+    if cmdr.rear_laser != 0 {
         da_str = format!("Rear {} Laser", laser_type(cmdr.rear_laser));
         draw_text(
             da_str,
@@ -414,13 +414,13 @@ pub fn display_commander_status(
             WHITE,
         );
         y += Y_INC * GFX_SCALE;
-        if (y > EQUIP_MAX_Y) {
+        if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
         }
     }
 
-    if (cmdr.left_laser != 0) {
+    if cmdr.left_laser != 0 {
         da_str = format!("Left {} Laser", laser_type(cmdr.left_laser));
         draw_text(
             da_str,
@@ -430,13 +430,13 @@ pub fn display_commander_status(
             WHITE,
         );
         y += Y_INC * GFX_SCALE;
-        if (y > EQUIP_MAX_Y) {
+        if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
         }
     }
 
-    if (cmdr.right_laser != 0) {
+    if cmdr.right_laser != 0 {
         da_str = format!("Right {} Laser", laser_type(cmdr.right_laser));
         draw_text(
             da_str,
