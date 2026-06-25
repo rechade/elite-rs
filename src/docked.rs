@@ -5,12 +5,12 @@ use macroquad::{
 };
 
 use crate::{
-    GameParams, My, THICKNESS,
     elite::{Commander, MAX_UNIV_OBJECTS, SCR_CMDR_STATUS},
     gfx::GFX_SCALE,
     planet::{capitalise_name, name_planet},
     shipdata::{SHIP_DODEC, SHIP_MISSILE, SHIP_ROCK},
     space::UnivObject,
+    GameParams, My, THICKNESS,
 };
 
 struct Rank {
@@ -95,7 +95,7 @@ pub fn display_commander_status(
     let mut y: My;
 
     let mut condition: usize;
-    let mut da_type: My;
+    let mut da_type: usize;
 
     params.current_screen = SCR_CMDR_STATUS;
 

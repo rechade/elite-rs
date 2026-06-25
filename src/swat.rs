@@ -4,8 +4,6 @@ use macroquad::{
 };
 
 use crate::{
-    Config, FLG_ANGRY, FLG_BOLD, FLG_CLOAKED, FLG_FLY_TO_PLANET, FLG_HAS_ECM, FLG_INACTIVE,
-    FLG_POLICE, FLG_SLOW, GameParams, MAX_UNIV_OBJECTS, My, THICKNESS,
     elite::{Commander, ShipData},
     gfx::{GFX_SCALE, GFX_VIEW_BY},
     planet::PlanetData,
@@ -17,7 +15,9 @@ use crate::{
     sound::SND_PULSE,
     space::UnivObject,
     stars::{rand255, randint},
-    vector::{Matrix, START_MATRIX, Vector},
+    vector::{Matrix, Vector, START_MATRIX},
+    Config, GameParams, My, FLG_ANGRY, FLG_BOLD, FLG_CLOAKED, FLG_FLY_TO_PLANET, FLG_HAS_ECM,
+    FLG_INACTIVE, FLG_POLICE, FLG_SLOW, MAX_UNIV_OBJECTS, THICKNESS,
 };
 
 pub const initial_flags: [My; NO_OF_SHIPS + 1] = [
@@ -218,7 +218,7 @@ pub fn clear_universe(
     in_battle: &mut bool,
 ) {
     for i in 0..MAX_UNIV_OBJECTS {
-        univ[i as usize].da_type = 0;
+        univ[i].da_type = 0;
     }
 
     for i in 0..NO_OF_SHIPS {
@@ -246,7 +246,7 @@ pub fn remove_ship(
     }
 
     if (da_type > 0) {
-        ship_count[da_type as usize] -= 1;
+        ship_count[da_type] -= 1;
     }
 
     universe[un].da_type = 0;
@@ -291,7 +291,7 @@ pub fn add_new_station(
 }
 
 pub fn add_new_ship(
-    ship_type: My,
+    ship_type: usize,
     x: f32,
     y: f32,
     z: f32,
@@ -301,8 +301,7 @@ pub fn add_new_ship(
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
-) -> My {
-    // dbg!(ship_type);
+) -> Option<usize> {
     for i in 0..MAX_UNIV_OBJECTS {
         if (universe[i].da_type == 0) {
             universe[i].da_type = ship_type;
@@ -324,19 +323,18 @@ pub fn add_new_ship(
             universe[i].bravery = 0;
             universe[i].target = 0;
 
-            universe[i].flags = initial_flags[ship_type as usize];
+            universe[i].flags = initial_flags[ship_type];
 
             if ((ship_type != SHIP_PLANET) && (ship_type != SHIP_SUN)) {
-                universe[i].energy = ship_list[ship_type as usize].energy;
-                universe[i].missiles = ship_list[ship_type as usize].missiles;
-                ship_count[ship_type as usize] += 1;
+                universe[i].energy = ship_list[ship_type].energy;
+                universe[i].missiles = ship_list[ship_type].missiles;
+                ship_count[ship_type] += 1;
             }
 
-            return i as My;
+            return Some(i);
         }
     }
-
-    return -1;
+    return None;
 }
 pub fn random_encounter(
     ship_count: &mut [My; NO_OF_SHIPS + 1],
@@ -345,7 +343,8 @@ pub fn random_encounter(
     cmdr: &Commander,
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
 ) {
-    if ((ship_count[SHIP_CORIOLIS as usize] != 0) || (ship_count[SHIP_DODEC as usize] != 0)) {
+    create_thargoid(universe, ship_list, ship_count); //test
+    if ((ship_count[SHIP_CORIOLIS] != 0) || (ship_count[SHIP_DODEC] != 0)) {
         return;
     }
 
@@ -367,7 +366,7 @@ pub fn random_encounter(
 
     // check_for_cops();
 
-    if (ship_count[SHIP_VIPER as usize] != 0) {
+    if (ship_count[SHIP_VIPER] != 0) {
         return;
     }
 
@@ -386,7 +385,7 @@ fn create_other_ship(
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
-) -> My {
+) -> Option<usize> {
     let rotmat: Matrix = START_MATRIX;
     let mut x = 0;
     let mut y = 0;
@@ -404,19 +403,9 @@ fn create_other_ship(
         y = -y;
     }
     newship = add_new_ship(
-        da_type as My,
-        x as f32,
-        y as f32,
-        z as f32,
-        &rotmat,
-        0,
-        0,
-        universe,
-        ship_list,
-        ship_count,
+        da_type, x as f32, y as f32, z as f32, &rotmat, 0, 0, universe, ship_list, ship_count,
     );
-
-    return newship;
+    newship
 }
 
 fn create_thargoid(
@@ -426,22 +415,25 @@ fn create_thargoid(
 ) {
     let mut newship;
 
-    newship = create_other_ship(SHIP_THARGOID as usize, universe, ship_list, ship_count);
-    if (newship != -1) {
-        universe[newship as usize].flags = FLG_ANGRY | FLG_HAS_ECM;
-        universe[newship as usize].bravery = 113;
+    newship = create_other_ship(SHIP_THARGOID, universe, ship_list, ship_count);
+    match newship {
+        Some(ship) => {
+            universe[ship].flags = FLG_ANGRY | FLG_HAS_ECM;
+            universe[ship].bravery = 113;
 
-        if (rand255() > 64) {
-            launch_enemy(
-                newship,
-                SHIP_THARGLET,
-                FLG_ANGRY | FLG_HAS_ECM,
-                96,
-                universe,
-                ship_list,
-                ship_count,
-            );
+            if (rand255() > 64) {
+                launch_enemy(
+                    ship,
+                    SHIP_THARGLET,
+                    FLG_ANGRY | FLG_HAS_ECM,
+                    96,
+                    universe,
+                    ship_list,
+                    ship_count,
+                );
+            }
         }
+        None => (),
     }
 }
 
@@ -450,15 +442,18 @@ fn create_cougar(
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
 ) {
-    if (ship_count[SHIP_COUGAR as usize] != 0) {
+    if (ship_count[SHIP_COUGAR] != 0) {
         return;
     }
 
-    let newship = create_other_ship(SHIP_COUGAR as usize, universe, ship_list, ship_count);
-    if (newship != -1) {
-        universe[newship as usize].flags = FLG_HAS_ECM; // | FLG_CLOAKED;
-        universe[newship as usize].bravery = 121;
-        universe[newship as usize].velocity = 18;
+    let newship = create_other_ship(SHIP_COUGAR, universe, ship_list, ship_count);
+    match newship {
+        Some(ship) => {
+            universe[ship].flags = FLG_HAS_ECM; // | FLG_CLOAKED;
+            universe[ship].bravery = 121;
+            universe[ship].velocity = 18;
+        }
+        None => (),
     }
 }
 
@@ -467,24 +462,27 @@ fn create_trader(
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
 ) {
-    let da_type = SHIP_COBRA3 + (rand255() & 3);
+    let da_type = SHIP_COBRA3 + (rand255() as usize & 3);
 
-    let newship = create_other_ship(da_type as usize, universe, ship_list, ship_count);
+    let newship = create_other_ship(da_type, universe, ship_list, ship_count);
 
-    if (newship != -1) {
-        universe[newship as usize].rotmat[2].z = -1.0;
-        universe[newship as usize].rotz = rand255() & 7;
+    match newship {
+        Some(ship) => {
+            universe[ship].rotmat[2].z = -1.0;
+            universe[ship].rotz = rand255() & 7;
 
-        let rnd = rand255();
-        universe[newship as usize].velocity = (rnd & 31) | 16;
-        universe[newship as usize].bravery = rnd / 2;
+            let rnd = rand255();
+            universe[ship].velocity = (rnd & 31) | 16;
+            universe[ship].bravery = rnd / 2;
 
-        if (rnd & 1) != 0 {
-            universe[newship as usize].flags |= FLG_HAS_ECM;
+            if (rnd & 1) != 0 {
+                universe[ship].flags |= FLG_HAS_ECM;
+            }
+
+            //		if (rnd & 2)
+            //			universe[newship].flags |= FLG_ANGRY;
         }
-
-        //		if (rnd & 2)
-        //			universe[newship].flags |= FLG_ANGRY;
+        None => (),
     }
 }
 
@@ -503,7 +501,7 @@ fn lone_hunter(
         && (cmdr.galaxy_number == 1)
         && (params.docked_planet.d == 144)
         && (params.docked_planet.b == 33)
-        && (ship_count[SHIP_CONSTRICTOR as usize] == 0))
+        && (ship_count[SHIP_CONSTRICTOR] == 0))
     {
         da_type = SHIP_CONSTRICTOR;
     } else {
@@ -517,67 +515,68 @@ fn lone_hunter(
         };
     }
 
-    newship = create_other_ship(da_type as usize, universe, ship_list, ship_count);
+    newship = create_other_ship(da_type, universe, ship_list, ship_count);
 
-    if (newship != -1) {
-        universe[newship as usize].flags = FLG_ANGRY;
-        if ((rand255() > 200) || (da_type == SHIP_CONSTRICTOR)) {
-            universe[newship as usize].flags |= FLG_HAS_ECM;
+    match newship {
+        Some(ship) => {
+            universe[ship].flags = FLG_ANGRY;
+            if ((rand255() > 200) || (da_type == SHIP_CONSTRICTOR)) {
+                universe[ship].flags |= FLG_HAS_ECM;
+            }
+
+            universe[ship].bravery = ((rand255() * 2) | 64) & 127;
+            params.in_battle = true;
         }
-
-        universe[newship as usize].bravery = ((rand255() * 2) | 64) & 127;
-        params.in_battle = true;
+        None => (),
     }
 }
 fn launch_enemy(
-    un: My,
-    da_type: My,
+    un: usize,
+    da_type: usize,
     flags: My,
     bravery: My,
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
 ) {
-    let newship: My;
     let mut ns: UnivObject;
     let mut rotmat = START_MATRIX;
 
-    newship = add_new_ship(
+    let newship = add_new_ship(
         da_type,
-        universe[un as usize].location.x,
-        universe[un as usize].location.y,
-        universe[un as usize].location.z,
+        universe[un].location.x,
+        universe[un].location.y,
+        universe[un].location.z,
         &rotmat,
-        universe[un as usize].rotx,
-        universe[un as usize].rotz,
+        universe[un].rotx,
+        universe[un].rotz,
         universe,
         ship_list,
         ship_count,
     );
 
-    if (newship == -1) {
-        return;
-    }
+    match newship {
+        Some(ship) => {
+            ns = universe[ship];
 
-    ns = universe[newship as usize];
+            if ((universe[un].da_type == SHIP_CORIOLIS) || (universe[un].da_type == SHIP_DODEC)) {
+                ns.velocity = 32;
+                ns.location.x += ns.rotmat[2].x * 2.0;
+                ns.location.y += ns.rotmat[2].y * 2.0;
+                ns.location.z += ns.rotmat[2].z * 2.0;
+            }
 
-    if ((universe[un as usize].da_type == SHIP_CORIOLIS)
-        || (universe[un as usize].da_type == SHIP_DODEC))
-    {
-        ns.velocity = 32;
-        ns.location.x += ns.rotmat[2].x * 2.0;
-        ns.location.y += ns.rotmat[2].y * 2.0;
-        ns.location.z += ns.rotmat[2].z * 2.0;
-    }
+            ns.flags |= flags;
+            ns.rotz /= 2;
+            ns.rotz *= 2;
+            ns.bravery = bravery;
 
-    ns.flags |= flags;
-    ns.rotz /= 2;
-    ns.rotz *= 2;
-    ns.bravery = bravery;
-
-    if ((da_type == SHIP_CARGO) || (da_type == SHIP_ALLOY) || (da_type == SHIP_ROCK)) {
-        ns.rotz = ((rand255() * 2) & 255) - 128;
-        ns.rotx = ((rand255() * 2) & 255) - 128;
-        ns.velocity = rand255() & 15;
+            if ((da_type == SHIP_CARGO) || (da_type == SHIP_ALLOY) || (da_type == SHIP_ROCK)) {
+                ns.rotz = ((rand255() * 2) & 255) - 128;
+                ns.rotx = ((rand255() * 2) & 255) - 128;
+                ns.velocity = rand255() & 15;
+            }
+        }
+        None => (),
     }
 }

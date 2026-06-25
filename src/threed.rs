@@ -9,10 +9,9 @@ use macroquad::{
 };
 
 use crate::{
-    Config, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, GameParams, My, THICKNESS,
     elite::{
-        SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW,
-        SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData, ShipFaceNormal, ShipLine,
+        ShipData, ShipFaceNormal, ShipLine, SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER,
+        SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW,
     },
     gfx::{
         GFX_SCALE, GFX_VIEW_BX, GFX_VIEW_BY, GFX_VIEW_TX, GFX_VIEW_TY, GFX_X_OFFSET, GFX_Y_OFFSET,
@@ -22,8 +21,9 @@ use crate::{
     space::{Point, UnivObject},
     stars::{rand255, randint},
     vector::{
-        Matrix, START_MATRIX, START_VECTOR, Vector, mult_vector, unit_vector, vector_dot_product,
+        mult_vector, unit_vector, vector_dot_product, Matrix, Vector, START_MATRIX, START_VECTOR,
     },
+    Config, GameParams, My, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, THICKNESS,
 };
 
 pub fn draw_ship(
@@ -99,9 +99,8 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
     let mut ship_norm: Vec<ShipFaceNormal>;
     let mut num_faces: usize;
     let mut ship: ShipData;
-    let lasv: My;
 
-    ship = ship_list[univ.da_type as usize].clone();
+    ship = ship_list[univ.da_type].clone();
 
     // dbg!(univ.da_type);
     for i in 0..3 {
@@ -112,7 +111,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
     mult_vector(&mut camera_vec, &trans_mat);
     camera_vec = unit_vector(camera_vec);
 
-    num_faces = ship.num_faces as usize;
+    num_faces = ship.num_faces;
 
     for i in 0..num_faces {
         ship_norm = ship.normals.clone();
@@ -143,7 +142,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
     trans_mat[2].y = tmp;
 
     let mut point_list: [Point; 60] = [Point { x: 0, y: 0, z: 0 }; 60];
-    for i in 0..ship.num_points as usize {
+    for i in 0..ship.num_points {
         vec.x = ship.points[i].x as f32;
         vec.y = ship.points[i].y as f32;
         vec.z = ship.points[i].z as f32;
@@ -165,30 +164,34 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
         sx *= GFX_SCALE;
         sy *= GFX_SCALE;
 
-        point_list[i as usize].x = sx;
-        point_list[i as usize].y = sy;
+        point_list[i].x = sx;
+        point_list[i].y = sy;
     }
 
     for i in 0..ship.num_lines {
-        if (visible[ship.lines[i as usize].face1 as usize]
-            | visible[ship.lines[i as usize].face2 as usize])
-        {
-            sx = point_list[ship.lines[i as usize].start_point as usize].x;
-            sy = point_list[ship.lines[i as usize].start_point as usize].y;
+        if (visible[ship.lines[i].face1] | visible[ship.lines[i].face2]) {
+            sx = point_list[ship.lines[i].start_point].x;
+            sy = point_list[ship.lines[i].start_point].y;
 
-            ex = point_list[ship.lines[i as usize].end_point as usize].x;
-            ey = point_list[ship.lines[i as usize].end_point as usize].y;
+            ex = point_list[ship.lines[i].end_point].x;
+            ey = point_list[ship.lines[i].end_point].y;
 
             draw_line(sx as f32, sy as f32, ex as f32, ey as f32, THICKNESS, WHITE);
         }
     }
 
     if (univ.flags & FLG_FIRING) != 0 {
-        lasv = ship_list[univ.da_type as usize].front_laser;
+        let lasv = ship_list[univ.da_type].front_laser;
         draw_line(
-            point_list[lasv as usize].x as f32,
-            point_list[lasv as usize].y as f32,
-            { if univ.location.x > 0.0 { 0.0 } else { 511.0 } },
+            point_list[lasv].x as f32,
+            point_list[lasv].y as f32,
+            {
+                if univ.location.x > 0.0 {
+                    0.0
+                } else {
+                    511.0
+                }
+            },
             (rand255() * 2) as f32,
             THICKNESS,
             WHITE,

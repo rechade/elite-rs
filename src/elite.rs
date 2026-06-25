@@ -13,11 +13,11 @@
  */
 
 use crate::{
-    GameParams, My,
-    planet::{GalaxySeed, find_planet, generate_planet_data},
+    planet::{find_planet, generate_planet_data, GalaxySeed},
     shipdata::NO_OF_SHIPS,
     swat::MISSILE_UNARMED,
     trade::NO_OF_STOCK_ITEMS,
+    GameParams, My,
 };
 
 #[derive(Copy, Clone)]
@@ -50,14 +50,14 @@ impl ShipPoint {
 #[derive(Copy, Clone)]
 pub struct ShipLine {
     pub dist: My,
-    pub face1: My,
-    pub face2: My,
-    pub start_point: My,
-    pub end_point: My,
+    pub face1: usize,
+    pub face2: usize,
+    pub start_point: usize,
+    pub end_point: usize,
 }
 
 impl ShipLine {
-    pub fn new(dist: My, face1: My, face2: My, start_point: My, end_point: My) -> Self {
+    pub fn new(dist: My, face1: usize, face2: usize, start_point: usize, end_point: usize) -> Self {
         Self {
             dist,
             face1,
@@ -83,13 +83,13 @@ impl ShipFaceNormal {
 }
 pub struct ShipData {
     pub name: [char; 32],
-    pub num_points: My,
-    pub num_lines: My,
-    pub num_faces: My,
+    pub num_points: usize,
+    pub num_lines: usize,
+    pub num_faces: usize,
     pub max_loot: My,
     pub scoop_type: My,
     pub size: f32,
-    pub front_laser: My,
+    pub front_laser: usize,
     pub bounty: My,
     pub vanish_point: My,
     pub energy: My,
@@ -431,7 +431,7 @@ impl PlayerShip {
             max_climb: 0,
             max_fuel: 0,
             altitude: 0,
-            cabtemp: 0,
+            cabtemp: 30,
             laser_temp: 0,
             laser_counter: 0,
             laser: 0,

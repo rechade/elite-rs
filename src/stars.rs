@@ -7,10 +7,9 @@ use macroquad::{
 };
 
 use crate::{
-    GameParams, SCR_LEFT_VIEW, THICKNESS,
     elite::SCR_FRONT_VIEW,
     gfx::{GFX_SCALE, GFX_VIEW_BX, GFX_VIEW_BY, GFX_VIEW_TX, GFX_VIEW_TY, STAR_SIZE},
-    *,
+    GameParams, SCR_LEFT_VIEW, THICKNESS, *,
 };
 
 pub struct Stars {
@@ -48,7 +47,13 @@ impl Star {
 }
 
 pub fn create_new_stars(da_stars: &mut Stars, params: &GameParams) {
-    let nstars = { if params.witchspace { 3 } else { 12 } };
+    let nstars = {
+        if params.witchspace {
+            3
+        } else {
+            12
+        }
+    };
 
     for i in 0..nstars {
         da_stars.stars[i].x = ((rand255() - 128) | 8) as f32;
@@ -66,7 +71,13 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut sx: My;
     let mut sy: My;
 
-    let nstars = { if params.witchspace { 3 } else { 12 } };
+    let nstars = {
+        if params.witchspace {
+            3
+        } else {
+            12
+        }
+    };
 
     let mut delta = if da_stars.warp_stars {
         50.0
@@ -86,7 +97,7 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
         sx = (da_stars.stars[i].x) as My;
         zz = da_stars.stars[i].z;
 
-        sx += 128;
+        sx += 256;
         sy += 96;
 
         sx *= GFX_SCALE;
@@ -151,7 +162,7 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
         sx = xx as My;
         sy = yy as My;
 
-        if (sx > 120) || (sx < -120) || (sy > 120) || (sy < -120) || (zz < 16.0) {
+        if (sx > 240) || (sx < -240) || (sy > 240) || (sy < -240) || (zz < 16.0) {
             da_stars.stars[i].x = ((rand255() - 128) | 8) as f32;
             da_stars.stars[i].y = ((rand255() - 128) | 4) as f32;
             da_stars.stars[i].z = (rand255() | 0x90) as f32;
@@ -172,7 +183,13 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut ex: My;
     let mut ey: My;
 
-    let nstars = { if params.witchspace { 3 } else { 12 } };
+    let nstars = {
+        if params.witchspace {
+            3
+        } else {
+            12
+        }
+    };
 
     let mut delta = if da_stars.warp_stars {
         50.0
