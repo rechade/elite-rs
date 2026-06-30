@@ -96,7 +96,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
     let mut cos_angle: f32;
     let mut tmp: f32;
     let mut ship_norm: Vec<ShipFaceNormal>;
-    let ship = ship_list[univ.da_type].clone();
+    let ship = ship_list[univ.da_type as usize].clone();
 
     for i in 0..3 {
         trans_mat[i] = univ.rotmat[i];
@@ -104,7 +104,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
 
     let mut camera_vec = univ.location;
     mult_vector(&mut camera_vec, &trans_mat);
-    camera_vec = unit_vector(camera_vec);
+    camera_vec = unit_vector(&camera_vec);
 
     let num_faces = ship.num_faces;
 
@@ -118,7 +118,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
         if (vec.x == 0.0) && (vec.y == 0.0) && (vec.z == 0.0) {
             visible[i] = true;
         } else {
-            vec = unit_vector(vec);
+            vec = unit_vector(&vec);
             cos_angle = vector_dot_product(&vec, &camera_vec);
             visible[i] = cos_angle < -0.2;
         }
@@ -176,7 +176,7 @@ fn draw_wireframe_ship(univ: &UnivObject, ship_list: &[ShipData; NO_OF_SHIPS + 1
     }
 
     if (univ.flags & FLG_FIRING) != 0 {
-        let lasv = ship_list[univ.da_type].front_laser;
+        let lasv = ship_list[univ.da_type as usize].front_laser;
         draw_line(
             point_list[lasv].x as f32,
             point_list[lasv].y as f32,

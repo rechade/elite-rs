@@ -84,12 +84,14 @@ pub fn gfx_draw_scanner(params: &GameParams, labels: &[&str]) {
         );
     }
     // scanner
-    for i in 0..3 {
+    let ell_w_rad = params.screen_width * 0.2 * 0.25;
+    let ell_h_rad = params.screen_height * 0.1 * 0.25;
+    for i in 1..5 {
         draw_ellipse_lines(
             params.scanner_cx,
             params.scanner_cy,
-            params.screen_width * 0.2 / (i as f32 + 1.0),
-            params.screen_height * 0.1 / (i as f32 + 1.0),
+            ell_w_rad * i as f32,
+            ell_h_rad * i as f32,
             0.0,
             THICKNESS,
             RED,

@@ -1,20 +1,26 @@
-use macroquad::{color::WHITE, shapes::draw_line};
+use macroquad::{
+    audio::{self, Sound},
+    color::WHITE,
+    shapes::draw_line,
+};
 
 use crate::{
-    Config, FLG_ANGRY, FLG_BOLD, FLG_CLOAKED, FLG_FLY_TO_PLANET, FLG_HAS_ECM, FLG_INACTIVE,
-    FLG_POLICE, FLG_SLOW, GameParams, MAX_UNIV_OBJECTS, My, THICKNESS,
+    Config, FLG_ANGRY, FLG_BOLD, FLG_CLOAKED, FLG_DEAD, FLG_FLY_TO_PLANET, FLG_HAS_ECM,
+    FLG_INACTIVE, FLG_POLICE, FLG_SLOW, GameParams, MAX_UNIV_OBJECTS, MILITARY_LASER, MINING_LASER,
+    My, THICKNESS,
     elite::{Commander, SCR_FRONT_VIEW, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData},
     gfx::{GFX_SCALE, GFX_VIEW_BY},
+    info_message,
     planet::PlanetData,
     shipdata::{
-        NO_OF_SHIPS, SHIP_ALLOY, SHIP_CARGO, SHIP_COBRA3, SHIP_COBRA3_LONE, SHIP_CONSTRICTOR,
-        SHIP_CORIOLIS, SHIP_COUGAR, SHIP_DODEC, SHIP_PLANET, SHIP_ROCK, SHIP_SUN, SHIP_THARGLET,
-        SHIP_THARGOID, SHIP_VIPER,
+        NO_OF_SHIPS, SHIP_ALLOY, SHIP_ASTEROID, SHIP_CARGO, SHIP_COBRA3, SHIP_COBRA3_LONE,
+        SHIP_CONSTRICTOR, SHIP_CORIOLIS, SHIP_COUGAR, SHIP_DODEC, SHIP_MISSILE, SHIP_PLANET,
+        SHIP_ROCK, SHIP_SUN, SHIP_THARGLET, SHIP_THARGOID, SHIP_VIPER,
     },
-    sound::SND_PULSE,
-    space::UnivObject,
+    sound::{SND_BOOP, SND_EXPLODE, SND_MISSILE, SND_PULSE},
+    space::{DaType, UnivObject, damage_ship},
     stars::{rand255, randint},
-    vector::{Matrix, START_MATRIX},
+    vector::{Matrix, START_MATRIX, START_VECTOR, Vector, unit_vector, vector_dot_product},
 };
 
 pub const INITIAL_FLAGS: [My; NO_OF_SHIPS + 1] = [
@@ -53,8 +59,11 @@ pub const INITIAL_FLAGS: [My; NO_OF_SHIPS + 1] = [
     FLG_POLICE | FLG_CLOAKED,     // cougar
     0,                            // dodec
 ];
-pub const MISSILE_UNARMED: My = -2;
-pub const MISSILE_ARMED: My = -1;
+// pub const MISSILE_UNARMED: My = -2;
+// pub const MISSILE_ARMED: My = -1;
+// ***warning
+pub const MISSILE_UNARMED: DaType = -2;
+pub const MISSILE_ARMED: DaType = -1;
 // pub struct Swat {
 //     ecm_active: My,
 //     missile_target: My,
@@ -142,7 +151,7 @@ pub fn draw_laser_lines(params: &GameParams, config: &Config) {
         */
     }
 }
-pub fn fire_laser(params: &mut GameParams, cmdr: &mut Commander) -> My {
+pub fn fire_laser(params: &mut GameParams, cmdr: &mut Commander, pulse: &Sound) -> My {
     if (params.myship.laser_counter == 0) && (params.myship.laser_temp < 242) {
         if params.current_screen == SCR_FRONT_VIEW {
             params.myship.laser = cmdr.front_laser;
@@ -165,7 +174,7 @@ pub fn fire_laser(params: &mut GameParams, cmdr: &mut Commander) -> My {
             params.myship.laser &= 127;
             // params.myship.laser2 = params.myship.laser;
 
-            snd_play_sample(SND_PULSE);
+            snd_play_sample(pulse);
             params.myship.laser_temp += 8;
             if params.energy > 1 {
                 params.energy -= 1;
@@ -196,8 +205,9 @@ pub fn cool_laser(params: &mut GameParams) {
         params.myship.laser_counter -= 1;
     }
 }
-pub fn snd_play_sample(_snd_pulse: usize) {
-    println!("snd_play_sample()")
+pub fn snd_play_sample(sound: &Sound) {
+    audio::play_sound_once(sound);
+    // println!("snd_play_sample()")
 }
 pub fn clear_universe(
     univ: &mut [UnivObject],
@@ -232,7 +242,7 @@ pub fn remove_ship(
     }
 
     if da_type > 0 {
-        ship_count[da_type] -= 1;
+        ship_count[da_type as usize] -= 1;
     }
 
     universe[un].da_type = 0;
@@ -278,7 +288,7 @@ pub fn add_new_station(
 }
 
 pub fn add_new_ship(
-    ship_type: usize,
+    ship_type: DaType,
     x: f32,
     y: f32,
     z: f32,
@@ -288,7 +298,7 @@ pub fn add_new_ship(
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
-) -> Option<usize> {
+) -> Option<DaType> {
     for (i, obj) in universe.iter_mut().enumerate() {
         if obj.da_type == 0 {
             obj.da_type = ship_type;
@@ -310,15 +320,14 @@ pub fn add_new_ship(
             obj.bravery = 0;
             obj.target = 0;
 
-            obj.flags = INITIAL_FLAGS[ship_type];
-
             if (ship_type != SHIP_PLANET) && (ship_type != SHIP_SUN) {
-                obj.energy = ship_list[ship_type].energy;
-                obj.missiles = ship_list[ship_type].missiles;
-                ship_count[ship_type] += 1;
+                obj.flags = INITIAL_FLAGS[ship_type as usize];
+                obj.energy = ship_list[ship_type as usize].energy;
+                obj.missiles = ship_list[ship_type as usize].missiles;
+                ship_count[ship_type as usize] += 1;
             }
 
-            return Some(i);
+            return Some(i as DaType);
         }
     }
     None
@@ -326,12 +335,15 @@ pub fn add_new_ship(
 pub fn random_encounter(
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     universe: &mut [UnivObject],
-    params: &GameParams,
+    params: &mut GameParams,
     cmdr: &Commander,
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
 ) {
     create_thargoid(universe, ship_list, ship_count); //test
-    if (ship_count[SHIP_CORIOLIS] != 0) || (ship_count[SHIP_DODEC] != 0) {
+    create_cougar(ship_count, universe, ship_list);
+    create_trader(ship_count, universe, ship_list);
+    lone_hunter(ship_count, universe, ship_list, cmdr, params);
+    if (ship_count[SHIP_CORIOLIS as usize] != 0) || (ship_count[SHIP_DODEC as usize] != 0) {
         return;
     }
 
@@ -353,7 +365,7 @@ pub fn random_encounter(
 
     // check_for_cops();
 
-    if ship_count[SHIP_VIPER] != 0 {
+    if ship_count[SHIP_VIPER as usize] != 0 {
         return;
     }
 
@@ -368,11 +380,11 @@ pub fn random_encounter(
     // check_for_others();
 }
 fn create_other_ship(
-    da_type: usize,
+    da_type: DaType,
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
-) -> Option<usize> {
+) -> Option<DaType> {
     let rotmat: Matrix = START_MATRIX;
 
     let z = 12000;
@@ -397,8 +409,8 @@ fn create_thargoid(
 ) {
     let newship = create_other_ship(SHIP_THARGOID, universe, ship_list, ship_count);
     if let Some(ship) = newship {
-        universe[ship].flags = FLG_ANGRY | FLG_HAS_ECM;
-        universe[ship].bravery = 113;
+        universe[ship as usize].flags = FLG_ANGRY | FLG_HAS_ECM;
+        universe[ship as usize].bravery = 113;
 
         if rand255() > 64 {
             launch_enemy(
@@ -419,15 +431,15 @@ fn create_cougar(
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
 ) {
-    if ship_count[SHIP_COUGAR] != 0 {
+    if ship_count[SHIP_COUGAR as usize] != 0 {
         return;
     }
 
     let newship = create_other_ship(SHIP_COUGAR, universe, ship_list, ship_count);
     if let Some(ship) = newship {
-        universe[ship].flags = FLG_HAS_ECM; // | FLG_CLOAKED;
-        universe[ship].bravery = 121;
-        universe[ship].velocity = 18;
+        universe[ship as usize].flags = FLG_HAS_ECM; // | FLG_CLOAKED;
+        universe[ship as usize].bravery = 121;
+        universe[ship as usize].velocity = 18;
     }
 }
 
@@ -436,20 +448,20 @@ fn create_trader(
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
 ) {
-    let da_type = SHIP_COBRA3 + (rand255() as usize & 3);
+    let da_type = SHIP_COBRA3 + (rand255() as DaType & 3);
 
     let newship = create_other_ship(da_type, universe, ship_list, ship_count);
 
     if let Some(ship) = newship {
-        universe[ship].rotmat[2].z = -1.0;
-        universe[ship].rotz = rand255() & 7;
+        universe[ship as usize].rotmat[2].z = -1.0;
+        universe[ship as usize].rotz = rand255() & 7;
 
         let rnd = rand255();
-        universe[ship].velocity = (rnd & 31) | 16;
-        universe[ship].bravery = rnd / 2;
+        universe[ship as usize].velocity = (rnd & 31) | 16;
+        universe[ship as usize].bravery = rnd / 2;
 
         if (rnd & 1) != 0 {
-            universe[ship].flags |= FLG_HAS_ECM;
+            universe[ship as usize].flags |= FLG_HAS_ECM;
         }
 
         //		if (rnd & 2)
@@ -457,7 +469,7 @@ fn create_trader(
     }
 }
 
-fn lone_hunter(
+pub fn lone_hunter(
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     universe: &mut [UnivObject],
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
@@ -471,7 +483,7 @@ fn lone_hunter(
         && (cmdr.galaxy_number == 1)
         && (params.docked_planet.d == 144)
         && (params.docked_planet.b == 33)
-        && (ship_count[SHIP_CONSTRICTOR] == 0)
+        && (ship_count[SHIP_CONSTRICTOR as usize] == 0)
     {
         da_type = SHIP_CONSTRICTOR;
     } else {
@@ -488,18 +500,18 @@ fn lone_hunter(
     let newship = create_other_ship(da_type, universe, ship_list, ship_count);
 
     if let Some(ship) = newship {
-        universe[ship].flags = FLG_ANGRY;
+        universe[ship as usize].flags = FLG_ANGRY;
         if (rand255() > 200) || (da_type == SHIP_CONSTRICTOR) {
-            universe[ship].flags |= FLG_HAS_ECM;
+            universe[ship as usize].flags |= FLG_HAS_ECM;
         }
 
-        universe[ship].bravery = ((rand255() * 2) | 64) & 127;
+        universe[ship as usize].bravery = ((rand255() * 2) | 64) & 127;
         params.in_battle = true;
     }
 }
-fn launch_enemy(
-    un: usize,
-    da_type: usize,
+pub fn launch_enemy(
+    un: DaType,
+    da_type: DaType,
     flags: My,
     bravery: My,
     universe: &mut [UnivObject],
@@ -511,34 +523,385 @@ fn launch_enemy(
     // add a new ship to the universe and get its index
     let newship = add_new_ship(
         da_type,
-        universe[un].location.x,
-        universe[un].location.y,
-        universe[un].location.z,
+        universe[un as usize].location.x,
+        universe[un as usize].location.y,
+        universe[un as usize].location.z,
         &rotmat,
-        universe[un].rotx,
-        universe[un].rotz,
+        universe[un as usize].rotx,
+        universe[un as usize].rotz,
         universe,
         ship_list,
         ship_count,
     );
 
     if let Some(n) = newship {
-        if (universe[un].da_type == SHIP_CORIOLIS) || (universe[un].da_type == SHIP_DODEC) {
-            universe[n].velocity = 32;
-            universe[n].location.x += universe[n].rotmat[2].x * 2.0;
-            universe[n].location.y += universe[n].rotmat[2].y * 2.0;
-            universe[n].location.z += universe[n].rotmat[2].z * 2.0;
+        if (universe[un as usize].da_type == SHIP_CORIOLIS)
+            || (universe[un as usize].da_type == SHIP_DODEC)
+        {
+            universe[n as usize].velocity = 32;
+            universe[n as usize].location.x += universe[n as usize].rotmat[2].x * 2.0;
+            universe[n as usize].location.y += universe[n as usize].rotmat[2].y * 2.0;
+            universe[n as usize].location.z += universe[n as usize].rotmat[2].z * 2.0;
         }
 
-        universe[n].flags |= flags;
-        universe[n].rotz /= 2;
-        universe[n].rotz *= 2;
-        universe[n].bravery = bravery;
+        universe[n as usize].flags |= flags;
+        universe[n as usize].rotz /= 2;
+        universe[n as usize].rotz *= 2;
+        universe[n as usize].bravery = bravery;
 
         if (da_type == SHIP_CARGO) || (da_type == SHIP_ALLOY) || (da_type == SHIP_ROCK) {
-            universe[n].rotz = ((rand255() * 2) & 255) - 128;
-            universe[n].rotx = ((rand255() * 2) & 255) - 128;
-            universe[n].velocity = rand255() & 15;
+            universe[n as usize].rotz = ((rand255() * 2) & 255) - 128;
+            universe[n as usize].rotx = ((rand255() * 2) & 255) - 128;
+            universe[n as usize].velocity = rand255() & 15;
+        }
+    }
+}
+/*
+void activate_ecm (int ours)
+{
+    if (ecm_active == 0)
+    {
+        ecm_active = 32;
+        ecm_ours = ours;
+        snd_play_sample (SND_ECM);
+    }
+}
+
+
+void time_ecm (void)
+{
+    if (ecm_active != 0)
+    {
+        ecm_active--;
+        if (ecm_ours)
+            decrease_energy (-1);
+    }
+}
+*/
+
+pub fn arm_missile(cmdr: &Commander, params: &mut GameParams) {
+    if (cmdr.missiles != 0) && (params.myship.missile_target == MISSILE_UNARMED) {
+        params.myship.missile_target = MISSILE_ARMED;
+    }
+}
+
+pub fn unarm_missile(params: &mut GameParams, boop_sfx: &Sound) {
+    params.myship.missile_target = MISSILE_UNARMED;
+    snd_play_sample(boop_sfx);
+}
+
+pub fn fire_missile(
+    universe: &mut [UnivObject],
+    params: &mut GameParams,
+    cmdr: &mut Commander,
+    ship_list: &[ShipData; NO_OF_SHIPS + 1],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    missile_sfx: &Sound,
+) {
+    let mut rotmat = START_MATRIX;
+
+    // warning
+    // params.myship.missile_target %= MAX_UNIV_OBJECTS;
+    // if params.myship.missile_target < 0 {
+    //     return;
+    // }
+
+    rotmat[2].z = 1.0;
+    rotmat[0].x = -1.0;
+
+    let newship = add_new_ship(
+        SHIP_MISSILE,
+        0.0,
+        -28.0,
+        14.0,
+        &rotmat,
+        0,
+        0,
+        universe,
+        ship_list,
+        ship_count,
+    );
+
+    match newship {
+        Some(n) => {
+            universe[n as usize].velocity = params.flight_speed * 2;
+            universe[n as usize].flags = FLG_ANGRY;
+            universe[n as usize].target = params.myship.missile_target;
+
+            if universe[params.myship.missile_target as usize].da_type > SHIP_ROCK {
+                universe[params.myship.missile_target as usize].flags |= FLG_ANGRY;
+            }
+            if cmdr.missiles > 0 {
+                cmdr.missiles -= 1;
+            }
+            params.myship.missile_target = MISSILE_UNARMED;
+
+            snd_play_sample(missile_sfx);
+        }
+        None => {
+            info_message("Missile Jammed".to_string(), params);
+        }
+    }
+}
+pub fn track_object(ship: &mut UnivObject, direction: f32, nvec: Vector) {
+    let rat = 3;
+    let rat2 = 0.111;
+
+    let mut dir = vector_dot_product(&nvec, &ship.rotmat[1]);
+
+    if (direction < -0.861) {
+        ship.rotx = if dir < 0.9 { 7 } else { -7 };
+        ship.rotz = 0;
+        return;
+    }
+
+    ship.rotx = 0;
+
+    if (((dir) * 2.0) >= rat2) {
+        ship.rotx = if dir < 0.0 { rat } else { -rat };
+    }
+
+    if ((ship.rotz).abs() < 16) {
+        dir = vector_dot_product(&nvec, &ship.rotmat[0]);
+
+        ship.rotz = 0;
+
+        if (((dir) * 2.0) > rat2) {
+            ship.rotz = if dir < 0.0 { rat } else { -rat };
+
+            if (ship.rotx < 0) {
+                ship.rotz = -ship.rotz;
+            }
+        }
+    }
+}
+
+pub fn missile_tactics(
+    un: DaType,
+    universe: &mut [UnivObject],
+    params: &mut GameParams,
+    explode_sfx: &Sound,
+) {
+    let mut vec = START_VECTOR;
+    let mut nvec;
+    let mut direction;
+    let cnt2: f32 = 0.223;
+
+    if (params.myship.ecm_active) {
+        snd_play_sample(explode_sfx);
+        universe[un as usize].flags |= FLG_DEAD;
+        return;
+    }
+
+    if (universe[un as usize].target == 0) {
+        if (universe[un as usize].distance < 256) {
+            universe[un as usize].flags |= FLG_DEAD;
+            snd_play_sample(explode_sfx);
+            damage_ship(
+                250,
+                {
+                    if universe[un as usize].location.z >= 0.0 {
+                        true
+                    } else {
+                        false
+                    }
+                },
+                params,
+            );
+            return;
+        }
+        vec.x = universe[un as usize].location.x;
+        vec.y = universe[un as usize].location.y;
+        vec.z = universe[un as usize].location.z;
+    } else {
+        let target = universe[universe[un as usize].target as usize];
+
+        vec.x = universe[un as usize].location.x - target.location.x;
+        vec.y = universe[un as usize].location.y - target.location.y;
+        vec.z = universe[un as usize].location.z - target.location.z;
+
+        if (((vec.x).abs() < 256.0) && ((vec.y).abs() < 256.0) && ((vec.z).abs() < 256.0)) {
+            universe[un as usize].flags |= FLG_DEAD;
+
+            if ((target.da_type != SHIP_CORIOLIS) && (target.da_type != SHIP_DODEC)) {
+                // explode_object(universe[un as usize].target);
+            } else {
+                snd_play_sample(explode_sfx);
+            }
+            return;
+        }
+
+        if ((rand255() < 16) && (target.flags & FLG_HAS_ECM) != 0) {
+            // activate_ecm(0);
+            return;
+        }
+    }
+
+    nvec = unit_vector(&vec);
+    direction = vector_dot_product(&nvec, &universe[un as usize].rotmat[2]);
+    nvec.x = -nvec.x;
+    nvec.y = -nvec.y;
+    nvec.z = -nvec.z;
+    direction = -direction;
+
+    track_object(&mut universe[un as usize], direction, nvec);
+
+    if (direction <= -0.167) {
+        universe[un as usize].acceleration = -2;
+        return;
+    }
+
+    if (direction >= cnt2) {
+        universe[un as usize].acceleration = 3;
+        return;
+    }
+
+    if (universe[un as usize].velocity < 6) {
+        universe[un as usize].acceleration = 3;
+    } else {
+        if (rand255() >= 200) {
+            universe[un as usize].acceleration = -2;
+        }
+    }
+    return;
+}
+fn launch_loot(
+    un: DaType,
+    loot: DaType,
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+    universe: &mut [UnivObject],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+) {
+    let mut cnt;
+
+    if (loot == SHIP_ROCK) {
+        cnt = rand255() & 3;
+    } else {
+        cnt = rand255();
+        if (cnt >= 128) {
+            return;
+        }
+
+        cnt &= ship_list[universe[un as usize].da_type as usize].max_loot;
+        cnt &= 15;
+    }
+
+    for i in 0..cnt {
+        launch_enemy(un, loot, 0, 0, universe, ship_list, ship_count);
+    }
+}
+
+fn in_target(
+    da_type: DaType,
+    x: f32,
+    y: f32,
+    z: f32,
+    ship_list: &[ShipData; NO_OF_SHIPS + 1],
+) -> bool {
+    let size: f32;
+
+    if (z < 0.0) {
+        return false;
+    }
+
+    size = ship_list[da_type as usize].size;
+
+    return ((x * x + y * y) <= size);
+}
+
+fn make_angry(un: DaType, universe: &mut [UnivObject]) {
+    let da_type = universe[un as usize].da_type;
+    let flags = universe[un as usize].flags;
+
+    if (flags & FLG_INACTIVE) != 0 {
+        return;
+    }
+
+    if ((da_type == SHIP_CORIOLIS) || (da_type == SHIP_DODEC)) {
+        universe[un as usize].flags |= FLG_ANGRY;
+        return;
+    }
+
+    if (da_type > SHIP_ROCK) {
+        universe[un as usize].rotx = 4;
+        universe[un as usize].acceleration = 2;
+        universe[un as usize].flags |= FLG_ANGRY;
+    }
+}
+
+fn explode_object(
+    un: DaType,
+    cmdr: &mut Commander,
+    universe: &mut [UnivObject],
+    params: &mut GameParams,
+) {
+    cmdr.score += 1;
+
+    if ((cmdr.score & 255) == 0) {
+        info_message("Right On Commander!".to_string(), params);
+    }
+
+    // snd_play_sample (SND_EXPLODE);
+    universe[un as usize].flags |= FLG_DEAD;
+
+    if (universe[un as usize].da_type == SHIP_CONSTRICTOR) {
+        cmdr.mission = 2;
+    }
+}
+pub fn check_target(
+    un: DaType,
+    flip: &mut UnivObject,
+    universe: &mut [UnivObject],
+    params: &mut GameParams,
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+    cmdr: &mut Commander,
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+) {
+    let mut univ = universe[un as usize];
+
+    if (in_target(
+        univ.da_type,
+        flip.location.x,
+        flip.location.y,
+        flip.location.z,
+        ship_list,
+    )) {
+        // warning
+        if ((params.myship.missile_target == MISSILE_ARMED)
+            && (univ.da_type != SHIP_SUN && univ.da_type != SHIP_PLANET))
+        {
+            params.myship.missile_target = un;
+            info_message("Target Locked".to_string(), params);
+            // snd_play_sample (SND_BEEP);
+        }
+
+        if (params.myship.laser != 0) {
+            // snd_play_sample (SND_HIT_ENEMY);
+
+            if ((univ.da_type != SHIP_CORIOLIS) && (univ.da_type != SHIP_DODEC)) {
+                if ((univ.da_type == SHIP_CONSTRICTOR) || (univ.da_type == SHIP_COUGAR)) {
+                    if (params.myship.laser == (MILITARY_LASER & 127)) {
+                        univ.energy -= params.myship.laser / 4;
+                    }
+                } else {
+                    univ.energy -= params.myship.laser;
+                }
+            }
+
+            if (univ.energy <= 0) {
+                explode_object(un, cmdr, universe, params);
+
+                if (univ.da_type == SHIP_ASTEROID) {
+                    if (params.myship.laser == (MINING_LASER & 127)) {
+                        launch_loot(un, SHIP_ROCK, ship_list, universe, ship_count);
+                    }
+                } else {
+                    launch_loot(un, SHIP_ALLOY, ship_list, universe, ship_count);
+                    launch_loot(un, SHIP_CARGO, ship_list, universe, ship_count);
+                }
+            }
+
+            make_angry(un, universe);
         }
     }
 }

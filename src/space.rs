@@ -1,35 +1,41 @@
+use std::i16;
+
 use macroquad::{
+    audio::Sound,
     color::{Color, GOLD, GREEN, MAGENTA, PINK, RED, WHITE, YELLOW},
+    miniquad::TextureParams,
     shapes::{draw_circle, draw_line, draw_rectangle},
+    text::{Font, TextParams, draw_text_ex, measure_text},
 };
 
 use crate::{
     Config, FLG_CLOAKED, FLG_DEAD, FLG_FIRING, FLG_HOSTILE, FLG_REMOVE, GameParams, My,
     SCR_BREAK_PATTERN, THICKNESS,
     elite::{
-        Commander, MAX_UNIV_OBJECTS, SCR_ESCAPE_POD, SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO,
-        SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData,
+        Commander, MAX_UNIV_OBJECTS, PlayerShip, SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER,
+        SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData,
     },
-    gfx::{STAR_SIZE, gfx_draw_scanner},
+    gfx::{GFX_SCALE, STAR_SIZE, gfx_draw_scanner},
     info_message,
-    pilot::disengage_auto_pilot,
-    planet::GalaxySeed,
+    pilot::{disengage_auto_pilot, tactics},
+    planet::{GalaxySeed, capitalise_name, name_planet},
     shipdata::{
         NO_OF_SHIPS, SHIP_ALLOY, SHIP_ASTEROID, SHIP_BOULDER, SHIP_CARGO, SHIP_CONSTRICTOR,
         SHIP_CORIOLIS, SHIP_COUGAR, SHIP_DODEC, SHIP_ESCAPE_CAPSULE, SHIP_MISSILE, SHIP_PLANET,
         SHIP_ROCK, SHIP_SUN, SHIP_VIPER,
     },
-    sound::{SND_EXPLODE, SND_LAUNCH},
-    stars::{Stars, create_new_stars},
+    sound::{SND_DOCK, SND_EXPLODE, SND_LAUNCH},
+    stars::{Stars, create_new_stars, rand255, randint},
     swat::{
-        MISSILE_UNARMED, add_new_ship, add_new_station, clear_universe, remove_ship, reset_weapons,
-        snd_play_sample,
+        MISSILE_UNARMED, add_new_ship, add_new_station, check_target, clear_universe, remove_ship,
+        reset_weapons, snd_play_sample,
     },
     threed::draw_ship,
-    trade::carrying_contraband,
-    vector::{Matrix, START_MATRIX, Vector, tidy_matrix, unit_vector},
+    trade::{carrying_contraband, scoop_item},
+    vector::{Matrix, START_MATRIX, START_VECTOR, Vector, tidy_matrix, unit_vector},
 };
 
+pub type DaType = i16;
 #[derive(Clone, Copy)]
 pub struct Point {
     pub x: My,
@@ -40,7 +46,7 @@ pub struct Point {
 pub struct UnivObject {
     pub location: Vector,
     pub rotmat: Matrix,
-    pub da_type: usize,
+    pub da_type: DaType,
     pub rotx: My,
     pub rotz: My,
     pub flags: My,
@@ -48,7 +54,7 @@ pub struct UnivObject {
     pub velocity: My,
     pub acceleration: My,
     pub missiles: My,
-    pub target: My,
+    pub target: DaType,
     pub bravery: My,
     pub exp_delta: My,
     pub exp_seed: My,
@@ -56,10 +62,30 @@ pub struct UnivObject {
 }
 
 impl UnivObject {
-    pub fn new(
+    pub fn new() -> Self {
+        Self {
+            location: START_VECTOR,
+            rotmat: START_MATRIX,
+            da_type: 0,
+            rotx: 0,
+            rotz: 0,
+            flags: 0,
+            energy: 0,
+            velocity: 0,
+            acceleration: 0,
+            missiles: 0,
+            target: 0,
+            bravery: 0,
+            exp_delta: 0,
+            exp_seed: 0,
+            distance: 0,
+        }
+    }
+
+    pub fn set(
         location: Vector,
         rotmat: Matrix,
-        da_type: usize,
+        da_type: DaType,
         rotx: My,
         rotz: My,
         flags: My,
@@ -67,7 +93,7 @@ impl UnivObject {
         velocity: My,
         acceleration: My,
         missiles: My,
-        target: My,
+        target: DaType,
         bravery: My,
         exp_delta: My,
         exp_seed: My,
@@ -168,6 +194,7 @@ pub fn launch_player(
     univ: &mut [UnivObject],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+    launch_sfx: &Sound,
 ) {
     let mut rotmat: Matrix = START_MATRIX;
 
@@ -207,7 +234,7 @@ pub fn launch_player(
     );
 
     params.current_screen = SCR_BREAK_PATTERN;
-    snd_play_sample(SND_LAUNCH);
+    snd_play_sample(launch_sfx);
 }
 fn switch_to_view(flip: &mut UnivObject, params: &GameParams) {
     let mut tmp: f32;
@@ -232,7 +259,8 @@ fn switch_to_view(flip: &mut UnivObject, params: &GameParams) {
         flip.location.x = flip.location.z;
         flip.location.z = -tmp;
 
-        if flip.da_type < 0 {
+        // warning
+        if flip.da_type == SHIP_SUN || flip.da_type == SHIP_PLANET {
             return;
         }
 
@@ -255,7 +283,8 @@ fn switch_to_view(flip: &mut UnivObject, params: &GameParams) {
         flip.location.x = -flip.location.z;
         flip.location.z = tmp;
 
-        if flip.da_type < 0 {
+        // warning
+        if flip.da_type == SHIP_SUN || flip.da_type == SHIP_PLANET {
             return;
         }
 
@@ -283,6 +312,10 @@ pub fn update_universe(
     params: &mut GameParams,
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     config: &Config,
+    explode_sfx: &Sound,
+    dock_sfx: &Sound,
+    incoming_1_sfx: &Sound,
+    incoming_2_sfx: &Sound,
 ) {
     let mut da_type;
     let mut bounty;
@@ -297,7 +330,7 @@ pub fn update_universe(
                     cmdr.legal_status |= 64;
                 }
 
-                bounty = ship_list[da_type].bounty;
+                bounty = ship_list[da_type as usize].bounty;
 
                 if (bounty != 0) && (!params.witchspace) {
                     cmdr.credits += bounty;
@@ -309,9 +342,8 @@ pub fn update_universe(
                 continue;
             }
 
-            let var_name = FLG_DEAD;
             if (params.detonate_bomb != 0)
-                && ((universe[i].flags & var_name) == 0)
+                && ((universe[i].flags & FLG_DEAD) == 0)
                 && (da_type != SHIP_PLANET)
                 && (da_type != SHIP_SUN)
                 && (da_type != SHIP_CONSTRICTOR)
@@ -319,7 +351,7 @@ pub fn update_universe(
                 && (da_type != SHIP_CORIOLIS)
                 && (da_type != SHIP_DODEC)
             {
-                snd_play_sample(SND_EXPLODE);
+                snd_play_sample(explode_sfx);
                 universe[i].flags |= FLG_DEAD;
             }
 
@@ -328,7 +360,17 @@ pub fn update_universe(
                 && (params.current_screen != SCR_GAME_OVER)
                 && (params.current_screen != SCR_ESCAPE_POD)
             {
-                // tactics (i);
+                tactics(
+                    i as DaType,
+                    universe,
+                    params,
+                    ship_count,
+                    cmdr,
+                    ship_list,
+                    incoming_1_sfx,
+                    incoming_2_sfx,
+                    explode_sfx,
+                );
             }
 
             move_univ_object(&mut universe[i], params, ship_list);
@@ -337,12 +379,12 @@ pub fn update_universe(
             switch_to_view(&mut flip, params);
 
             if da_type == SHIP_PLANET {
-                if (ship_count[SHIP_CORIOLIS] == 0)
-                    && (ship_count[SHIP_DODEC] == 0)
+                if (ship_count[SHIP_CORIOLIS as usize] == 0)
+                    && (ship_count[SHIP_DODEC as usize] == 0)
                     && (universe[i].distance < 65792)
                 // was 49152
                 {
-                    // make_station_appear();
+                    make_station_appear(universe, ship_list, ship_count, params);
                 }
 
                 draw_ship(&mut flip, params, config, ship_list);
@@ -356,9 +398,9 @@ pub fn update_universe(
 
             if universe[i].distance < 170 {
                 if (da_type == SHIP_CORIOLIS) || (da_type == SHIP_DODEC) {
-                    // check_docking (i);
+                    check_docking(i, params, universe, dock_sfx);
                 } else {
-                    // scoop_item(i);
+                    scoop_item(i, universe, ship_list, cmdr);
                 }
 
                 continue;
@@ -381,7 +423,15 @@ pub fn update_universe(
                 continue;
             }
 
-            // check_target(i, &flip);
+            check_target(
+                i as DaType,
+                &mut flip,
+                universe,
+                params,
+                ship_list,
+                cmdr,
+                ship_count,
+            );
         }
     }
 
@@ -417,8 +467,8 @@ fn move_univ_object(
         if obj.acceleration != 0 {
             obj.velocity += obj.acceleration;
             obj.acceleration = 0;
-            if obj.velocity > ship_list[obj.da_type].velocity {
-                obj.velocity = ship_list[obj.da_type].velocity;
+            if obj.velocity > ship_list[obj.da_type as usize].velocity {
+                obj.velocity = ship_list[obj.da_type as usize].velocity;
             }
 
             if obj.velocity <= 0 {
@@ -528,7 +578,11 @@ pub fn update_scanner(universe: &[UnivObject], params: &GameParams) {
     let mut colour;
 
     for obj in universe {
-        if (obj.da_type <= 0) || (obj.flags & FLG_DEAD) != 0 || (obj.flags & FLG_CLOAKED != 0) {
+        // warning
+        if (obj.da_type == 0 || obj.da_type == SHIP_SUN || obj.da_type == SHIP_PLANET)
+            || (obj.flags & FLG_DEAD) != 0
+            || (obj.flags & FLG_CLOAKED != 0)
+        {
             continue;
         }
 
@@ -589,11 +643,11 @@ pub fn update_compass(
         return;
     }
 
-    if ship_count[SHIP_CORIOLIS] != 0 || ship_count[SHIP_DODEC] != 0 {
+    if ship_count[SHIP_CORIOLIS as usize] != 0 || ship_count[SHIP_DODEC as usize] != 0 {
         un = 1;
     }
 
-    let dest = unit_vector(universe[un].location);
+    let dest = unit_vector(&universe[un].location);
 
     let compass_x = params.compass_x + (dest.x * params.compass_r);
     let compass_y = params.compass_y + (dest.y * params.compass_r);
@@ -824,7 +878,8 @@ pub fn display_missiles(params: &GameParams, cmdr: &Commander) {
         ((4 - nomiss) * (params.dial_bar_width * 0.25) as My) as f32 + params.dial_bar_margin;
     let y = params.row_y_pos + 6.0 * params.row_inc;
     let mut color = GREEN;
-    if params.myship.missile_target != MISSILE_UNARMED {
+    if params.myship.missile_target != MISSILE_UNARMED as DaType {
+        // warning
         if params.myship.missile_target < 0 {
             color = YELLOW;
             draw_rectangle(x, y, params.dial_bar_width * 0.24, params.row_inc, YELLOW);
@@ -870,11 +925,400 @@ pub fn update_console(
     update_scanner(universe, params);
     update_compass(params, ship_count, universe);
 
-    if ship_count[SHIP_CORIOLIS] != 0 || ship_count[SHIP_DODEC] != 0 {
+    if ship_count[SHIP_CORIOLIS as usize] != 0 || ship_count[SHIP_DODEC as usize] != 0 {
         // gfx_draw_sprite(IMG_BIG_S, 387, 490);
     }
 
     if params.myship.ecm_active {
         // gfx_draw_sprite(IMG_BIG_E, 115, 490);
     }
+}
+
+pub fn update_altitude(params: &mut GameParams, universe: &[UnivObject]) {
+    params.myship.altitude = 255;
+
+    if (params.witchspace) {
+        return;
+    }
+
+    let mut x = (universe[0].location.x).abs();
+    let mut y = (universe[0].location.y).abs();
+    let mut z = (universe[0].location.z).abs();
+
+    if ((x > 65535.0) || (y > 65535.0) || (z > 65535.0)) {
+        return;
+    }
+
+    x /= 256.0;
+    y /= 256.0;
+    z /= 256.0;
+
+    let mut dist = (x * x) + (y * y) + (z * z);
+
+    if (dist > 65535.0) {
+        return;
+    }
+
+    dist -= 9472.0;
+    if (dist < 1.0) {
+        params.myship.altitude = 0;
+        // do_game_over ();
+        return;
+    }
+
+    dist = (dist).sqrt();
+    if (dist < 1.0) {
+        params.myship.altitude = 0;
+        // do_game_over ();
+        return;
+    }
+
+    params.myship.altitude = dist as My;
+}
+
+pub fn update_cabin_temp(
+    params: &mut GameParams,
+    universe: &[UnivObject],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    cmdr: &mut Commander,
+) {
+    params.myship.cabtemp = 30;
+
+    if (params.witchspace) {
+        return;
+    }
+
+    if (ship_count[SHIP_CORIOLIS as usize] != 0 || ship_count[SHIP_DODEC as usize] != 0) {
+        return;
+    }
+
+    let mut x = (universe[1].location.x).abs();
+    let mut y = (universe[1].location.y).abs();
+    let mut z = (universe[1].location.z).abs();
+
+    if ((x > 65535.0) || (y > 65535.0) || (z > 65535.0)) {
+        return;
+    }
+
+    x /= 256.0;
+    y /= 256.0;
+    z /= 256.0;
+
+    let mut dist = ((x * x) + (y * y) + (z * z)) / 256.0;
+
+    if (dist > 255.0) {
+        return;
+    }
+
+    dist = (dist as My ^ 255) as f32;
+
+    params.myship.cabtemp = (dist + 30.0) as My;
+
+    if (params.myship.cabtemp > 255) {
+        params.myship.cabtemp = 255;
+        do_game_over(params);
+        return;
+    }
+
+    if ((params.myship.cabtemp < 224) || (cmdr.fuel_scoop == 0)) {
+        return;
+    }
+
+    cmdr.fuel += params.flight_speed / 2;
+    if (cmdr.fuel > params.myship.max_fuel) {
+        cmdr.fuel = params.myship.max_fuel;
+    }
+
+    info_message("Fuel Scoop On".to_string(), params);
+}
+/*
+ * Regenerate the shields and the energy banks.
+ */
+
+pub fn regenerate_shields(params: &mut GameParams, cmdr: &Commander) {
+    if (params.energy > 127) {
+        if (params.front_shield < 255) {
+            params.front_shield += 1;
+            params.energy -= 1;
+        }
+
+        if (params.aft_shield < 255) {
+            params.aft_shield += 1;
+            params.energy -= 1;
+        }
+    }
+
+    params.energy += 1;
+    params.energy += cmdr.energy_unit;
+    if (params.energy > 255) {
+        params.energy = 255;
+    }
+}
+
+pub fn decrease_energy(amount: My, params: &mut GameParams) {
+    params.energy += amount;
+
+    if (params.energy <= 0) {
+        // do_game_over();
+    }
+}
+
+/*
+ * Deplete the shields.  Drain the energy banks if the shields fail.
+ */
+
+pub fn damage_ship(damage: My, front: bool, params: &mut GameParams) {
+    if (damage <= 0) {
+        /* sanity check */
+        return;
+    }
+
+    let mut shield = if front {
+        params.front_shield
+    } else {
+        params.aft_shield
+    };
+
+    shield -= damage;
+    if (shield < 0) {
+        decrease_energy(shield, params);
+        shield = 0;
+    }
+
+    if (front) {
+        params.front_shield = shield;
+    } else {
+        params.aft_shield = shield;
+    }
+}
+/*
+ * Engage the docking computer.
+ * For the moment we just do an instant dock if we are in the safe zone.
+ */
+
+pub fn engage_docking_computer(
+    params: &mut GameParams,
+    ship_count: &[My; NO_OF_SHIPS + 1],
+    dock_sfx: &Sound,
+) {
+    if (ship_count[SHIP_CORIOLIS as usize] != 0 || ship_count[SHIP_DODEC as usize] != 0) {
+        snd_play_sample(dock_sfx);
+        dock_player(params);
+        params.current_screen = SCR_BREAK_PATTERN;
+    }
+}
+/*
+ * Game Over...
+ */
+
+fn do_game_over(params: &mut GameParams) {
+    // snd_play_sample (SND_GAMEOVER);
+    params.game_over = true;
+}
+fn make_station_appear(
+    universe: &mut [UnivObject],
+    ship_list: &[ShipData; NO_OF_SHIPS + 1],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    params: &mut GameParams,
+) {
+    let mut vec: Vector = START_VECTOR;
+    let mut rotmat: Matrix = START_MATRIX;
+
+    let px = universe[0].location.x;
+    let py = universe[0].location.y;
+    let pz = universe[0].location.z;
+
+    vec.x = ((randint() & 32767) - 16384) as f32;
+    vec.y = ((randint() & 32767) - 16384) as f32;
+    vec.z = (randint() & 32767) as f32;
+
+    vec = unit_vector(&vec);
+
+    let sx = px - vec.x * 65792.0;
+    let sy = py - vec.y * 65792.0;
+    let sz = pz - vec.z * 65792.0;
+
+    //	set_init_matrix (rotmat);
+
+    rotmat[0].x = 1.0;
+    rotmat[0].y = 0.0;
+    rotmat[0].z = 0.0;
+
+    rotmat[1].x = vec.x;
+    rotmat[1].y = vec.z;
+    rotmat[1].z = -vec.y;
+
+    rotmat[2].x = vec.x;
+    rotmat[2].y = vec.y;
+    rotmat[2].z = vec.z;
+
+    tidy_matrix(&mut rotmat);
+
+    add_new_station(
+        sx,
+        sy,
+        sz,
+        &rotmat,
+        universe,
+        ship_list,
+        ship_count,
+        &params.current_planet_data,
+    );
+}
+
+fn check_docking(sn: usize, params: &mut GameParams, universe: &[UnivObject], dock_sfx: &Sound) {
+    if (is_docking(sn, params, universe)) {
+        snd_play_sample(dock_sfx);
+        dock_player(params);
+        params.current_screen = SCR_BREAK_PATTERN;
+        return;
+    }
+
+    if (params.flight_speed >= 5) {
+        do_game_over(params);
+        return;
+    }
+
+    params.flight_speed = 1;
+    damage_ship(5, universe[sn].location.z > 0.0, params);
+    // snd_play_sample(SND_CRASH);
+}
+fn is_docking(sn: usize, params: &GameParams, universe: &[UnivObject]) -> bool {
+    let mut vec: Vector = START_VECTOR;
+
+    if (params.auto_pilot) {
+        // Don't want it to kill anyone!
+        return true;
+    }
+
+    let fz = universe[sn].rotmat[2].z;
+
+    if (fz > -0.90) {
+        return false;
+    }
+
+    vec = unit_vector(&universe[sn].location);
+
+    if (vec.z < 0.927) {
+        return false;
+    }
+
+    let mut ux = universe[sn].rotmat[1].x;
+    if (ux < 0.0) {
+        ux = -ux;
+    }
+
+    if (ux < 0.84) {
+        return false;
+    }
+
+    return true;
+}
+pub fn start_hyperspace(params: &mut GameParams, cmdr: &Commander) {
+    if (params.hyper_ready) {
+        return;
+    }
+
+    params.hyper_distance =
+        calc_distance_to_planet(&params.docked_planet, &params.hyperspace_planet);
+
+    if ((params.hyper_distance == 0) || (params.hyper_distance > cmdr.fuel)) {
+        return;
+    }
+
+    params.destination_planet = params.hyperspace_planet;
+    name_planet(
+        &mut params.hyper_name,
+        &mut params.destination_planet,
+        &mut params.carry_flag,
+    );
+    capitalise_name(&mut params.hyper_name);
+
+    params.hyper_ready = true;
+    params.hyper_countdown = 15;
+    params.hyper_galactic = 0;
+
+    disengage_auto_pilot(params);
+}
+
+fn start_galactic_hyperspace(params: &mut GameParams, cmdr: &Commander) {
+    if (params.hyper_ready) {
+        return;
+    }
+
+    if (cmdr.galactic_hyperdrive == 0) {
+        return;
+    }
+
+    params.hyper_ready = true;
+    params.hyper_countdown = 2;
+    params.hyper_galactic = 1;
+    disengage_auto_pilot(params);
+}
+
+fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, font: &Font) {
+    let mut msg = format!("{}", params.hyper_countdown);
+    let mut msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE as f32).width;
+    let mut msg_x_pos = (params.screen_width - msg_width) * 0.5;
+
+    if ((params.current_screen == SCR_FRONT_VIEW)
+        || (params.current_screen == SCR_REAR_VIEW)
+        || (params.current_screen == SCR_LEFT_VIEW)
+        || (params.current_screen == SCR_RIGHT_VIEW))
+    {
+        draw_text_ex(
+            &msg,
+            msg_x_pos,
+            params.screen_height * 0.1,
+            text_params.clone(),
+        );
+        // gfx_display_text(5, 5, str);
+        if (params.hyper_galactic != 0) {
+            msg = format!("Galactic Hyperspace - {}", params.hyper_name);
+            msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE as f32).width;
+            msg_x_pos = (params.screen_width - msg_width) * 0.5;
+            draw_text_ex(
+                &msg,
+                msg_x_pos,
+                params.screen_height * 0.1,
+                text_params.clone(),
+            );
+            // gfx_display_centre_text(358, "Galactic Hyperspace", 120, GFX_COL_WHITE);
+        } else {
+            msg = format!("Hyperspace - {}", params.hyper_name);
+            msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE as f32).width;
+            msg_x_pos = (params.screen_width - msg_width) * 0.5;
+            draw_text_ex(
+                &msg,
+                msg_x_pos,
+                params.screen_height * 0.1,
+                text_params.clone(),
+            );
+            // sprintf(str, "Hyperspace - %s", hyper_name);
+            // gfx_display_centre_text(358, str, 120, GFX_COL_WHITE);
+        }
+    } else {
+        draw_text_ex(
+            &msg,
+            msg_x_pos,
+            params.screen_height * 0.1,
+            text_params.clone(),
+        );
+        // gfx_clear_area(5, 5, 25, 34);
+        // gfx_display_text(5, 5, str);
+    }
+}
+
+fn calc_distance_to_planet(from_planet: &GalaxySeed, to_planet: &GalaxySeed) -> My {
+    let mut dx = rand255(); //(to_planet.d - from_planet.d).abs();
+    let mut dy = rand255(); //(to_planet.b - from_planet.b).abs();
+
+    dx = dx * dx;
+    dy = dy / 2;
+    dy = dy * dy;
+
+    let mut light_years = (dx + dy).isqrt();
+    light_years *= 4;
+
+    return light_years;
 }

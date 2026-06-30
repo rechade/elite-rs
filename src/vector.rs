@@ -25,7 +25,7 @@ pub const START_MATRIX: [Vector; 3] = [
         z: -1.,
     },
 ];
-fn set_init_matrix(mat: &mut Matrix) {
+pub fn set_init_matrix(mat: &mut Matrix) {
     for i in 0..3 {
         mat[i] = START_MATRIX[i];
     }
@@ -61,7 +61,7 @@ pub fn mult_vector(vec: &mut Vector, mat: &Matrix) {
  * Convert a vector into a vector of unit (1) length.
  */
 
-pub fn unit_vector(vec: Vector) -> Vector {
+pub fn unit_vector(vec: &Vector) -> Vector {
     let mut lx: f32;
     let mut ly: f32;
     let mut lz: f32;
@@ -81,7 +81,7 @@ pub fn unit_vector(vec: Vector) -> Vector {
     return res;
 }
 pub fn tidy_matrix(mat: &mut Matrix) {
-    mat[2] = unit_vector(mat[2]);
+    mat[2] = unit_vector(&mat[2]);
 
     if ((mat[2].x > -1.0) && (mat[2].x < 1.0)) {
         if ((mat[2].y > -1.0) && (mat[2].y < 1.0)) {
@@ -93,7 +93,7 @@ pub fn tidy_matrix(mat: &mut Matrix) {
         mat[1].x = -(mat[2].y * mat[1].y + mat[2].z * mat[1].z) / mat[2].x;
     }
 
-    mat[1] = unit_vector(mat[1]);
+    mat[1] = unit_vector(&mat[1]);
 
     /* xyzzy... nothing happens. :-)*/
 

@@ -10,7 +10,7 @@ use crate::{
     gfx::GFX_SCALE,
     planet::{capitalise_name, name_planet},
     shipdata::{SHIP_DODEC, SHIP_MISSILE, SHIP_ROCK},
-    space::UnivObject,
+    space::{DaType, UnivObject},
 };
 
 struct Rank {
@@ -95,7 +95,7 @@ pub fn display_commander_status(
     let mut y: My;
 
     let mut condition: usize;
-    let mut da_type: usize;
+    let mut da_type: DaType;
 
     params.current_screen = SCR_CMDR_STATUS;
 
@@ -132,7 +132,7 @@ pub fn display_commander_status(
         capitalise_name(&mut planet_name);
         draw_text(
             planet_name,
-            190.0 * GFX_SCALE as f32,
+            128.0 * GFX_SCALE as f32,
             58.0 * GFX_SCALE as f32,
             10.0 * GFX_SCALE as f32,
             WHITE,
@@ -153,7 +153,7 @@ pub fn display_commander_status(
         capitalise_name(&mut planet_name);
         draw_text(
             planet_name,
-            190.0 * GFX_SCALE as f32,
+            128.0 * GFX_SCALE as f32,
             58.0 * GFX_SCALE as f32,
             10.0 * GFX_SCALE as f32,
             WHITE,
@@ -180,7 +180,7 @@ pub fn display_commander_status(
     }
 
     draw_text(
-        "Condition",
+        "Condition:",
         16.0 * GFX_SCALE as f32,
         90.0 * GFX_SCALE as f32,
         10.0 * GFX_SCALE as f32,
@@ -188,7 +188,7 @@ pub fn display_commander_status(
     );
     draw_text(
         CONDITION_TXT[condition],
-        190.0 * GFX_SCALE as f32,
+        128.0 * GFX_SCALE as f32,
         90.0 * GFX_SCALE as f32,
         10.0 * GFX_SCALE as f32,
         WHITE,
@@ -204,7 +204,7 @@ pub fn display_commander_status(
     );
     draw_text(
         da_str,
-        70.0 * GFX_SCALE as f32,
+        128.0 * GFX_SCALE as f32,
         106.0 * GFX_SCALE as f32,
         10.0 * GFX_SCALE as f32,
         WHITE,
@@ -220,7 +220,7 @@ pub fn display_commander_status(
     );
     draw_text(
         da_str,
-        70.0 * GFX_SCALE as f32,
+        128.0 * GFX_SCALE as f32,
         122.0 * GFX_SCALE as f32,
         10.0 * GFX_SCALE as f32,
         WHITE,
@@ -267,7 +267,7 @@ pub fn display_commander_status(
     );
     draw_text(
         da_str.clone(),
-        80.0 * GFX_SCALE as f32,
+        128.0 * GFX_SCALE as f32,
         154.0 * GFX_SCALE as f32,
         10.0 * GFX_SCALE as f32,
         WHITE,

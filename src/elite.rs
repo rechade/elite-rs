@@ -15,6 +15,7 @@
 use crate::{
     GameParams, My,
     planet::{GalaxySeed, find_planet, generate_planet_data},
+    space::DaType,
     swat::MISSILE_UNARMED,
     trade::NO_OF_STOCK_ITEMS,
 };
@@ -99,7 +100,15 @@ pub struct ShipData {
     pub lines: Vec<ShipLine>,
     pub normals: Vec<ShipFaceNormal>,
 }
-
+impl ShipData {
+    pub fn get_name(&self) -> String {
+        let mut s = "".to_string();
+        for c in self.name {
+            s += &c.to_string();
+        }
+        s.trim().to_string()
+    }
+}
 impl Clone for ShipData {
     fn clone(&self) -> Self {
         Self {
@@ -419,7 +428,7 @@ pub struct PlayerShip {
     pub laser_x: My,
     pub laser_y: My,
     pub ecm_active: bool,
-    pub missile_target: My,
+    pub missile_target: DaType,
 }
 
 impl PlayerShip {
@@ -437,7 +446,7 @@ impl PlayerShip {
             laser_x: 0,
             laser_y: 0,
             ecm_active: false,
-            missile_target: MISSILE_UNARMED,
+            missile_target: MISSILE_UNARMED as DaType,
         }
     }
     fn _set(
@@ -453,7 +462,7 @@ impl PlayerShip {
         laser_x: My,
         laser_y: My,
         ecm_active: bool,
-        missile_target: My,
+        missile_target: DaType,
     ) -> Self {
         Self {
             max_speed,

@@ -157,10 +157,10 @@ fn waggle_galaxy(glx_ptr: &mut GalaxySeed, carry_flag: &mut My) {
 }
 const DIGRAMS: &str =
     "ABOUSEITILETSTONLONUTHNOALLEXEGEZACEBISOUSESARMAINDIREA?ERATENBERALAVETIEDORQUANTEISRION";
-pub fn name_planet(gname: &mut str, glx: &mut GalaxySeed, carry_flag: &mut My) {
+pub fn name_planet(gname: &mut String, glx: &mut GalaxySeed, carry_flag: &mut My) {
     let mut x: u8;
 
-    let mut new_name: String = "".to_string();
+    *gname = "".to_string();
 
     let size = if (glx.a & 0x40) == 0 { 3 } else { 4 };
 
@@ -169,10 +169,10 @@ pub fn name_planet(gname: &mut str, glx: &mut GalaxySeed, carry_flag: &mut My) {
         if x != 0 {
             x += 12;
             x *= 2;
-            new_name += &DIGRAMS[x as usize..(x + 1) as usize];
+            *gname += &DIGRAMS[x as usize..(x + 1) as usize];
             let contains = DIGRAMS[(x + 1) as usize..(x + 2) as usize].contains('?');
             if contains {
-                new_name += &DIGRAMS[(x + 1) as usize..(x + 2) as usize];
+                *gname += &DIGRAMS[(x + 1) as usize..(x + 2) as usize];
             }
         }
         waggle_galaxy(glx, carry_flag);
