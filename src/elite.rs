@@ -13,11 +13,11 @@
  */
 
 use crate::{
-    GameParams, My,
-    planet::{GalaxySeed, find_planet, generate_planet_data},
+    planet::{find_planet, generate_planet_data, GalaxySeed},
     space::DaType,
     swat::MISSILE_UNARMED,
     trade::NO_OF_STOCK_ITEMS,
+    GameParams, My,
 };
 
 #[derive(Copy, Clone)]
@@ -500,88 +500,3 @@ fn set_stock_quantities(station_stock: [My; 17]) {
 fn generate_stock_market() {
     println!("generate_stock_market");
 }
-/*
-const SSHIP_LIST: [ship_data; NO_OF_SHIPS + 1] = [
-    NULL,
-    &missile_data,
-    &coriolis_data,
-    &esccaps_data,
-    &alloy_data,
-    &cargo_data,
-    &boulder_data,
-    &asteroid_data,
-    &rock_data,
-    &orbit_data,
-    &transp_data,
-    &cobra3a_data,
-    &pythona_data,
-    &boa_data,
-    &anacnda_data,
-    &hermit_data,
-    &viper_data,
-    &sidewnd_data,
-    &mamba_data,
-    &krait_data,
-    &adder_data,
-    &gecko_data,
-    &cobra1_data,
-    &worm_data,
-    &cobra3b_data,
-    &asp2_data,
-    &pythonb_data,
-    &ferdlce_data,
-    &moray_data,
-    &thargoid_data,
-    &thargon_data,
-    &constrct_data,
-    &cougar_data,
-    &dodec_data,
-];
-*/
-// extern struct player_ship myship;
-
-// extern struct commander cmdr;
-// extern struct commander saved_cmdr;
-
-// extern struct galaxy_seed docked_planet;
-
-// extern struct galaxy_seed hyperspace_planet;
-
-// extern struct planet_data current_planet_data;
-
-// extern int carry_flag;
-// extern int current_screen;
-
-// extern struct ship_data *ship_list[];
-
-// extern int wireframe;
-// extern int anti_alias_gfx;
-// extern char scanner_filename[256];
-// extern int hoopy_casinos;
-// extern int instant_dock;
-// extern int speed_cap;
-// extern int scanner_cx;
-// extern int scanner_cy;
-// extern int compass_centre_x;
-// extern int compass_centre_y;
-
-// extern int planet_render_style;
-
-// extern int game_over;
-// extern int docked;
-// extern int finish;
-// extern int flight_speed;
-// extern int flight_roll;
-// extern int flight_climb;
-// extern int front_shield;
-// extern int aft_shield;
-// extern int energy;
-// extern int laser_temp;
-// extern int mcount;
-// extern int detonate_bomb;
-// extern int witchspace;
-// extern int auto_pilot;
-
-// void restore_saved_commander (void);
-
-// #endif
