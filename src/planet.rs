@@ -34,7 +34,7 @@ pub struct PlanetData {
     pub techlevel: u8,
     population: u8,
     productivity: u8,
-    radius: u8,
+    radius: My,
 }
 
 impl PlanetData {
@@ -44,7 +44,7 @@ impl PlanetData {
         techlevel: u8,
         population: u8,
         productivity: u8,
-        radius: u8,
+        radius: My,
     ) -> Self {
         Self {
             government,
@@ -80,7 +80,7 @@ pub fn generate_planet_data(planet_seed: &GalaxySeed) -> PlanetData {
     pl.productivity *= pl.population;
     pl.productivity *= 8;
 
-    pl.radius = (((planet_seed.f & 15) + 11) * 255) + planet_seed.d;
+    pl.radius = (((planet_seed.f as My & 15) + 11) * 255) + planet_seed.d as My;
     pl
 }
 pub fn find_planet(cx: My, cy: My, cmdr: &Commander, params: &mut GameParams) -> GalaxySeed {

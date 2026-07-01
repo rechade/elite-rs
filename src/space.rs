@@ -38,9 +38,9 @@ use crate::{
 pub type DaType = i16;
 #[derive(Clone, Copy)]
 pub struct Point {
-    pub x: My,
-    pub y: My,
-    pub z: My,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 #[derive(Clone, Copy, Debug)]
 pub struct UnivObject {
@@ -205,6 +205,7 @@ pub fn launch_player(
     cmdr.legal_status |= carrying_contraband(cmdr);
     create_new_stars(da_stars, params);
     clear_universe(univ, ship_count, &mut params.in_battle);
+    // crst
     // generate_landscape(docked_planet.a * 251 + docked_planet.b);
     add_new_ship(
         SHIP_PLANET,
@@ -316,6 +317,8 @@ pub fn update_universe(
     dock_sfx: &Sound,
     incoming_1_sfx: &Sound,
     incoming_2_sfx: &Sound,
+    enemy_sfx: &Sound,
+    beep_sfx: &Sound,
 ) {
     let mut da_type;
     let mut bounty;
@@ -384,6 +387,7 @@ pub fn update_universe(
                     && (universe[i].distance < 65792)
                 // was 49152
                 {
+                    // stations always go in universe[1]
                     make_station_appear(universe, ship_list, ship_count, params);
                 }
 
@@ -431,6 +435,8 @@ pub fn update_universe(
                 ship_list,
                 cmdr,
                 ship_count,
+                enemy_sfx,
+                beep_sfx,
             );
         }
     }
@@ -905,8 +911,6 @@ pub fn update_console(
     cmdr: &Commander,
     labels: &[&str],
 ) {
-    gfx_draw_scanner(params, labels);
-
     display_speed(params); // SP
     display_flight_climb(params); // DC
     display_flight_roll(params); // RL
@@ -917,6 +921,7 @@ pub fn update_console(
     display_laser_temp(params); // LT
     display_fuel(cmdr, params); // FU
     display_missiles(params, cmdr); // X X X X
+    gfx_draw_scanner(params, labels);
 
     if params.docked {
         return;
@@ -926,10 +931,12 @@ pub fn update_console(
     update_compass(params, ship_count, universe);
 
     if ship_count[SHIP_CORIOLIS as usize] != 0 || ship_count[SHIP_DODEC as usize] != 0 {
+        // crst
         // gfx_draw_sprite(IMG_BIG_S, 387, 490);
     }
 
     if params.myship.ecm_active {
+        // crst
         // gfx_draw_sprite(IMG_BIG_E, 115, 490);
     }
 }
@@ -962,6 +969,7 @@ pub fn update_altitude(params: &mut GameParams, universe: &[UnivObject]) {
     dist -= 9472.0;
     if (dist < 1.0) {
         params.myship.altitude = 0;
+        // crst
         // do_game_over ();
         return;
     }
@@ -969,6 +977,7 @@ pub fn update_altitude(params: &mut GameParams, universe: &[UnivObject]) {
     dist = (dist).sqrt();
     if (dist < 1.0) {
         params.myship.altitude = 0;
+        // crst
         // do_game_over ();
         return;
     }
@@ -1059,6 +1068,7 @@ pub fn decrease_energy(amount: My, params: &mut GameParams) {
     params.energy += amount;
 
     if (params.energy <= 0) {
+        // crst
         // do_game_over();
     }
 }
@@ -1112,6 +1122,7 @@ pub fn engage_docking_computer(
  */
 
 fn do_game_over(params: &mut GameParams) {
+    // crst
     // snd_play_sample (SND_GAMEOVER);
     params.game_over = true;
 }
@@ -1137,8 +1148,6 @@ fn make_station_appear(
     let sx = px - vec.x * 65792.0;
     let sy = py - vec.y * 65792.0;
     let sz = pz - vec.z * 65792.0;
-
-    //	set_init_matrix (rotmat);
 
     rotmat[0].x = 1.0;
     rotmat[0].y = 0.0;
@@ -1181,6 +1190,7 @@ fn check_docking(sn: usize, params: &mut GameParams, universe: &[UnivObject], do
 
     params.flight_speed = 1;
     damage_ship(5, universe[sn].location.z > 0.0, params);
+    // crst
     // snd_play_sample(SND_CRASH);
 }
 fn is_docking(sn: usize, params: &GameParams, universe: &[UnivObject]) -> bool {
@@ -1256,7 +1266,7 @@ fn start_galactic_hyperspace(params: &mut GameParams, cmdr: &Commander) {
     disengage_auto_pilot(params);
 }
 
-fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, font: &Font) {
+pub fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, font: &Font) {
     let mut msg = format!("{}", params.hyper_countdown);
     let mut msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE as f32).width;
     let mut msg_x_pos = (params.screen_width - msg_width) * 0.5;
@@ -1310,6 +1320,7 @@ fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, font:
 }
 
 fn calc_distance_to_planet(from_planet: &GalaxySeed, to_planet: &GalaxySeed) -> My {
+    // crst
     let mut dx = rand255(); //(to_planet.d - from_planet.d).abs();
     let mut dy = rand255(); //(to_planet.b - from_planet.b).abs();
 

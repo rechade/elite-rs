@@ -5,14 +5,14 @@ use macroquad::{
 };
 
 use crate::{GameParams, My, THICKNESS};
-pub const GFX_VIEW_TX: My = 1;
-pub const GFX_VIEW_TY: My = 1;
-pub const GFX_VIEW_BX: My = 1920;
-pub const GFX_VIEW_BY: My = 1024;
-pub const GFX_SCALE: My = 4;
+pub const GFX_VIEW_TX: f32 = 1.0;
+pub const GFX_VIEW_TY: f32 = 1.0;
+pub const GFX_VIEW_BX: f32 = 1920.0;
+pub const GFX_VIEW_BY: f32 = 1024.0;
+pub const GFX_SCALE: f32 = 1.0;
 pub const STAR_SIZE: f32 = 1.0 * GFX_SCALE as f32;
-pub const GFX_X_OFFSET: My = 1;
-pub const GFX_Y_OFFSET: My = 1;
+pub const GFX_X_OFFSET: f32 = 1.0;
+pub const GFX_Y_OFFSET: f32 = 1.0;
 pub fn gfx_draw_scanner(params: &GameParams, labels: &[&str]) {
     // top line
     // divides screen at 0.75
@@ -121,6 +121,7 @@ pub fn gfx_draw_scanner(params: &GameParams, labels: &[&str]) {
         THICKNESS,
         RED,
     );
+    // crst
     // params.screen_height * 0.875);
 
     // let size: Vec2 = Vec2 {

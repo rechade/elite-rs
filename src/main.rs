@@ -13,13 +13,16 @@ use crate::{
     docked::display_commander_status,
     elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW, *},
     gfx::GFX_SCALE,
-    pilot::engage_auto_pilot,
+    pilot::{
+        engage_auto_pilot, fly_to_docking_bay, fly_to_planet, fly_to_station, fly_to_station_front,
+    },
     planet::{GalaxySeed, PlanetData},
     shipdata::{NO_OF_SHIPS, SHIP_COBRA3, SHIP_CORIOLIS, SHIP_DODEC},
     sound::SND_BEEP,
     space::{
-        DaType, UnivObject, dock_player, engage_docking_computer, jump_warp, launch_player,
-        regenerate_shields, update_altitude, update_cabin_temp, update_console, update_universe,
+        DaType, UnivObject, display_hyper_status, dock_player, engage_docking_computer, jump_warp,
+        launch_player, regenerate_shields, update_altitude, update_cabin_temp, update_console,
+        update_universe,
     },
     stars::{Stars, create_new_stars, flip_stars, update_starfield},
     swat::{
@@ -360,7 +363,7 @@ impl GameParams {
             find_input: false,
             witchspace: false,
             game_paused: false,
-            auto_pilot: false,
+            auto_pilot: true,
             cross_x: 0,
             cross_y: 0,
             old_cross_x: 0,
@@ -413,23 +416,23 @@ async fn main() {
     let mut ship_count: [My; NO_OF_SHIPS + 1] = [0; NO_OF_SHIPS + 1]; /* many */
 
     let missile_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 0, 68, 31, 1, 0, 3, 2),
-        ShipPoint::new(8, -8, 36, 31, 2, 1, 5, 4),
-        ShipPoint::new(8, 8, 36, 31, 3, 2, 7, 4),
-        ShipPoint::new(-8, 8, 36, 31, 3, 0, 7, 6),
-        ShipPoint::new(-8, -8, 36, 31, 1, 0, 6, 5),
-        ShipPoint::new(8, 8, -44, 31, 7, 4, 8, 8),
-        ShipPoint::new(8, -8, -44, 31, 5, 4, 8, 8),
-        ShipPoint::new(-8, -8, -44, 31, 6, 5, 8, 8),
-        ShipPoint::new(-8, 8, -44, 31, 7, 6, 8, 8),
-        ShipPoint::new(12, 12, -44, 8, 7, 4, 8, 8),
-        ShipPoint::new(12, -12, -44, 8, 5, 4, 8, 8),
-        ShipPoint::new(-12, -12, -44, 8, 6, 5, 8, 8),
-        ShipPoint::new(-12, 12, -44, 8, 7, 6, 8, 8),
-        ShipPoint::new(-8, 8, -12, 8, 7, 6, 7, 7),
-        ShipPoint::new(-8, -8, -12, 8, 6, 5, 6, 6),
-        ShipPoint::new(8, 8, -12, 8, 7, 4, 7, 7),
-        ShipPoint::new(8, -8, -12, 8, 5, 4, 5, 5),
+        ShipPoint::new(0.0, 0.0, 68.0, 31.0, 1, 0, 3, 2),
+        ShipPoint::new(8.0, -8.0, 36.0, 31.0, 2, 1, 5, 4),
+        ShipPoint::new(8.0, 8.0, 36.0, 31.0, 3, 2, 7, 4),
+        ShipPoint::new(-8.0, 8.0, 36.0, 31.0, 3, 0, 7, 6),
+        ShipPoint::new(-8.0, -8.0, 36.0, 31.0, 1, 0, 6, 5),
+        ShipPoint::new(8.0, 8.0, -44.0, 31.0, 7, 4, 8, 8),
+        ShipPoint::new(8.0, -8.0, -44.0, 31.0, 5, 4, 8, 8),
+        ShipPoint::new(-8.0, -8.0, -44.0, 31.0, 6, 5, 8, 8),
+        ShipPoint::new(-8.0, 8.0, -44.0, 31.0, 7, 6, 8, 8),
+        ShipPoint::new(12.0, 12.0, -44.0, 8.0, 7, 4, 8, 8),
+        ShipPoint::new(12.0, -12.0, -44.0, 8.0, 5, 4, 8, 8),
+        ShipPoint::new(-12.0, -12.0, -44.0, 8.0, 6, 5, 8, 8),
+        ShipPoint::new(-12.0, 12.0, -44.0, 8.0, 7, 6, 8, 8),
+        ShipPoint::new(-8.0, 8.0, -12.0, 8.0, 7, 6, 7, 7),
+        ShipPoint::new(-8.0, -8.0, -12.0, 8.0, 6, 5, 6, 6),
+        ShipPoint::new(8.0, 8.0, -12.0, 8.0, 7, 4, 7, 7),
+        ShipPoint::new(8.0, -8.0, -12.0, 8.0, 5, 4, 5, 5),
     ];
 
     let missile_line: Vec<ShipLine> = vec![
@@ -460,20 +463,20 @@ async fn main() {
     ];
 
     let missile_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, -64, 0, 16),
-        ShipFaceNormal::new(31, 0, -64, 16),
-        ShipFaceNormal::new(31, 64, 0, 16),
-        ShipFaceNormal::new(31, 0, 64, 16),
-        ShipFaceNormal::new(31, 32, 0, 0),
-        ShipFaceNormal::new(31, 0, -32, 0),
-        ShipFaceNormal::new(31, -32, 0, 0),
-        ShipFaceNormal::new(31, 0, 32, 0),
-        ShipFaceNormal::new(31, 0, 0, -176),
+        ShipFaceNormal::new(31.0, -64.0, 0.0, 16.0),
+        ShipFaceNormal::new(31.0, 0.0, -64.0, 16.0),
+        ShipFaceNormal::new(31.0, 64.0, 0.0, 16.0),
+        ShipFaceNormal::new(31.0, 0.0, 64.0, 16.0),
+        ShipFaceNormal::new(31.0, 32.0, 0.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, -32.0, 0.0),
+        ShipFaceNormal::new(31.0, -32.0, 0.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 32.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -176.0),
     ];
 
     let missile_data: ShipData = ShipData {
         name: put_into_name("Missile"),
-        num_points: 7,
+        num_points: 17,
         num_lines: 24,
         num_faces: 9,
         max_loot: 0,
@@ -491,22 +494,22 @@ async fn main() {
         normals: missile_face_normal,
     };
     let coriolis_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(160, 0, 160, 31, 1, 0, 6, 2),
-        ShipPoint::new(0, 160, 160, 31, 2, 0, 8, 3),
-        ShipPoint::new(-160, 0, 160, 31, 3, 0, 7, 4),
-        ShipPoint::new(0, -160, 160, 31, 1, 0, 5, 4),
-        ShipPoint::new(160, -160, 0, 31, 5, 1, 10, 6),
-        ShipPoint::new(160, 160, 0, 31, 6, 2, 11, 8),
-        ShipPoint::new(-160, 160, 0, 31, 7, 3, 12, 8),
-        ShipPoint::new(-160, -160, 0, 31, 5, 4, 9, 7),
-        ShipPoint::new(160, 0, -160, 31, 10, 6, 13, 11),
-        ShipPoint::new(0, 160, -160, 31, 11, 8, 13, 12),
-        ShipPoint::new(-160, 0, -160, 31, 9, 7, 13, 12),
-        ShipPoint::new(0, -160, -160, 31, 9, 5, 13, 10),
-        ShipPoint::new(10, -30, 160, 30, 0, 0, 0, 0),
-        ShipPoint::new(10, 30, 160, 30, 0, 0, 0, 0),
-        ShipPoint::new(-10, 30, 160, 30, 0, 0, 0, 0),
-        ShipPoint::new(-10, -30, 160, 30, 0, 0, 0, 0),
+        ShipPoint::new(160.0, 0.0, 160.0, 31.0, 1, 0, 6, 2),
+        ShipPoint::new(0.0, 160.0, 160.0, 31.0, 2, 0, 8, 3),
+        ShipPoint::new(-160.0, 0.0, 160.0, 31.0, 3, 0, 7, 4),
+        ShipPoint::new(0.0, -160.0, 160.0, 31.0, 1, 0, 5, 4),
+        ShipPoint::new(160.0, -160.0, 0.0, 31.0, 5, 1, 10, 6),
+        ShipPoint::new(160.0, 160.0, 0.0, 31.0, 6, 2, 11, 8),
+        ShipPoint::new(-160.0, 160.0, 0.0, 31.0, 7, 3, 12, 8),
+        ShipPoint::new(-160.0, -160.0, 0.0, 31.0, 5, 4, 9, 7),
+        ShipPoint::new(160.0, 0.0, -160.0, 31.0, 10, 6, 13, 11),
+        ShipPoint::new(0.0, 160.0, -160.0, 31.0, 11, 8, 13, 12),
+        ShipPoint::new(-160.0, 0.0, -160.0, 31.0, 9, 7, 13, 12),
+        ShipPoint::new(0.0, -160.0, -160.0, 31.0, 9, 5, 13, 10),
+        ShipPoint::new(10.0, -30.0, 160.0, 30.0, 0, 0, 0, 0),
+        ShipPoint::new(10.0, 30.0, 160.0, 30.0, 0, 0, 0, 0),
+        ShipPoint::new(-10.0, 30.0, 160.0, 30.0, 0, 0, 0, 0),
+        ShipPoint::new(-10.0, -30.0, 160.0, 30.0, 0, 0, 0, 0),
     ];
 
     let coriolis_line: Vec<ShipLine> = vec![
@@ -541,20 +544,20 @@ async fn main() {
     ];
 
     let coriolis_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 0, 160),
-        ShipFaceNormal::new(31, 107, -107, 107),
-        ShipFaceNormal::new(31, 107, 107, 107),
-        ShipFaceNormal::new(31, -107, 107, 107),
-        ShipFaceNormal::new(31, -107, -107, 107),
-        ShipFaceNormal::new(31, 0, -160, 0),
-        ShipFaceNormal::new(31, 160, 0, 0),
-        ShipFaceNormal::new(31, -160, 0, 0),
-        ShipFaceNormal::new(31, 0, 160, 0),
-        ShipFaceNormal::new(31, -107, -107, -107),
-        ShipFaceNormal::new(31, 107, -107, -107),
-        ShipFaceNormal::new(31, 107, 107, -107),
-        ShipFaceNormal::new(31, -107, 107, -107),
-        ShipFaceNormal::new(31, 0, 0, -160),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, 160.0),
+        ShipFaceNormal::new(31.0, 107.0, -107.0, 107.0),
+        ShipFaceNormal::new(31.0, 107.0, 107.0, 107.0),
+        ShipFaceNormal::new(31.0, -107.0, 107.0, 107.0),
+        ShipFaceNormal::new(31.0, -107.0, -107.0, 107.0),
+        ShipFaceNormal::new(31.0, 0.0, -160.0, 0.0),
+        ShipFaceNormal::new(31.0, 160.0, 0.0, 0.0),
+        ShipFaceNormal::new(31.0, -160.0, 0.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 160.0, 0.0),
+        ShipFaceNormal::new(31.0, -107.0, -107.0, -107.0),
+        ShipFaceNormal::new(31.0, 107.0, -107.0, -107.0),
+        ShipFaceNormal::new(31.0, 107.0, 107.0, -107.0),
+        ShipFaceNormal::new(31.0, -107.0, 107.0, -107.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -160.0),
     ];
 
     let coriolis_data: ShipData = ShipData {
@@ -577,10 +580,10 @@ async fn main() {
         normals: coriolis_face_normal,
     };
     let esccaps_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(-7, 0, 36, 31, 1, 2, 3, 3),
-        ShipPoint::new(-7, -14, -12, 31, 0, 2, 3, 3),
-        ShipPoint::new(-7, 14, -12, 31, 0, 1, 3, 3),
-        ShipPoint::new(21, 0, 0, 31, 0, 1, 2, 2),
+        ShipPoint::new(-7.0, 0.0, 36.0, 31.0, 1, 2, 3, 3),
+        ShipPoint::new(-7.0, -14.0, -12.0, 31.0, 0, 2, 3, 3),
+        ShipPoint::new(-7.0, 14.0, -12.0, 31.0, 0, 1, 3, 3),
+        ShipPoint::new(21.0, 0.0, 0.0, 31.0, 0, 1, 2, 2),
     ];
 
     let esccaps_line: Vec<ShipLine> = vec![
@@ -593,10 +596,10 @@ async fn main() {
     ];
 
     let esccaps_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 52, 0, -122),
-        ShipFaceNormal::new(31, 39, 103, 30),
-        ShipFaceNormal::new(31, 39, -103, 30),
-        ShipFaceNormal::new(31, -112, 0, 0),
+        ShipFaceNormal::new(31.0, 52.0, 0.0, -122.0),
+        ShipFaceNormal::new(31.0, 39.0, 103.0, 30.0),
+        ShipFaceNormal::new(31.0, 39.0, -103.0, 30.0),
+        ShipFaceNormal::new(31.0, -112.0, 0.0, 0.0),
     ];
 
     let esccaps_data: ShipData = ShipData {
@@ -619,10 +622,10 @@ async fn main() {
         normals: esccaps_face_normal,
     };
     let alloy_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(-15, -22, -9, 31, 15, 15, 15, 15),
-        ShipPoint::new(-15, 38, -9, 31, 15, 15, 15, 15),
-        ShipPoint::new(19, 32, 11, 20, 15, 15, 15, 15),
-        ShipPoint::new(10, -46, 6, 20, 15, 15, 15, 15),
+        ShipPoint::new(-15.0, -22.0, -9.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-15.0, 38.0, -9.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(19.0, 32.0, 11.0, 20.0, 15, 15, 15, 15),
+        ShipPoint::new(10.0, -46.0, 6.0, 20.0, 15, 15, 15, 15),
     ];
 
     let alloy_line: Vec<ShipLine> = vec![
@@ -632,7 +635,7 @@ async fn main() {
         ShipLine::new(16, 15, 15, 3, 0),
     ];
 
-    let alloy_face_normal: Vec<ShipFaceNormal> = vec![ShipFaceNormal::new(0, 0, 0, 0)];
+    let alloy_face_normal: Vec<ShipFaceNormal> = vec![ShipFaceNormal::new(0.0, 0.0, 0.0, 0.0)];
 
     let alloy_data: ShipData = ShipData {
         name: put_into_name("Alloy"),
@@ -655,16 +658,16 @@ async fn main() {
     };
 
     let cargo_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(24, 16, 0, 31, 1, 0, 5, 5),
-        ShipPoint::new(24, 5, 15, 31, 1, 0, 2, 2),
-        ShipPoint::new(24, -13, 9, 31, 2, 0, 3, 3),
-        ShipPoint::new(24, -13, -9, 31, 3, 0, 4, 4),
-        ShipPoint::new(24, 5, -15, 31, 4, 0, 5, 5),
-        ShipPoint::new(-24, 16, 0, 31, 5, 1, 6, 6),
-        ShipPoint::new(-24, 5, 15, 31, 2, 1, 6, 6),
-        ShipPoint::new(-24, -13, 9, 31, 3, 2, 6, 6),
-        ShipPoint::new(-24, -13, -9, 31, 4, 3, 6, 6),
-        ShipPoint::new(-24, 5, -15, 31, 5, 4, 6, 6),
+        ShipPoint::new(24.0, 16.0, 0.0, 31.0, 1, 0, 5, 5),
+        ShipPoint::new(24.0, 5.0, 15.0, 31.0, 1, 0, 2, 2),
+        ShipPoint::new(24.0, -13.0, 9.0, 31.0, 2, 0, 3, 3),
+        ShipPoint::new(24.0, -13.0, -9.0, 31.0, 3, 0, 4, 4),
+        ShipPoint::new(24.0, 5.0, -15.0, 31.0, 4, 0, 5, 5),
+        ShipPoint::new(-24.0, 16.0, 0.0, 31.0, 5, 1, 6, 6),
+        ShipPoint::new(-24.0, 5.0, 15.0, 31.0, 2, 1, 6, 6),
+        ShipPoint::new(-24.0, -13.0, 9.0, 31.0, 3, 2, 6, 6),
+        ShipPoint::new(-24.0, -13.0, -9.0, 31.0, 4, 3, 6, 6),
+        ShipPoint::new(-24.0, 5.0, -15.0, 31.0, 5, 4, 6, 6),
     ];
 
     let cargo_line: Vec<ShipLine> = vec![
@@ -686,13 +689,13 @@ async fn main() {
     ];
 
     let cargo_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 96, 0, 0),
-        ShipFaceNormal::new(31, 0, 41, 30),
-        ShipFaceNormal::new(31, 0, -18, 48),
-        ShipFaceNormal::new(31, 0, -51, 0),
-        ShipFaceNormal::new(31, 0, -18, -48),
-        ShipFaceNormal::new(31, 0, 41, -30),
-        ShipFaceNormal::new(31, -96, 0, 0),
+        ShipFaceNormal::new(31.0, 96.0, 0.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 41.0, 30.0),
+        ShipFaceNormal::new(31.0, 0.0, -18.0, 48.0),
+        ShipFaceNormal::new(31.0, 0.0, -51.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, -18.0, -48.0),
+        ShipFaceNormal::new(31.0, 0.0, 41.0, -30.0),
+        ShipFaceNormal::new(31.0, -96.0, 0.0, 0.0),
     ];
 
     let cargo_data: ShipData = ShipData {
@@ -716,13 +719,13 @@ async fn main() {
     };
 
     let boulder_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(-18, 37, -11, 31, 0, 1, 5, 9),
-        ShipPoint::new(30, 7, 12, 31, 1, 2, 5, 6),
-        ShipPoint::new(28, -7, -12, 31, 2, 3, 6, 7),
-        ShipPoint::new(2, 0, -39, 31, 3, 4, 7, 8),
-        ShipPoint::new(-28, 34, -30, 31, 0, 4, 8, 9),
-        ShipPoint::new(5, -10, 13, 31, 15, 15, 15, 15),
-        ShipPoint::new(20, 17, -30, 31, 15, 15, 15, 15),
+        ShipPoint::new(-18.0, 37.0, -11.0, 31.0, 0, 1, 5, 9),
+        ShipPoint::new(30.0, 7.0, 12.0, 31.0, 1, 2, 5, 6),
+        ShipPoint::new(28.0, -7.0, -12.0, 31.0, 2, 3, 6, 7),
+        ShipPoint::new(2.0, 0.0, -39.0, 31.0, 3, 4, 7, 8),
+        ShipPoint::new(-28.0, 34.0, -30.0, 31.0, 0, 4, 8, 9),
+        ShipPoint::new(5.0, -10.0, 13.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(20.0, 17.0, -30.0, 31.0, 15, 15, 15, 15),
     ];
 
     let boulder_line: Vec<ShipLine> = vec![
@@ -744,16 +747,16 @@ async fn main() {
     ];
 
     let boulder_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, -15, -3, 8),
-        ShipFaceNormal::new(31, -7, 12, 30),
-        ShipFaceNormal::new(31, 32, -47, 24),
-        ShipFaceNormal::new(31, -3, -39, -7),
-        ShipFaceNormal::new(31, -5, -4, -1),
-        ShipFaceNormal::new(31, 49, 84, 8),
-        ShipFaceNormal::new(31, 112, 21, -21),
-        ShipFaceNormal::new(31, 76, -35, -82),
-        ShipFaceNormal::new(31, 22, 56, -137),
-        ShipFaceNormal::new(31, 40, 110, -38),
+        ShipFaceNormal::new(31.0, -15.0, -3.0, 8.0),
+        ShipFaceNormal::new(31.0, -7.0, 12.0, 30.0),
+        ShipFaceNormal::new(31.0, 32.0, -47.0, 24.0),
+        ShipFaceNormal::new(31.0, -3.0, -39.0, -7.0),
+        ShipFaceNormal::new(31.0, -5.0, -4.0, -1.0),
+        ShipFaceNormal::new(31.0, 49.0, 84.0, 8.0),
+        ShipFaceNormal::new(31.0, 112.0, 21.0, -21.0),
+        ShipFaceNormal::new(31.0, 76.0, -35.0, -82.0),
+        ShipFaceNormal::new(31.0, 22.0, 56.0, -137.0),
+        ShipFaceNormal::new(31.0, 40.0, 110.0, -38.0),
     ];
 
     let boulder_data: ShipData = ShipData {
@@ -777,15 +780,15 @@ async fn main() {
     };
 
     let asteroid_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 80, 0, 31, 15, 15, 15, 15),
-        ShipPoint::new(-80, -10, 0, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, -80, 0, 31, 15, 15, 15, 15),
-        ShipPoint::new(70, -40, 0, 31, 15, 15, 15, 15),
-        ShipPoint::new(60, 50, 0, 31, 6, 5, 13, 12),
-        ShipPoint::new(50, 0, 60, 31, 15, 15, 15, 15),
-        ShipPoint::new(-40, 0, 70, 31, 1, 0, 3, 2),
-        ShipPoint::new(0, 30, -75, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, -50, -60, 31, 9, 8, 11, 10),
+        ShipPoint::new(0.0, 80.0, 0.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-80.0, -10.0, 0.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, -80.0, 0.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(70.0, -40.0, 0.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(60.0, 50.0, 0.0, 31.0, 6, 5, 13, 12),
+        ShipPoint::new(50.0, 0.0, 60.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-40.0, 0.0, 70.0, 31.0, 1, 0, 3, 2),
+        ShipPoint::new(0.0, 30.0, -75.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, -50.0, -60.0, 31.0, 9, 8, 11, 10),
     ];
 
     let asteroid_line: Vec<ShipLine> = vec![
@@ -813,20 +816,20 @@ async fn main() {
     ];
 
     let asteroid_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 9, 66, 81),
-        ShipFaceNormal::new(31, 9, -66, 81),
-        ShipFaceNormal::new(31, -72, 64, 31),
-        ShipFaceNormal::new(31, -64, -73, 47),
-        ShipFaceNormal::new(31, 45, -79, 65),
-        ShipFaceNormal::new(31, 135, 15, 35),
-        ShipFaceNormal::new(31, 38, 76, 70),
-        ShipFaceNormal::new(31, -66, 59, -39),
-        ShipFaceNormal::new(31, -67, -15, -80),
-        ShipFaceNormal::new(31, 66, -14, -75),
-        ShipFaceNormal::new(31, -70, -80, -40),
-        ShipFaceNormal::new(31, 58, -102, -51),
-        ShipFaceNormal::new(31, 81, 9, -67),
-        ShipFaceNormal::new(31, 47, 94, -63),
+        ShipFaceNormal::new(31.0, 9.0, 66.0, 81.0),
+        ShipFaceNormal::new(31.0, 9.0, -66.0, 81.0),
+        ShipFaceNormal::new(31.0, -72.0, 64.0, 31.0),
+        ShipFaceNormal::new(31.0, -64.0, -73.0, 47.0),
+        ShipFaceNormal::new(31.0, 45.0, -79.0, 65.0),
+        ShipFaceNormal::new(31.0, 135.0, 15.0, 35.0),
+        ShipFaceNormal::new(31.0, 38.0, 76.0, 70.0),
+        ShipFaceNormal::new(31.0, -66.0, 59.0, -39.0),
+        ShipFaceNormal::new(31.0, -67.0, -15.0, -80.0),
+        ShipFaceNormal::new(31.0, 66.0, -14.0, -75.0),
+        ShipFaceNormal::new(31.0, -70.0, -80.0, -40.0),
+        ShipFaceNormal::new(31.0, 58.0, -102.0, -51.0),
+        ShipFaceNormal::new(31.0, 81.0, 9.0, -67.0),
+        ShipFaceNormal::new(31.0, 47.0, 94.0, -63.0),
     ];
 
     let asteroid_data: ShipData = ShipData {
@@ -850,10 +853,10 @@ async fn main() {
     };
 
     let rock_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(-24, -25, 16, 31, 1, 2, 3, 3),
-        ShipPoint::new(0, 12, -10, 31, 0, 2, 3, 3),
-        ShipPoint::new(11, -6, 2, 31, 0, 1, 3, 3),
-        ShipPoint::new(12, 42, 7, 31, 0, 1, 2, 2),
+        ShipPoint::new(-24.0, -25.0, 16.0, 31.0, 1, 2, 3, 3),
+        ShipPoint::new(0.0, 12.0, -10.0, 31.0, 0, 2, 3, 3),
+        ShipPoint::new(11.0, -6.0, 2.0, 31.0, 0, 1, 3, 3),
+        ShipPoint::new(12.0, 42.0, 7.0, 31.0, 0, 1, 2, 2),
     ];
 
     let rock_line: Vec<ShipLine> = vec![
@@ -866,10 +869,10 @@ async fn main() {
     ];
 
     let rock_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(18, 30, 0, 0),
-        ShipFaceNormal::new(20, 22, 32, -8),
-        ShipFaceNormal::new(0, 0, 2, 0),
-        ShipFaceNormal::new(0, 17, 23, 95),
+        ShipFaceNormal::new(18.0, 30.0, 0.0, 0.0),
+        ShipFaceNormal::new(20.0, 22.0, 32.0, -8.0),
+        ShipFaceNormal::new(0.0, 0.0, 2.0, 0.0),
+        ShipFaceNormal::new(0.0, 17.0, 23.0, 95.0),
     ];
 
     let rock_data: ShipData = ShipData {
@@ -893,25 +896,25 @@ async fn main() {
     };
 
     let orbit_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, -17, 23, 31, 15, 15, 15, 15),
-        ShipPoint::new(-17, 0, 23, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, 18, 23, 31, 15, 15, 15, 15),
-        ShipPoint::new(18, 0, 23, 31, 15, 15, 15, 15),
-        ShipPoint::new(-20, -20, -27, 31, 1, 2, 3, 9),
-        ShipPoint::new(-20, 20, -27, 31, 3, 4, 5, 9),
-        ShipPoint::new(20, 20, -27, 31, 5, 6, 7, 9),
-        ShipPoint::new(20, -20, -27, 31, 1, 7, 8, 9),
-        ShipPoint::new(5, 0, -27, 16, 9, 9, 9, 9),
-        ShipPoint::new(0, -2, -27, 16, 9, 9, 9, 9),
-        ShipPoint::new(-5, 0, -27, 9, 9, 9, 9, 9),
-        ShipPoint::new(0, 3, -27, 9, 9, 9, 9, 9),
-        ShipPoint::new(0, -9, 35, 16, 0, 10, 11, 12),
-        ShipPoint::new(3, -1, 31, 7, 15, 15, 0, 2),
-        ShipPoint::new(4, 11, 25, 8, 0, 1, 15, 4),
-        ShipPoint::new(11, 4, 25, 8, 10, 1, 3, 15),
-        ShipPoint::new(-3, -1, 31, 7, 6, 11, 2, 3),
-        ShipPoint::new(-3, 11, 25, 8, 15, 8, 12, 0),
-        ShipPoint::new(-10, 4, 25, 8, 4, 15, 1, 8),
+        ShipPoint::new(0.0, -17.0, 23.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-17.0, 0.0, 23.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, 18.0, 23.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(18.0, 0.0, 23.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-20.0, -20.0, -27.0, 31.0, 1, 2, 3, 9),
+        ShipPoint::new(-20.0, 20.0, -27.0, 31.0, 3, 4, 5, 9),
+        ShipPoint::new(20.0, 20.0, -27.0, 31.0, 5, 6, 7, 9),
+        ShipPoint::new(20.0, -20.0, -27.0, 31.0, 1, 7, 8, 9),
+        ShipPoint::new(5.0, 0.0, -27.0, 16.0, 9, 9, 9, 9),
+        ShipPoint::new(0.0, -2.0, -27.0, 16.0, 9, 9, 9, 9),
+        ShipPoint::new(-5.0, 0.0, -27.0, 9.0, 9, 9, 9, 9),
+        ShipPoint::new(0.0, 3.0, -27.0, 9.0, 9, 9, 9, 9),
+        ShipPoint::new(0.0, -9.0, 35.0, 16.0, 0, 10, 11, 12),
+        ShipPoint::new(3.0, -1.0, 31.0, 7.0, 15, 15, 0, 2),
+        ShipPoint::new(4.0, 11.0, 25.0, 8.0, 0, 1, 15, 4),
+        ShipPoint::new(11.0, 4.0, 25.0, 8.0, 10, 1, 3, 15),
+        ShipPoint::new(-3.0, -1.0, 31.0, 7.0, 6, 11, 2, 3),
+        ShipPoint::new(-3.0, 11.0, 25.0, 8.0, 15, 8, 12, 0),
+        ShipPoint::new(-10.0, 4.0, 25.0, 8.0, 4, 15, 1, 8),
     ];
 
     let orbit_line: Vec<ShipLine> = vec![
@@ -948,19 +951,19 @@ async fn main() {
     ];
 
     let orbit_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, -55, -55, 40),
-        ShipFaceNormal::new(31, 0, -74, 4),
-        ShipFaceNormal::new(31, -51, -51, 23),
-        ShipFaceNormal::new(31, -74, 0, 4),
-        ShipFaceNormal::new(31, -51, 51, 23),
-        ShipFaceNormal::new(31, 0, 74, 4),
-        ShipFaceNormal::new(31, 51, 51, 23),
-        ShipFaceNormal::new(31, 74, 0, 4),
-        ShipFaceNormal::new(31, 51, -51, 23),
-        ShipFaceNormal::new(31, 0, 0, -107),
-        ShipFaceNormal::new(31, -41, 41, 90),
-        ShipFaceNormal::new(31, 41, 41, 90),
-        ShipFaceNormal::new(31, 55, -55, 40),
+        ShipFaceNormal::new(31.0, -55.0, -55.0, 40.0),
+        ShipFaceNormal::new(31.0, 0.0, -74.0, 4.0),
+        ShipFaceNormal::new(31.0, -51.0, -51.0, 23.0),
+        ShipFaceNormal::new(31.0, -74.0, 0.0, 4.0),
+        ShipFaceNormal::new(31.0, -51.0, 51.0, 23.0),
+        ShipFaceNormal::new(31.0, 0.0, 74.0, 4.0),
+        ShipFaceNormal::new(31.0, 51.0, 51.0, 23.0),
+        ShipFaceNormal::new(31.0, 74.0, 0.0, 4.0),
+        ShipFaceNormal::new(31.0, 51.0, -51.0, 23.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -107.0),
+        ShipFaceNormal::new(31.0, -41.0, 41.0, 90.0),
+        ShipFaceNormal::new(31.0, 41.0, 41.0, 90.0),
+        ShipFaceNormal::new(31.0, 55.0, -55.0, 40.0),
     ];
 
     let orbit_data: ShipData = ShipData {
@@ -983,43 +986,43 @@ async fn main() {
         normals: orbit_face_normal,
     };
     let transp_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 10, -26, 31, 0, 6, 7, 7),
-        ShipPoint::new(-25, 4, -26, 31, 0, 1, 7, 7),
-        ShipPoint::new(-28, -3, -26, 31, 0, 1, 2, 2),
-        ShipPoint::new(-25, -8, -26, 31, 0, 2, 3, 3),
-        ShipPoint::new(26, -8, -26, 31, 0, 3, 4, 4),
-        ShipPoint::new(29, -3, -26, 31, 0, 4, 5, 5),
-        ShipPoint::new(26, 4, -26, 31, 0, 5, 6, 6),
-        ShipPoint::new(0, 6, 12, 19, 15, 15, 15, 15),
-        ShipPoint::new(-30, -1, 12, 31, 1, 7, 8, 9),
-        ShipPoint::new(-33, -8, 12, 31, 1, 2, 3, 9),
-        ShipPoint::new(33, -8, 12, 31, 3, 4, 5, 10),
-        ShipPoint::new(30, -1, 12, 31, 5, 6, 10, 11),
-        ShipPoint::new(-11, -2, 30, 31, 8, 9, 12, 13),
-        ShipPoint::new(-13, -8, 30, 31, 3, 9, 13, 13),
-        ShipPoint::new(14, -8, 30, 31, 3, 10, 13, 13),
-        ShipPoint::new(11, -2, 30, 31, 10, 11, 12, 13),
-        ShipPoint::new(-5, 6, 2, 7, 7, 7, 7, 7),
-        ShipPoint::new(-18, 3, 2, 7, 7, 7, 7, 7),
-        ShipPoint::new(-5, 7, -7, 7, 7, 7, 7, 7),
-        ShipPoint::new(-18, 4, -7, 7, 7, 7, 7, 7),
-        ShipPoint::new(-11, 6, -14, 7, 7, 7, 7, 7),
-        ShipPoint::new(-11, 5, -7, 7, 7, 7, 7, 7),
-        ShipPoint::new(5, 7, -14, 7, 6, 6, 6, 6),
-        ShipPoint::new(18, 4, -14, 7, 6, 6, 6, 6),
-        ShipPoint::new(11, 5, -7, 7, 6, 6, 6, 6),
-        ShipPoint::new(5, 6, -3, 7, 6, 6, 6, 6),
-        ShipPoint::new(18, 3, -3, 7, 6, 6, 6, 6),
-        ShipPoint::new(11, 4, 8, 7, 6, 6, 6, 6),
-        ShipPoint::new(11, 5, -3, 7, 6, 6, 6, 6),
-        ShipPoint::new(-16, -8, -13, 6, 3, 3, 3, 3),
-        ShipPoint::new(-16, -8, 16, 6, 3, 3, 3, 3),
-        ShipPoint::new(17, -8, -13, 6, 3, 3, 3, 3),
-        ShipPoint::new(17, -8, 16, 6, 3, 3, 3, 3),
-        ShipPoint::new(-13, -3, -26, 8, 0, 0, 0, 0),
-        ShipPoint::new(13, -3, -26, 8, 0, 0, 0, 0),
-        ShipPoint::new(9, 3, -26, 5, 0, 0, 0, 0),
-        ShipPoint::new(-8, 3, -26, 5, 0, 0, 0, 0),
+        ShipPoint::new(0.0, 10.0, -26.0, 31.0, 0, 6, 7, 7),
+        ShipPoint::new(-25.0, 4.0, -26.0, 31.0, 0, 1, 7, 7),
+        ShipPoint::new(-28.0, -3.0, -26.0, 31.0, 0, 1, 2, 2),
+        ShipPoint::new(-25.0, -8.0, -26.0, 31.0, 0, 2, 3, 3),
+        ShipPoint::new(26.0, -8.0, -26.0, 31.0, 0, 3, 4, 4),
+        ShipPoint::new(29.0, -3.0, -26.0, 31.0, 0, 4, 5, 5),
+        ShipPoint::new(26.0, 4.0, -26.0, 31.0, 0, 5, 6, 6),
+        ShipPoint::new(0.0, 6.0, 12.0, 19.0, 15, 15, 15, 15),
+        ShipPoint::new(-30.0, -1.0, 12.0, 31.0, 1, 7, 8, 9),
+        ShipPoint::new(-33.0, -8.0, 12.0, 31.0, 1, 2, 3, 9),
+        ShipPoint::new(33.0, -8.0, 12.0, 31.0, 3, 4, 5, 10),
+        ShipPoint::new(30.0, -1.0, 12.0, 31.0, 5, 6, 10, 11),
+        ShipPoint::new(-11.0, -2.0, 30.0, 31.0, 8, 9, 12, 13),
+        ShipPoint::new(-13.0, -8.0, 30.0, 31.0, 3, 9, 13, 13),
+        ShipPoint::new(14.0, -8.0, 30.0, 31.0, 3, 10, 13, 13),
+        ShipPoint::new(11.0, -2.0, 30.0, 31.0, 10, 11, 12, 13),
+        ShipPoint::new(-5.0, 6.0, 2.0, 7.0, 7, 7, 7, 7),
+        ShipPoint::new(-18.0, 3.0, 2.0, 7.0, 7, 7, 7, 7),
+        ShipPoint::new(-5.0, 7.0, -7.0, 7.0, 7, 7, 7, 7),
+        ShipPoint::new(-18.0, 4.0, -7.0, 7.0, 7, 7, 7, 7),
+        ShipPoint::new(-11.0, 6.0, -14.0, 7.0, 7, 7, 7, 7),
+        ShipPoint::new(-11.0, 5.0, -7.0, 7.0, 7, 7, 7, 7),
+        ShipPoint::new(5.0, 7.0, -14.0, 7.0, 6, 6, 6, 6),
+        ShipPoint::new(18.0, 4.0, -14.0, 7.0, 6, 6, 6, 6),
+        ShipPoint::new(11.0, 5.0, -7.0, 7.0, 6, 6, 6, 6),
+        ShipPoint::new(5.0, 6.0, -3.0, 7.0, 6, 6, 6, 6),
+        ShipPoint::new(18.0, 3.0, -3.0, 7.0, 6, 6, 6, 6),
+        ShipPoint::new(11.0, 4.0, 8.0, 7.0, 6, 6, 6, 6),
+        ShipPoint::new(11.0, 5.0, -3.0, 7.0, 6, 6, 6, 6),
+        ShipPoint::new(-16.0, -8.0, -13.0, 6.0, 3, 3, 3, 3),
+        ShipPoint::new(-16.0, -8.0, 16.0, 6.0, 3, 3, 3, 3),
+        ShipPoint::new(17.0, -8.0, -13.0, 6.0, 3, 3, 3, 3),
+        ShipPoint::new(17.0, -8.0, 16.0, 6.0, 3, 3, 3, 3),
+        ShipPoint::new(-13.0, -3.0, -26.0, 8.0, 0, 0, 0, 0),
+        ShipPoint::new(13.0, -3.0, -26.0, 8.0, 0, 0, 0, 0),
+        ShipPoint::new(9.0, 3.0, -26.0, 5.0, 0, 0, 0, 0),
+        ShipPoint::new(-8.0, 3.0, -26.0, 5.0, 0, 0, 0, 0),
     ];
 
     let transp_line: Vec<ShipLine> = vec![
@@ -1072,20 +1075,20 @@ async fn main() {
     ];
 
     let transp_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(41, 0, 0, -103),
-        ShipFaceNormal::new(41, -111, 48, -7),
-        ShipFaceNormal::new(41, -105, -63, -21),
-        ShipFaceNormal::new(41, 0, -34, 0),
-        ShipFaceNormal::new(41, 105, -63, -21),
-        ShipFaceNormal::new(41, 111, 48, -7),
-        ShipFaceNormal::new(41, 8, 32, 3),
-        ShipFaceNormal::new(41, -8, 32, 3),
-        ShipFaceNormal::new(29, -8, 34, 11),
-        ShipFaceNormal::new(41, -75, 32, 79),
-        ShipFaceNormal::new(41, 75, 32, 79),
-        ShipFaceNormal::new(29, 8, 34, 11),
-        ShipFaceNormal::new(41, 0, 38, 17),
-        ShipFaceNormal::new(41, 0, 0, 121),
+        ShipFaceNormal::new(41.0, 0.0, 0.0, -103.0),
+        ShipFaceNormal::new(41.0, -111.0, 48.0, -7.0),
+        ShipFaceNormal::new(41.0, -105.0, -63.0, -21.0),
+        ShipFaceNormal::new(41.0, 0.0, -34.0, 0.0),
+        ShipFaceNormal::new(41.0, 105.0, -63.0, -21.0),
+        ShipFaceNormal::new(41.0, 111.0, 48.0, -7.0),
+        ShipFaceNormal::new(41.0, 8.0, 32.0, 3.0),
+        ShipFaceNormal::new(41.0, -8.0, 32.0, 3.0),
+        ShipFaceNormal::new(29.0, -8.0, 34.0, 11.0),
+        ShipFaceNormal::new(41.0, -75.0, 32.0, 79.0),
+        ShipFaceNormal::new(41.0, 75.0, 32.0, 79.0),
+        ShipFaceNormal::new(29.0, 8.0, 34.0, 11.0),
+        ShipFaceNormal::new(41.0, 0.0, 38.0, 17.0),
+        ShipFaceNormal::new(41.0, 0.0, 0.0, 121.0),
     ];
 
     let transp_data: ShipData = ShipData {
@@ -1109,60 +1112,60 @@ async fn main() {
     };
 
     let cobra3a_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(32, 0, 76, 31, 15, 15, 15, 15),
-        ShipPoint::new(-32, 0, 76, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, 26, 24, 31, 15, 15, 15, 15),
-        ShipPoint::new(120, -3, -8, 31, 7, 3, 10, 10),
-        ShipPoint::new(120, -3, -8, 31, 8, 4, 12, 12),
-        ShipPoint::new(-88, 16, -40, 31, 15, 15, 15, 15),
-        ShipPoint::new(88, 16, -40, 31, 15, 15, 15, 15),
-        ShipPoint::new(128, -8, -40, 31, 9, 8, 12, 12),
-        ShipPoint::new(128, -8, -40, 31, 9, 7, 10, 10),
-        ShipPoint::new(0, 26, -40, 31, 6, 5, 9, 9),
-        ShipPoint::new(-32, -24, -40, 31, 10, 9, 11, 11),
-        ShipPoint::new(32, -24, -40, 31, 11, 9, 12, 12),
-        ShipPoint::new(-36, 8, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(-8, 12, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(8, 12, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(36, 8, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(36, -12, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(8, -16, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(-8, -16, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(-36, -12, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(0, 0, 76, 6, 11, 0, 11, 11),
-        ShipPoint::new(0, 0, 90, 31, 11, 0, 11, 11),
-        ShipPoint::new(-80, -6, -40, 8, 9, 9, 9, 9),
-        ShipPoint::new(-80, 6, -40, 8, 9, 9, 9, 9),
-        ShipPoint::new(-88, 0, -40, 6, 9, 9, 9, 9),
-        ShipPoint::new(80, 6, -40, 8, 9, 9, 9, 9),
-        ShipPoint::new(88, 0, -40, 6, 9, 9, 9, 9),
-        ShipPoint::new(80, -6, -40, 8, 9, 9, 9, 9),
+        ShipPoint::new(32.0, 0.0, 76.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-32.0, 0.0, 76.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, 26.0, 24.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-120.0, -3.0, -8.0, 31.0, 3, 7, 10, 10),
+        ShipPoint::new(120.0, -3.0, -8.0, 31.0, 4, 8, 12, 12),
+        ShipPoint::new(-88.0, 16.0, -40.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(88.0, 16.0, -40.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(128.0, -8.0, -40.0, 31.0, 8, 9, 12, 12),
+        ShipPoint::new(128.0, -8.0, -40.0, 31.0, 7, 9, 10, 10),
+        ShipPoint::new(0.0, 26.0, -40.0, 31.0, 5, 6, 9, 9),
+        ShipPoint::new(-32.0, -24.0, -40.0, 31.0, 9, 10, 11, 11),
+        ShipPoint::new(32.0, -24.0, -40.0, 31.0, 9, 11, 12, 12),
+        ShipPoint::new(-36.0, 8.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(-8.0, 12.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(8.0, 12.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(36.0, 8.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(36.0, -12.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(8.0, -16.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(-8.0, -16.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(-36.0, -12.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(0.0, 0.0, 76.0, 6.0, 0, 11, 11, 11),
+        ShipPoint::new(0.0, 0.0, 90.0, 31.0, 0, 11, 11, 11),
+        ShipPoint::new(-80.0, -6.0, -40.0, 8.0, 9, 9, 9, 9),
+        ShipPoint::new(-80.0, 6.0, -40.0, 8.0, 9, 9, 9, 9),
+        ShipPoint::new(-88.0, 0.0, -40.0, 6.0, 9, 9, 9, 9),
+        ShipPoint::new(80.0, 6.0, -40.0, 8.0, 9, 9, 9, 9),
+        ShipPoint::new(88.0, 0.0, -40.0, 6.0, 9, 9, 9, 9),
+        ShipPoint::new(80.0, -6.0, -40.0, 8.0, 9, 9, 9, 9),
     ];
 
     let cobra3a_line: Vec<ShipLine> = vec![
-        ShipLine::new(31, 11, 0, 0, 1),
-        ShipLine::new(31, 12, 4, 0, 4),
-        ShipLine::new(31, 10, 3, 1, 3),
-        ShipLine::new(31, 10, 7, 3, 8),
-        ShipLine::new(31, 12, 8, 4, 7),
-        ShipLine::new(31, 9, 8, 6, 7),
-        ShipLine::new(31, 9, 6, 6, 9),
-        ShipLine::new(31, 9, 5, 5, 9),
-        ShipLine::new(31, 9, 7, 5, 8),
-        ShipLine::new(31, 5, 1, 2, 5),
-        ShipLine::new(31, 6, 2, 2, 6),
-        ShipLine::new(31, 7, 3, 3, 5),
-        ShipLine::new(31, 8, 4, 4, 6),
-        ShipLine::new(31, 1, 0, 1, 2),
-        ShipLine::new(31, 2, 0, 0, 2),
-        ShipLine::new(31, 10, 9, 8, 10),
-        ShipLine::new(31, 11, 9, 10, 11),
-        ShipLine::new(31, 12, 9, 7, 11),
-        ShipLine::new(31, 11, 10, 1, 10),
-        ShipLine::new(31, 12, 11, 0, 11),
-        ShipLine::new(29, 3, 1, 1, 5),
-        ShipLine::new(29, 4, 2, 0, 6),
-        ShipLine::new(6, 11, 0, 20, 21),
+        ShipLine::new(31, 0, 11, 0, 1),
+        ShipLine::new(31, 4, 12, 0, 4),
+        ShipLine::new(31, 3, 10, 1, 3),
+        ShipLine::new(31, 7, 10, 3, 8),
+        ShipLine::new(31, 8, 12, 4, 7),
+        ShipLine::new(31, 8, 9, 6, 7),
+        ShipLine::new(31, 6, 9, 6, 9),
+        ShipLine::new(31, 5, 9, 5, 9),
+        ShipLine::new(31, 7, 9, 5, 8),
+        ShipLine::new(31, 1, 5, 2, 5),
+        ShipLine::new(31, 2, 6, 2, 6),
+        ShipLine::new(31, 3, 7, 3, 5),
+        ShipLine::new(31, 4, 8, 4, 6),
+        ShipLine::new(31, 0, 1, 1, 2),
+        ShipLine::new(31, 0, 2, 0, 2),
+        ShipLine::new(31, 9, 10, 8, 10),
+        ShipLine::new(31, 9, 11, 10, 11),
+        ShipLine::new(31, 9, 12, 7, 11),
+        ShipLine::new(31, 10, 11, 1, 10),
+        ShipLine::new(31, 11, 12, 0, 11),
+        ShipLine::new(29, 1, 3, 1, 5),
+        ShipLine::new(29, 2, 4, 0, 6),
+        ShipLine::new(6, 0, 11, 20, 21),
         ShipLine::new(20, 9, 9, 12, 13),
         ShipLine::new(20, 9, 9, 18, 19),
         ShipLine::new(20, 9, 9, 14, 15),
@@ -1171,7 +1174,7 @@ async fn main() {
         ShipLine::new(17, 9, 9, 14, 17),
         ShipLine::new(19, 9, 9, 13, 18),
         ShipLine::new(19, 9, 9, 12, 19),
-        ShipLine::new(30, 6, 5, 2, 9),
+        ShipLine::new(30, 5, 6, 2, 9),
         ShipLine::new(6, 9, 9, 22, 24),
         ShipLine::new(6, 9, 9, 23, 24),
         ShipLine::new(8, 9, 9, 22, 23),
@@ -1181,23 +1184,23 @@ async fn main() {
     ];
 
     let cobra3a_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 62, 31),
-        ShipFaceNormal::new(31, -18, 55, 16),
-        ShipFaceNormal::new(31, 18, 55, 16),
-        ShipFaceNormal::new(31, -16, 52, 14),
-        ShipFaceNormal::new(31, 16, 52, 14),
-        ShipFaceNormal::new(31, -14, 47, 0),
-        ShipFaceNormal::new(31, 14, 47, 0),
-        ShipFaceNormal::new(31, -61, 102, 0),
-        ShipFaceNormal::new(31, 61, 102, 0),
-        ShipFaceNormal::new(31, 0, 0, -80),
-        ShipFaceNormal::new(31, -7, -42, 9),
-        ShipFaceNormal::new(31, 0, -30, 6),
-        ShipFaceNormal::new(31, 7, -42, 9),
+        ShipFaceNormal::new(31.0, 0.0, 62.0, 31.0),
+        ShipFaceNormal::new(31.0, -18.0, 55.0, 16.0),
+        ShipFaceNormal::new(31.0, 18.0, 55.0, 16.0),
+        ShipFaceNormal::new(31.0, -16.0, 52.0, 14.0),
+        ShipFaceNormal::new(31.0, 16.0, 52.0, 14.0),
+        ShipFaceNormal::new(31.0, -14.0, 47.0, 0.0),
+        ShipFaceNormal::new(31.0, 14.0, 47.0, 0.0),
+        ShipFaceNormal::new(31.0, -61.0, 102.0, 0.0),
+        ShipFaceNormal::new(31.0, 61.0, 102.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -80.0),
+        ShipFaceNormal::new(31.0, -7.0, -42.0, 9.0),
+        ShipFaceNormal::new(31.0, 0.0, -30.0, 6.0),
+        ShipFaceNormal::new(31.0, 7.0, -42.0, 9.0),
     ];
 
     let cobra3a_data: ShipData = ShipData {
-        name: put_into_name("Cobra MkIII"),
+        name: put_into_name("Cobra MkIIIa"),
         num_points: 28,
         num_lines: 38,
         num_faces: 13,
@@ -1216,17 +1219,17 @@ async fn main() {
         normals: cobra3a_face_normal,
     };
     let pythona_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 0, 224, 31, 1, 0, 3, 2),
-        ShipPoint::new(0, 48, 48, 31, 1, 0, 5, 4),
-        ShipPoint::new(96, 0, -16, 31, 15, 15, 15, 15),
-        ShipPoint::new(-96, 0, -16, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, 48, -32, 31, 5, 4, 9, 8),
-        ShipPoint::new(0, 24, -112, 31, 8, 9, 12, 12),
-        ShipPoint::new(-48, 0, -112, 31, 11, 8, 12, 12),
-        ShipPoint::new(48, 0, -112, 31, 10, 9, 12, 12),
-        ShipPoint::new(0, -48, 48, 31, 3, 2, 7, 6),
-        ShipPoint::new(0, -48, -32, 31, 7, 6, 11, 10),
-        ShipPoint::new(0, -24, -112, 31, 11, 10, 12, 12),
+        ShipPoint::new(0.0, 0.0, 224.0, 31.0, 1, 0, 3, 2),
+        ShipPoint::new(0.0, 48.0, 48.0, 31.0, 1, 0, 5, 4),
+        ShipPoint::new(96.0, 0.0, -16.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-96.0, 0.0, -16.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, 48.0, -32.0, 31.0, 5, 4, 9, 8),
+        ShipPoint::new(0.0, 24.0, -112.0, 31.0, 8, 9, 12, 12),
+        ShipPoint::new(-48.0, 0.0, -112.0, 31.0, 11, 8, 12, 12),
+        ShipPoint::new(48.0, 0.0, -112.0, 31.0, 10, 9, 12, 12),
+        ShipPoint::new(0.0, -48.0, 48.0, 31.0, 3, 2, 7, 6),
+        ShipPoint::new(0.0, -48.0, -32.0, 31.0, 7, 6, 11, 10),
+        ShipPoint::new(0.0, -24.0, -112.0, 31.0, 11, 10, 12, 12),
     ];
 
     let pythona_line: Vec<ShipLine> = vec![
@@ -1259,23 +1262,23 @@ async fn main() {
     ];
 
     let pythona_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, -27, 40, 11),
-        ShipFaceNormal::new(31, 27, 40, 11),
-        ShipFaceNormal::new(31, -27, -40, 11),
-        ShipFaceNormal::new(31, 27, -40, 11),
-        ShipFaceNormal::new(31, -19, 38, 0),
-        ShipFaceNormal::new(31, 19, 38, 0),
-        ShipFaceNormal::new(31, -19, -38, 0),
-        ShipFaceNormal::new(31, 19, -38, 0),
-        ShipFaceNormal::new(31, -25, 37, -11),
-        ShipFaceNormal::new(31, 25, 37, -11),
-        ShipFaceNormal::new(31, 25, -37, -11),
-        ShipFaceNormal::new(31, -25, -37, -11),
-        ShipFaceNormal::new(31, 0, 0, -112),
+        ShipFaceNormal::new(31.0, -27.0, 40.0, 11.0),
+        ShipFaceNormal::new(31.0, 27.0, 40.0, 11.0),
+        ShipFaceNormal::new(31.0, -27.0, -40.0, 11.0),
+        ShipFaceNormal::new(31.0, 27.0, -40.0, 11.0),
+        ShipFaceNormal::new(31.0, -19.0, 38.0, 0.0),
+        ShipFaceNormal::new(31.0, 19.0, 38.0, 0.0),
+        ShipFaceNormal::new(31.0, -19.0, -38.0, 0.0),
+        ShipFaceNormal::new(31.0, 19.0, -38.0, 0.0),
+        ShipFaceNormal::new(31.0, -25.0, 37.0, -11.0),
+        ShipFaceNormal::new(31.0, 25.0, 37.0, -11.0),
+        ShipFaceNormal::new(31.0, 25.0, -37.0, -11.0),
+        ShipFaceNormal::new(31.0, -25.0, -37.0, -11.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -112.0),
     ];
 
     let pythona_data: ShipData = ShipData {
-        name: put_into_name("Python"),
+        name: put_into_name("Pythona"),
         num_points: 11,
         num_lines: 26,
         num_faces: 13,
@@ -1295,19 +1298,19 @@ async fn main() {
     };
 
     let boa_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 0, 93, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, 40, -87, 24, 0, 2, 3, 3),
-        ShipPoint::new(38, -25, -99, 24, 0, 1, 4, 4),
-        ShipPoint::new(-38, -25, -99, 24, 1, 2, 5, 5),
-        ShipPoint::new(-38, 40, -59, 31, 2, 3, 6, 9),
-        ShipPoint::new(38, 40, -59, 31, 0, 3, 6, 11),
-        ShipPoint::new(62, 0, -67, 31, 0, 4, 8, 11),
-        ShipPoint::new(24, -65, -79, 31, 1, 4, 8, 10),
-        ShipPoint::new(-24, -65, -79, 31, 1, 5, 7, 10),
-        ShipPoint::new(-62, 0, -67, 31, 2, 5, 7, 9),
-        ShipPoint::new(0, 7, -107, 22, 0, 2, 10, 10),
-        ShipPoint::new(13, -9, -107, 22, 0, 1, 10, 10),
-        ShipPoint::new(-13, -9, -107, 22, 1, 2, 12, 12),
+        ShipPoint::new(0.0, 0.0, 93.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, 40.0, -87.0, 24.0, 0, 2, 3, 3),
+        ShipPoint::new(38.0, -25.0, -99.0, 24.0, 0, 1, 4, 4),
+        ShipPoint::new(-38.0, -25.0, -99.0, 24.0, 1, 2, 5, 5),
+        ShipPoint::new(-38.0, 40.0, -59.0, 31.0, 2, 3, 6, 9),
+        ShipPoint::new(38.0, 40.0, -59.0, 31.0, 0, 3, 6, 11),
+        ShipPoint::new(62.0, 0.0, -67.0, 31.0, 0, 4, 8, 11),
+        ShipPoint::new(24.0, -65.0, -79.0, 31.0, 1, 4, 8, 10),
+        ShipPoint::new(-24.0, -65.0, -79.0, 31.0, 1, 5, 7, 10),
+        ShipPoint::new(-62.0, 0.0, -67.0, 31.0, 2, 5, 7, 9),
+        ShipPoint::new(0.0, 7.0, -107.0, 22.0, 0, 2, 10, 10),
+        ShipPoint::new(13.0, -9.0, -107.0, 22.0, 0, 1, 10, 10),
+        ShipPoint::new(-13.0, -9.0, -107.0, 22.0, 1, 2, 12, 12),
     ];
 
     let boa_line: Vec<ShipLine> = vec![
@@ -1338,19 +1341,19 @@ async fn main() {
     ];
 
     let boa_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 43, 37, -60),
-        ShipFaceNormal::new(31, 0, -45, -89),
-        ShipFaceNormal::new(31, -43, 37, -60),
-        ShipFaceNormal::new(31, 0, 40, 0),
-        ShipFaceNormal::new(31, 62, -32, -20),
-        ShipFaceNormal::new(31, -62, -32, -20),
-        ShipFaceNormal::new(31, 0, 23, 6),
-        ShipFaceNormal::new(31, -23, -15, 9),
-        ShipFaceNormal::new(31, 23, -15, 9),
-        ShipFaceNormal::new(31, -26, 13, 10),
-        ShipFaceNormal::new(31, 0, -31, 12),
-        ShipFaceNormal::new(31, 26, 13, 10),
-        ShipFaceNormal::new(14, 0, 0, -107),
+        ShipFaceNormal::new(31.0, 43.0, 37.0, -60.0),
+        ShipFaceNormal::new(31.0, 0.0, -45.0, -89.0),
+        ShipFaceNormal::new(31.0, -43.0, 37.0, -60.0),
+        ShipFaceNormal::new(31.0, 0.0, 40.0, 0.0),
+        ShipFaceNormal::new(31.0, 62.0, -32.0, -20.0),
+        ShipFaceNormal::new(31.0, -62.0, -32.0, -20.0),
+        ShipFaceNormal::new(31.0, 0.0, 23.0, 6.0),
+        ShipFaceNormal::new(31.0, -23.0, -15.0, 9.0),
+        ShipFaceNormal::new(31.0, 23.0, -15.0, 9.0),
+        ShipFaceNormal::new(31.0, -26.0, 13.0, 10.0),
+        ShipFaceNormal::new(31.0, 0.0, -31.0, 12.0),
+        ShipFaceNormal::new(31.0, 26.0, 13.0, 10.0),
+        ShipFaceNormal::new(14.0, 0.0, 0.0, -107.0),
     ];
 
     let boa_data: ShipData = ShipData {
@@ -1374,21 +1377,21 @@ async fn main() {
     };
 
     let anacnda_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 7, -58, 30, 0, 1, 5, 5),
-        ShipPoint::new(-43, -13, -37, 30, 0, 1, 2, 2),
-        ShipPoint::new(-26, -47, -3, 30, 0, 2, 3, 3),
-        ShipPoint::new(26, -47, -3, 30, 0, 3, 4, 4),
-        ShipPoint::new(43, -13, -37, 30, 0, 4, 5, 5),
-        ShipPoint::new(0, 48, -49, 30, 1, 5, 6, 6),
-        ShipPoint::new(-69, 15, -15, 30, 1, 2, 7, 7),
-        ShipPoint::new(-43, -39, 40, 31, 2, 3, 8, 8),
-        ShipPoint::new(43, -39, 40, 31, 3, 4, 9, 9),
-        ShipPoint::new(69, 15, -15, 30, 4, 5, 10, 10),
-        ShipPoint::new(-43, 53, -23, 31, 15, 15, 15, 15),
-        ShipPoint::new(-69, -1, 32, 31, 2, 7, 8, 8),
-        ShipPoint::new(0, 0, 254, 31, 15, 15, 15, 15),
-        ShipPoint::new(69, -1, 32, 31, 4, 9, 10, 10),
-        ShipPoint::new(43, 53, -23, 31, 15, 15, 15, 15),
+        ShipPoint::new(0.0, 7.0, -58.0, 30.0, 0, 1, 5, 5),
+        ShipPoint::new(-43.0, -13.0, -37.0, 30.0, 0, 1, 2, 2),
+        ShipPoint::new(-26.0, -47.0, -3.0, 30.0, 0, 2, 3, 3),
+        ShipPoint::new(26.0, -47.0, -3.0, 30.0, 0, 3, 4, 4),
+        ShipPoint::new(43.0, -13.0, -37.0, 30.0, 0, 4, 5, 5),
+        ShipPoint::new(0.0, 48.0, -49.0, 30.0, 1, 5, 6, 6),
+        ShipPoint::new(-69.0, 15.0, -15.0, 30.0, 1, 2, 7, 7),
+        ShipPoint::new(-43.0, -39.0, 40.0, 31.0, 2, 3, 8, 8),
+        ShipPoint::new(43.0, -39.0, 40.0, 31.0, 3, 4, 9, 9),
+        ShipPoint::new(69.0, 15.0, -15.0, 30.0, 4, 5, 10, 10),
+        ShipPoint::new(-43.0, 53.0, -23.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-69.0, -1.0, 32.0, 31.0, 2, 7, 8, 8),
+        ShipPoint::new(0.0, 0.0, 254.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(69.0, -1.0, 32.0, 31.0, 4, 9, 10, 10),
+        ShipPoint::new(43.0, 53.0, -23.0, 31.0, 15, 15, 15, 15),
     ];
 
     let anacnda_line: Vec<ShipLine> = vec![
@@ -1420,18 +1423,18 @@ async fn main() {
     ];
 
     let anacnda_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(30, 0, -51, -49),
-        ShipFaceNormal::new(30, -51, 18, -87),
-        ShipFaceNormal::new(30, -77, -57, -19),
-        ShipFaceNormal::new(31, 0, -90, 16),
-        ShipFaceNormal::new(30, 77, -57, -19),
-        ShipFaceNormal::new(30, 51, 18, -87),
-        ShipFaceNormal::new(30, 0, 111, -20),
-        ShipFaceNormal::new(31, -97, 72, 24),
-        ShipFaceNormal::new(31, -108, -68, 34),
-        ShipFaceNormal::new(31, 108, -68, 34),
-        ShipFaceNormal::new(31, 97, 72, 24),
-        ShipFaceNormal::new(31, 0, 94, 18),
+        ShipFaceNormal::new(30.0, 0.0, -51.0, -49.0),
+        ShipFaceNormal::new(30.0, -51.0, 18.0, -87.0),
+        ShipFaceNormal::new(30.0, -77.0, -57.0, -19.0),
+        ShipFaceNormal::new(31.0, 0.0, -90.0, 16.0),
+        ShipFaceNormal::new(30.0, 77.0, -57.0, -19.0),
+        ShipFaceNormal::new(30.0, 51.0, 18.0, -87.0),
+        ShipFaceNormal::new(30.0, 0.0, 111.0, -20.0),
+        ShipFaceNormal::new(31.0, -97.0, 72.0, 24.0),
+        ShipFaceNormal::new(31.0, -108.0, -68.0, 34.0),
+        ShipFaceNormal::new(31.0, 108.0, -68.0, 34.0),
+        ShipFaceNormal::new(31.0, 97.0, 72.0, 24.0),
+        ShipFaceNormal::new(31.0, 0.0, 94.0, 18.0),
     ];
 
     let anacnda_data: ShipData = ShipData {
@@ -1455,15 +1458,15 @@ async fn main() {
     };
 
     let hermit_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 80, 0, 31, 15, 15, 15, 15),
-        ShipPoint::new(-80, -10, 0, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, -80, 0, 31, 15, 15, 15, 15),
-        ShipPoint::new(70, -40, 0, 31, 15, 15, 15, 15),
-        ShipPoint::new(60, 50, 0, 31, 6, 5, 13, 12),
-        ShipPoint::new(50, 0, 60, 31, 15, 15, 15, 15),
-        ShipPoint::new(-40, 0, 70, 31, 1, 0, 3, 2),
-        ShipPoint::new(0, 30, -75, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, -50, -60, 31, 9, 8, 11, 10),
+        ShipPoint::new(0.0, 80.0, 0.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-80.0, -10.0, 0.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, -80.0, 0.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(70.0, -40.0, 0.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(60.0, 50.0, 0.0, 31.0, 6, 5, 13, 12),
+        ShipPoint::new(50.0, 0.0, 60.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-40.0, 0.0, 70.0, 31.0, 1, 0, 3, 2),
+        ShipPoint::new(0.0, 30.0, -75.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, -50.0, -60.0, 31.0, 9, 8, 11, 10),
     ];
 
     let hermit_line: Vec<ShipLine> = vec![
@@ -1491,26 +1494,26 @@ async fn main() {
     ];
 
     let hermit_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 9, 66, 81),
-        ShipFaceNormal::new(31, 9, -66, 81),
-        ShipFaceNormal::new(31, -72, 64, 31),
-        ShipFaceNormal::new(31, -64, -73, 47),
-        ShipFaceNormal::new(31, 45, -79, 65),
-        ShipFaceNormal::new(31, 135, 15, 35),
-        ShipFaceNormal::new(31, 38, 76, 70),
-        ShipFaceNormal::new(31, -66, 59, -39),
-        ShipFaceNormal::new(31, -67, -15, -80),
-        ShipFaceNormal::new(31, 66, -14, -75),
-        ShipFaceNormal::new(31, -70, -80, -40),
-        ShipFaceNormal::new(31, 58, -102, -51),
-        ShipFaceNormal::new(31, 81, 9, -67),
-        ShipFaceNormal::new(31, 47, 94, -63),
+        ShipFaceNormal::new(31.0, 9.0, 66.0, 81.0),
+        ShipFaceNormal::new(31.0, 9.0, -66.0, 81.0),
+        ShipFaceNormal::new(31.0, -72.0, 64.0, 31.0),
+        ShipFaceNormal::new(31.0, -64.0, -73.0, 47.0),
+        ShipFaceNormal::new(31.0, 45.0, -79.0, 65.0),
+        ShipFaceNormal::new(31.0, 135.0, 15.0, 35.0),
+        ShipFaceNormal::new(31.0, 38.0, 76.0, 70.0),
+        ShipFaceNormal::new(31.0, -66.0, 59.0, -39.0),
+        ShipFaceNormal::new(31.0, -67.0, -15.0, -80.0),
+        ShipFaceNormal::new(31.0, 66.0, -14.0, -75.0),
+        ShipFaceNormal::new(31.0, -70.0, -80.0, -40.0),
+        ShipFaceNormal::new(31.0, 58.0, -102.0, -51.0),
+        ShipFaceNormal::new(31.0, 81.0, 9.0, -67.0),
+        ShipFaceNormal::new(31.0, 47.0, 94.0, -63.0),
     ];
 
     let hermit_data: ShipData = ShipData {
         name: put_into_name("Rock Hermit"),
-        num_lines: 9,
-        num_points: 21,
+        num_points: 9,
+        num_lines: 21,
         num_faces: 14,
         max_loot: 7,
         scoop_type: 0,
@@ -1528,21 +1531,21 @@ async fn main() {
     };
 
     let viper_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 0, 72, 31, 2, 1, 4, 3),
-        ShipPoint::new(0, 16, 24, 30, 1, 0, 2, 2),
-        ShipPoint::new(0, -16, 24, 30, 4, 3, 5, 5),
-        ShipPoint::new(48, 0, -24, 31, 4, 2, 6, 6),
-        ShipPoint::new(-48, 0, -24, 31, 3, 1, 6, 6),
-        ShipPoint::new(24, -16, -24, 30, 5, 4, 6, 6),
-        ShipPoint::new(-24, -16, -24, 30, 3, 5, 6, 6),
-        ShipPoint::new(24, 16, -24, 31, 2, 0, 6, 6),
-        ShipPoint::new(-24, 16, -24, 31, 1, 0, 6, 6),
-        ShipPoint::new(-32, 0, -24, 19, 6, 6, 6, 6),
-        ShipPoint::new(32, 0, -24, 19, 6, 6, 6, 6),
-        ShipPoint::new(8, 8, -24, 19, 6, 6, 6, 6),
-        ShipPoint::new(-8, 8, -24, 19, 6, 6, 6, 6),
-        ShipPoint::new(-8, -8, -24, 18, 6, 6, 6, 6),
-        ShipPoint::new(8, -8, -24, 18, 6, 6, 6, 6),
+        ShipPoint::new(0.0, 0.0, 72.0, 31.0, 2, 1, 4, 3),
+        ShipPoint::new(0.0, 16.0, 24.0, 30.0, 1, 0, 2, 2),
+        ShipPoint::new(0.0, -16.0, 24.0, 30.0, 4, 3, 5, 5),
+        ShipPoint::new(48.0, 0.0, -24.0, 31.0, 4, 2, 6, 6),
+        ShipPoint::new(-48.0, 0.0, -24.0, 31.0, 3, 1, 6, 6),
+        ShipPoint::new(24.0, -16.0, -24.0, 30.0, 5, 4, 6, 6),
+        ShipPoint::new(-24.0, -16.0, -24.0, 30.0, 3, 5, 6, 6),
+        ShipPoint::new(24.0, 16.0, -24.0, 31.0, 2, 0, 6, 6),
+        ShipPoint::new(-24.0, 16.0, -24.0, 31.0, 1, 0, 6, 6),
+        ShipPoint::new(-32.0, 0.0, -24.0, 19.0, 6, 6, 6, 6),
+        ShipPoint::new(32.0, 0.0, -24.0, 19.0, 6, 6, 6, 6),
+        ShipPoint::new(8.0, 8.0, -24.0, 19.0, 6, 6, 6, 6),
+        ShipPoint::new(-8.0, 8.0, -24.0, 19.0, 6, 6, 6, 6),
+        ShipPoint::new(-8.0, -8.0, -24.0, 18.0, 6, 6, 6, 6),
+        ShipPoint::new(8.0, -8.0, -24.0, 18.0, 6, 6, 6, 6),
     ];
 
     let viper_line: Vec<ShipLine> = vec![
@@ -1569,13 +1572,13 @@ async fn main() {
     ];
 
     let viper_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 32, 0),
-        ShipFaceNormal::new(31, -22, 33, 11),
-        ShipFaceNormal::new(31, 22, 33, 11),
-        ShipFaceNormal::new(31, -22, -33, 11),
-        ShipFaceNormal::new(31, 22, -33, 11),
-        ShipFaceNormal::new(31, 0, -32, 0),
-        ShipFaceNormal::new(31, 0, 0, -48),
+        ShipFaceNormal::new(31.0, 0.0, 32.0, 0.0),
+        ShipFaceNormal::new(31.0, -22.0, 33.0, 11.0),
+        ShipFaceNormal::new(31.0, 22.0, 33.0, 11.0),
+        ShipFaceNormal::new(31.0, -22.0, -33.0, 11.0),
+        ShipFaceNormal::new(31.0, 22.0, -33.0, 11.0),
+        ShipFaceNormal::new(31.0, 0.0, -32.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -48.0),
     ];
 
     let viper_data: ShipData = ShipData {
@@ -1599,16 +1602,16 @@ async fn main() {
     };
 
     let sidewnd_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(-32, 0, 36, 31, 1, 0, 5, 4),
-        ShipPoint::new(32, 0, 36, 31, 2, 0, 6, 5),
-        ShipPoint::new(64, 0, -28, 31, 3, 2, 6, 6),
-        ShipPoint::new(-64, 0, -28, 31, 3, 1, 4, 4),
-        ShipPoint::new(0, 16, -28, 31, 1, 0, 3, 2),
-        ShipPoint::new(0, -16, -28, 31, 4, 3, 6, 5),
-        ShipPoint::new(-12, 6, -28, 15, 3, 3, 3, 3),
-        ShipPoint::new(12, 6, -28, 15, 3, 3, 3, 3),
-        ShipPoint::new(12, -6, -28, 12, 3, 3, 3, 3),
-        ShipPoint::new(-12, -6, -28, 12, 3, 3, 3, 3),
+        ShipPoint::new(-32.0, 0.0, 36.0, 31.0, 1, 0, 5, 4),
+        ShipPoint::new(32.0, 0.0, 36.0, 31.0, 2, 0, 6, 5),
+        ShipPoint::new(64.0, 0.0, -28.0, 31.0, 3, 2, 6, 6),
+        ShipPoint::new(-64.0, 0.0, -28.0, 31.0, 3, 1, 4, 4),
+        ShipPoint::new(0.0, 16.0, -28.0, 31.0, 1, 0, 3, 2),
+        ShipPoint::new(0.0, -16.0, -28.0, 31.0, 4, 3, 6, 5),
+        ShipPoint::new(-12.0, 6.0, -28.0, 15.0, 3, 3, 3, 3),
+        ShipPoint::new(12.0, 6.0, -28.0, 15.0, 3, 3, 3, 3),
+        ShipPoint::new(12.0, -6.0, -28.0, 12.0, 3, 3, 3, 3),
+        ShipPoint::new(-12.0, -6.0, -28.0, 12.0, 3, 3, 3, 3),
     ];
 
     let sidewnd_line: Vec<ShipLine> = vec![
@@ -1630,13 +1633,13 @@ async fn main() {
     ];
 
     let sidewnd_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 32, 8),
-        ShipFaceNormal::new(31, -12, 47, 6),
-        ShipFaceNormal::new(31, 12, 47, 6),
-        ShipFaceNormal::new(31, 0, 0, -112),
-        ShipFaceNormal::new(31, -12, -47, 6),
-        ShipFaceNormal::new(31, 0, -32, 8),
-        ShipFaceNormal::new(31, 12, -47, 6),
+        ShipFaceNormal::new(31.0, 0.0, 32.0, 8.0),
+        ShipFaceNormal::new(31.0, -12.0, 47.0, 6.0),
+        ShipFaceNormal::new(31.0, 12.0, 47.0, 6.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -112.0),
+        ShipFaceNormal::new(31.0, -12.0, -47.0, 6.0),
+        ShipFaceNormal::new(31.0, 0.0, -32.0, 8.0),
+        ShipFaceNormal::new(31.0, 12.0, -47.0, 6.0),
     ];
 
     let sidewnd_data: ShipData = ShipData {
@@ -1660,31 +1663,31 @@ async fn main() {
     };
 
     let mamba_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 0, 64, 31, 1, 0, 3, 2),
-        ShipPoint::new(-64, -8, -32, 31, 2, 0, 4, 4),
-        ShipPoint::new(-32, 8, -32, 30, 2, 1, 4, 4),
-        ShipPoint::new(32, 8, -32, 30, 3, 1, 4, 4),
-        ShipPoint::new(64, -8, -32, 31, 3, 0, 4, 4),
-        ShipPoint::new(-4, 4, 16, 14, 1, 1, 1, 1),
-        ShipPoint::new(4, 4, 16, 14, 1, 1, 1, 1),
-        ShipPoint::new(8, 3, 28, 13, 1, 1, 1, 1),
-        ShipPoint::new(-8, 3, 28, 13, 1, 1, 1, 1),
-        ShipPoint::new(-20, -4, 16, 20, 0, 0, 0, 0),
-        ShipPoint::new(20, -4, 16, 20, 0, 0, 0, 0),
-        ShipPoint::new(-24, -7, -20, 20, 0, 0, 0, 0),
-        ShipPoint::new(-16, -7, -20, 16, 0, 0, 0, 0),
-        ShipPoint::new(16, -7, -20, 16, 0, 0, 0, 0),
-        ShipPoint::new(24, -7, -20, 20, 0, 0, 0, 0),
-        ShipPoint::new(-8, 4, -32, 13, 4, 4, 4, 4),
-        ShipPoint::new(8, 4, -32, 13, 4, 4, 4, 4),
-        ShipPoint::new(8, -4, -32, 14, 4, 4, 4, 4),
-        ShipPoint::new(-8, -4, -32, 14, 4, 4, 4, 4),
-        ShipPoint::new(-32, 4, -32, 7, 4, 4, 4, 4),
-        ShipPoint::new(32, 4, -32, 7, 4, 4, 4, 4),
-        ShipPoint::new(36, -4, -32, 7, 4, 4, 4, 4),
-        ShipPoint::new(-36, -4, -32, 7, 4, 4, 4, 4),
-        ShipPoint::new(-38, 0, -32, 5, 4, 4, 4, 4),
-        ShipPoint::new(38, 0, -32, 5, 4, 4, 4, 4),
+        ShipPoint::new(0.0, 0.0, 64.0, 31.0, 1, 0, 3, 2),
+        ShipPoint::new(-64.0, -8.0, -32.0, 31.0, 2, 0, 4, 4),
+        ShipPoint::new(-32.0, 8.0, -32.0, 30.0, 2, 1, 4, 4),
+        ShipPoint::new(32.0, 8.0, -32.0, 30.0, 3, 1, 4, 4),
+        ShipPoint::new(64.0, -8.0, -32.0, 31.0, 3, 0, 4, 4),
+        ShipPoint::new(-4.0, 4.0, 16.0, 14.0, 1, 1, 1, 1),
+        ShipPoint::new(4.0, 4.0, 16.0, 14.0, 1, 1, 1, 1),
+        ShipPoint::new(8.0, 3.0, 28.0, 13.0, 1, 1, 1, 1),
+        ShipPoint::new(-8.0, 3.0, 28.0, 13.0, 1, 1, 1, 1),
+        ShipPoint::new(-20.0, -4.0, 16.0, 20.0, 0, 0, 0, 0),
+        ShipPoint::new(20.0, -4.0, 16.0, 20.0, 0, 0, 0, 0),
+        ShipPoint::new(-24.0, -7.0, -20.0, 20.0, 0, 0, 0, 0),
+        ShipPoint::new(-16.0, -7.0, -20.0, 16.0, 0, 0, 0, 0),
+        ShipPoint::new(16.0, -7.0, -20.0, 16.0, 0, 0, 0, 0),
+        ShipPoint::new(24.0, -7.0, -20.0, 20.0, 0, 0, 0, 0),
+        ShipPoint::new(-8.0, 4.0, -32.0, 13.0, 4, 4, 4, 4),
+        ShipPoint::new(8.0, 4.0, -32.0, 13.0, 4, 4, 4, 4),
+        ShipPoint::new(8.0, -4.0, -32.0, 14.0, 4, 4, 4, 4),
+        ShipPoint::new(-8.0, -4.0, -32.0, 14.0, 4, 4, 4, 4),
+        ShipPoint::new(-32.0, 4.0, -32.0, 7.0, 4, 4, 4, 4),
+        ShipPoint::new(32.0, 4.0, -32.0, 7.0, 4, 4, 4, 4),
+        ShipPoint::new(36.0, -4.0, -32.0, 7.0, 4, 4, 4, 4),
+        ShipPoint::new(-36.0, -4.0, -32.0, 7.0, 4, 4, 4, 4),
+        ShipPoint::new(-38.0, 0.0, -32.0, 5.0, 4, 4, 4, 4),
+        ShipPoint::new(38.0, 0.0, -32.0, 5.0, 4, 4, 4, 4),
     ];
 
     let mamba_line: Vec<ShipLine> = vec![
@@ -1719,11 +1722,11 @@ async fn main() {
     ];
 
     let mamba_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(30, 0, -24, 2),
-        ShipFaceNormal::new(30, 0, 24, 2),
-        ShipFaceNormal::new(30, -32, 64, 16),
-        ShipFaceNormal::new(30, 32, 64, 16),
-        ShipFaceNormal::new(30, 0, 0, -127),
+        ShipFaceNormal::new(30.0, 0.0, -24.0, 2.0),
+        ShipFaceNormal::new(30.0, 0.0, 24.0, 2.0),
+        ShipFaceNormal::new(30.0, -32.0, 64.0, 16.0),
+        ShipFaceNormal::new(30.0, 32.0, 64.0, 16.0),
+        ShipFaceNormal::new(30.0, 0.0, 0.0, -127.0),
     ];
 
     let mamba_data: ShipData = ShipData {
@@ -1747,23 +1750,23 @@ async fn main() {
     };
 
     let krait_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 0, 96, 31, 0, 1, 2, 3),
-        ShipPoint::new(0, 18, -48, 31, 0, 3, 4, 5),
-        ShipPoint::new(0, -18, -48, 31, 1, 2, 4, 5),
-        ShipPoint::new(90, 0, -3, 31, 0, 1, 4, 4),
-        ShipPoint::new(-90, 0, -3, 31, 2, 3, 5, 5),
-        ShipPoint::new(90, 0, 87, 30, 0, 1, 1, 1),
-        ShipPoint::new(-90, 0, 87, 30, 2, 3, 3, 3),
-        ShipPoint::new(0, 5, 53, 9, 0, 0, 3, 3),
-        ShipPoint::new(0, 7, 38, 6, 0, 0, 3, 3),
-        ShipPoint::new(-18, 7, 19, 9, 3, 3, 3, 3),
-        ShipPoint::new(18, 7, 19, 9, 0, 0, 0, 0),
-        ShipPoint::new(18, 11, -39, 8, 4, 4, 4, 4),
-        ShipPoint::new(18, -11, -39, 8, 4, 4, 4, 4),
-        ShipPoint::new(36, 0, -30, 8, 4, 4, 4, 4),
-        ShipPoint::new(-18, 11, -39, 8, 5, 5, 5, 5),
-        ShipPoint::new(-18, -11, -39, 8, 5, 5, 5, 5),
-        ShipPoint::new(-36, 0, -30, 8, 5, 5, 5, 5),
+        ShipPoint::new(0.0, 0.0, 96.0, 31.0, 0, 1, 2, 3),
+        ShipPoint::new(0.0, 18.0, -48.0, 31.0, 0, 3, 4, 5),
+        ShipPoint::new(0.0, -18.0, -48.0, 31.0, 1, 2, 4, 5),
+        ShipPoint::new(90.0, 0.0, -3.0, 31.0, 0, 1, 4, 4),
+        ShipPoint::new(-90.0, 0.0, -3.0, 31.0, 2, 3, 5, 5),
+        ShipPoint::new(90.0, 0.0, 87.0, 30.0, 0, 1, 1, 1),
+        ShipPoint::new(-90.0, 0.0, 87.0, 30.0, 2, 3, 3, 3),
+        ShipPoint::new(0.0, 5.0, 53.0, 9.0, 0, 0, 3, 3),
+        ShipPoint::new(0.0, 7.0, 38.0, 6.0, 0, 0, 3, 3),
+        ShipPoint::new(-18.0, 7.0, 19.0, 9.0, 3, 3, 3, 3),
+        ShipPoint::new(18.0, 7.0, 19.0, 9.0, 0, 0, 0, 0),
+        ShipPoint::new(18.0, 11.0, -39.0, 8.0, 4, 4, 4, 4),
+        ShipPoint::new(18.0, -11.0, -39.0, 8.0, 4, 4, 4, 4),
+        ShipPoint::new(36.0, 0.0, -30.0, 8.0, 4, 4, 4, 4),
+        ShipPoint::new(-18.0, 11.0, -39.0, 8.0, 5, 5, 5, 5),
+        ShipPoint::new(-18.0, -11.0, -39.0, 8.0, 5, 5, 5, 5),
+        ShipPoint::new(-36.0, 0.0, -30.0, 8.0, 5, 5, 5, 5),
     ];
 
     let krait_line: Vec<ShipLine> = vec![
@@ -1791,12 +1794,12 @@ async fn main() {
     ];
 
     let krait_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 3, 24, 3),
-        ShipFaceNormal::new(31, 3, -24, 3),
-        ShipFaceNormal::new(31, -3, -24, 3),
-        ShipFaceNormal::new(31, -3, 24, 3),
-        ShipFaceNormal::new(31, 38, 0, -77),
-        ShipFaceNormal::new(31, -38, 0, -77),
+        ShipFaceNormal::new(31.0, 3.0, 24.0, 3.0),
+        ShipFaceNormal::new(31.0, 3.0, -24.0, 3.0),
+        ShipFaceNormal::new(31.0, -3.0, -24.0, 3.0),
+        ShipFaceNormal::new(31.0, -3.0, 24.0, 3.0),
+        ShipFaceNormal::new(31.0, 38.0, 0.0, -77.0),
+        ShipFaceNormal::new(31.0, -38.0, 0.0, -77.0),
     ];
 
     let krait_data: ShipData = ShipData {
@@ -1820,24 +1823,24 @@ async fn main() {
     };
 
     let adder_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(-18, 0, 40, 31, 0, 1, 11, 10),
-        ShipPoint::new(18, 0, 40, 31, 0, 1, 2, 0),
-        ShipPoint::new(30, 0, -24, 31, 2, 3, 4, 0),
-        ShipPoint::new(30, 0, -40, 31, 4, 5, 6, 0),
-        ShipPoint::new(18, -7, -40, 31, 5, 6, 7, 10),
-        ShipPoint::new(-18, -7, -40, 31, 7, 8, 10, 10),
-        ShipPoint::new(-30, 0, -40, 31, 8, 9, 10, 10),
-        ShipPoint::new(-30, 0, -24, 31, 9, 10, 11, 10),
-        ShipPoint::new(-18, 7, -40, 31, 7, 8, 9, 10),
-        ShipPoint::new(18, 7, -40, 31, 4, 6, 7, 10),
-        ShipPoint::new(-18, 7, 13, 31, 0, 9, 11, 10),
-        ShipPoint::new(18, 7, 13, 31, 0, 2, 4, 10),
-        ShipPoint::new(-18, -7, 13, 31, 1, 10, 12, 10),
-        ShipPoint::new(18, -7, 13, 31, 1, 3, 5, 10),
-        ShipPoint::new(-11, 3, 29, 5, 0, 0, 0, 0),
-        ShipPoint::new(11, 3, 29, 5, 0, 0, 0, 0),
-        ShipPoint::new(11, 4, 24, 4, 0, 0, 0, 0),
-        ShipPoint::new(-11, 4, 24, 4, 0, 0, 0, 0),
+        ShipPoint::new(-18.0, 0.0, 40.0, 31.0, 0, 1, 11, 10),
+        ShipPoint::new(18.0, 0.0, 40.0, 31.0, 0, 1, 2, 0),
+        ShipPoint::new(30.0, 0.0, -24.0, 31.0, 2, 3, 4, 0),
+        ShipPoint::new(30.0, 0.0, -40.0, 31.0, 4, 5, 6, 0),
+        ShipPoint::new(18.0, -7.0, -40.0, 31.0, 5, 6, 7, 10),
+        ShipPoint::new(-18.0, -7.0, -40.0, 31.0, 7, 8, 10, 10),
+        ShipPoint::new(-30.0, 0.0, -40.0, 31.0, 8, 9, 10, 10),
+        ShipPoint::new(-30.0, 0.0, -24.0, 31.0, 9, 10, 11, 10),
+        ShipPoint::new(-18.0, 7.0, -40.0, 31.0, 7, 8, 9, 10),
+        ShipPoint::new(18.0, 7.0, -40.0, 31.0, 4, 6, 7, 10),
+        ShipPoint::new(-18.0, 7.0, 13.0, 31.0, 0, 9, 11, 10),
+        ShipPoint::new(18.0, 7.0, 13.0, 31.0, 0, 2, 4, 10),
+        ShipPoint::new(-18.0, -7.0, 13.0, 31.0, 1, 10, 12, 10),
+        ShipPoint::new(18.0, -7.0, 13.0, 31.0, 1, 3, 5, 10),
+        ShipPoint::new(-11.0, 3.0, 29.0, 5.0, 0, 0, 0, 0),
+        ShipPoint::new(11.0, 3.0, 29.0, 5.0, 0, 0, 0, 0),
+        ShipPoint::new(11.0, 4.0, 24.0, 4.0, 0, 0, 0, 0),
+        ShipPoint::new(-11.0, 4.0, 24.0, 4.0, 0, 0, 0, 0),
     ];
 
     let adder_line: Vec<ShipLine> = vec![
@@ -1873,21 +1876,21 @@ async fn main() {
     ];
 
     let adder_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 39, 10),
-        ShipFaceNormal::new(31, 0, -39, 10),
-        ShipFaceNormal::new(31, 69, 50, 10),
-        ShipFaceNormal::new(31, 69, -50, 10),
-        ShipFaceNormal::new(31, 30, 52, 0),
-        ShipFaceNormal::new(31, 30, -52, 0),
-        ShipFaceNormal::new(31, 0, 0, -160),
-        ShipFaceNormal::new(31, 0, 0, -160),
-        ShipFaceNormal::new(31, 0, 0, -160),
-        ShipFaceNormal::new(31, -30, 52, 0),
-        ShipFaceNormal::new(31, -30, -52, 0),
-        ShipFaceNormal::new(31, -69, 50, 10),
-        ShipFaceNormal::new(31, -69, -50, 10),
-        ShipFaceNormal::new(31, 0, 28, 0),
-        ShipFaceNormal::new(31, 0, -28, 0),
+        ShipFaceNormal::new(31.0, 0.0, 39.0, 10.0),
+        ShipFaceNormal::new(31.0, 0.0, -39.0, 10.0),
+        ShipFaceNormal::new(31.0, 69.0, 50.0, 10.0),
+        ShipFaceNormal::new(31.0, 69.0, -50.0, 10.0),
+        ShipFaceNormal::new(31.0, 30.0, 52.0, 0.0),
+        ShipFaceNormal::new(31.0, 30.0, -52.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -160.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -160.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -160.0),
+        ShipFaceNormal::new(31.0, -30.0, 52.0, 0.0),
+        ShipFaceNormal::new(31.0, -30.0, -52.0, 0.0),
+        ShipFaceNormal::new(31.0, -69.0, 50.0, 10.0),
+        ShipFaceNormal::new(31.0, -69.0, -50.0, 10.0),
+        ShipFaceNormal::new(31.0, 0.0, 28.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, -28.0, 0.0),
     ];
 
     let adder_data: ShipData = ShipData {
@@ -1911,18 +1914,18 @@ async fn main() {
     };
 
     let gecko_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(-10, -4, 47, 31, 0, 3, 4, 5),
-        ShipPoint::new(10, -4, 47, 31, 0, 1, 2, 3),
-        ShipPoint::new(-16, 8, -23, 31, 0, 5, 6, 7),
-        ShipPoint::new(16, 8, -23, 31, 0, 1, 7, 8),
-        ShipPoint::new(-66, 0, -3, 31, 4, 5, 6, 6),
-        ShipPoint::new(66, 0, -3, 31, 1, 2, 8, 8),
-        ShipPoint::new(-20, -14, -23, 31, 3, 4, 6, 7),
-        ShipPoint::new(20, -14, -23, 31, 2, 3, 7, 8),
-        ShipPoint::new(-8, -6, 33, 16, 3, 3, 3, 3),
-        ShipPoint::new(8, -6, 33, 17, 3, 3, 3, 3),
-        ShipPoint::new(-8, -13, -16, 16, 3, 3, 3, 3),
-        ShipPoint::new(8, -13, -16, 17, 3, 3, 3, 3),
+        ShipPoint::new(-10.0, -4.0, 47.0, 31.0, 0, 3, 4, 5),
+        ShipPoint::new(10.0, -4.0, 47.0, 31.0, 0, 1, 2, 3),
+        ShipPoint::new(-16.0, 8.0, -23.0, 31.0, 0, 5, 6, 7),
+        ShipPoint::new(16.0, 8.0, -23.0, 31.0, 0, 1, 7, 8),
+        ShipPoint::new(-66.0, 0.0, -3.0, 31.0, 4, 5, 6, 6),
+        ShipPoint::new(66.0, 0.0, -3.0, 31.0, 1, 2, 8, 8),
+        ShipPoint::new(-20.0, -14.0, -23.0, 31.0, 3, 4, 6, 7),
+        ShipPoint::new(20.0, -14.0, -23.0, 31.0, 2, 3, 7, 8),
+        ShipPoint::new(-8.0, -6.0, 33.0, 16.0, 3, 3, 3, 3),
+        ShipPoint::new(8.0, -6.0, 33.0, 17.0, 3, 3, 3, 3),
+        ShipPoint::new(-8.0, -13.0, -16.0, 16.0, 3, 3, 3, 3),
+        ShipPoint::new(8.0, -13.0, -16.0, 17.0, 3, 3, 3, 3),
     ];
 
     let gecko_line: Vec<ShipLine> = vec![
@@ -1946,15 +1949,15 @@ async fn main() {
     ];
 
     let gecko_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 31, 5),
-        ShipFaceNormal::new(31, 4, 45, 8),
-        ShipFaceNormal::new(31, 25, -108, 19),
-        ShipFaceNormal::new(31, 0, -84, 12),
-        ShipFaceNormal::new(31, -25, -108, 19),
-        ShipFaceNormal::new(31, -4, 45, 8),
-        ShipFaceNormal::new(31, -88, 16, -214),
-        ShipFaceNormal::new(31, 0, 0, -187),
-        ShipFaceNormal::new(31, 88, 16, -214),
+        ShipFaceNormal::new(31.0, 0.0, 31.0, 5.0),
+        ShipFaceNormal::new(31.0, 4.0, 45.0, 8.0),
+        ShipFaceNormal::new(31.0, 25.0, -108.0, 19.0),
+        ShipFaceNormal::new(31.0, 0.0, -84.0, 12.0),
+        ShipFaceNormal::new(31.0, -25.0, -108.0, 19.0),
+        ShipFaceNormal::new(31.0, -4.0, 45.0, 8.0),
+        ShipFaceNormal::new(31.0, -88.0, 16.0, -214.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -187.0),
+        ShipFaceNormal::new(31.0, 88.0, 16.0, -214.0),
     ];
 
     let gecko_data: ShipData = ShipData {
@@ -1977,17 +1980,17 @@ async fn main() {
         normals: gecko_face_normal,
     };
     let cobra1_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(-18, -1, 50, 31, 0, 1, 2, 3),
-        ShipPoint::new(18, -1, 50, 31, 0, 1, 4, 5),
-        ShipPoint::new(-66, 0, 7, 31, 2, 3, 8, 8),
-        ShipPoint::new(66, 0, 7, 31, 4, 5, 9, 9),
-        ShipPoint::new(-32, 12, -38, 31, 2, 6, 7, 8),
-        ShipPoint::new(32, 12, -38, 31, 4, 6, 7, 9),
-        ShipPoint::new(-54, -12, -38, 31, 1, 3, 7, 8),
-        ShipPoint::new(54, -12, -38, 31, 1, 5, 7, 9),
-        ShipPoint::new(0, 12, -6, 20, 0, 2, 4, 6),
-        ShipPoint::new(0, -1, 50, 2, 0, 1, 1, 1),
-        ShipPoint::new(0, -1, 60, 31, 0, 1, 1, 1),
+        ShipPoint::new(-18.0, -1.0, 50.0, 31.0, 0, 1, 2, 3),
+        ShipPoint::new(18.0, -1.0, 50.0, 31.0, 0, 1, 4, 5),
+        ShipPoint::new(-66.0, 0.0, 7.0, 31.0, 2, 3, 8, 8),
+        ShipPoint::new(66.0, 0.0, 7.0, 31.0, 4, 5, 9, 9),
+        ShipPoint::new(-32.0, 12.0, -38.0, 31.0, 2, 6, 7, 8),
+        ShipPoint::new(32.0, 12.0, -38.0, 31.0, 4, 6, 7, 9),
+        ShipPoint::new(-54.0, -12.0, -38.0, 31.0, 1, 3, 7, 8),
+        ShipPoint::new(54.0, -12.0, -38.0, 31.0, 1, 5, 7, 9),
+        ShipPoint::new(0.0, 12.0, -6.0, 20.0, 0, 2, 4, 6),
+        ShipPoint::new(0.0, -1.0, 50.0, 2.0, 0, 1, 1, 1),
+        ShipPoint::new(0.0, -1.0, 60.0, 31.0, 0, 1, 1, 1),
     ];
 
     let cobra1_line: Vec<ShipLine> = vec![
@@ -2012,16 +2015,16 @@ async fn main() {
     ];
 
     let cobra1_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 41, 10),
-        ShipFaceNormal::new(31, 0, -27, 3),
-        ShipFaceNormal::new(31, -8, 46, 8),
-        ShipFaceNormal::new(31, -12, -57, 12),
-        ShipFaceNormal::new(31, 8, 46, 8),
-        ShipFaceNormal::new(31, 12, -57, 12),
-        ShipFaceNormal::new(31, 0, 49, 0),
-        ShipFaceNormal::new(31, 0, 0, -154),
-        ShipFaceNormal::new(31, -121, 111, -62),
-        ShipFaceNormal::new(31, 121, 111, -62),
+        ShipFaceNormal::new(31.0, 0.0, 41.0, 10.0),
+        ShipFaceNormal::new(31.0, 0.0, -27.0, 3.0),
+        ShipFaceNormal::new(31.0, -8.0, 46.0, 8.0),
+        ShipFaceNormal::new(31.0, -12.0, -57.0, 12.0),
+        ShipFaceNormal::new(31.0, 8.0, 46.0, 8.0),
+        ShipFaceNormal::new(31.0, 12.0, -57.0, 12.0),
+        ShipFaceNormal::new(31.0, 0.0, 49.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -154.0),
+        ShipFaceNormal::new(31.0, -121.0, 111.0, -62.0),
+        ShipFaceNormal::new(31.0, 121.0, 111.0, -62.0),
     ];
 
     let cobra1_data: ShipData = ShipData {
@@ -2045,16 +2048,16 @@ async fn main() {
     };
 
     let worm_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(10, -10, 35, 31, 0, 2, 7, 7),
-        ShipPoint::new(-10, -10, 35, 31, 0, 3, 7, 7),
-        ShipPoint::new(5, 6, 15, 31, 0, 1, 2, 4),
-        ShipPoint::new(-5, 6, 15, 31, 0, 1, 3, 5),
-        ShipPoint::new(15, -10, 25, 31, 2, 4, 7, 7),
-        ShipPoint::new(-15, -10, 25, 31, 3, 5, 7, 7),
-        ShipPoint::new(26, -10, -25, 31, 4, 6, 7, 7),
-        ShipPoint::new(-26, -10, -25, 31, 5, 6, 7, 7),
-        ShipPoint::new(8, 14, -25, 31, 1, 4, 6, 6),
-        ShipPoint::new(-8, 14, -25, 31, 1, 5, 6, 6),
+        ShipPoint::new(10.0, -10.0, 35.0, 31.0, 0, 2, 7, 7),
+        ShipPoint::new(-10.0, -10.0, 35.0, 31.0, 0, 3, 7, 7),
+        ShipPoint::new(5.0, 6.0, 15.0, 31.0, 0, 1, 2, 4),
+        ShipPoint::new(-5.0, 6.0, 15.0, 31.0, 0, 1, 3, 5),
+        ShipPoint::new(15.0, -10.0, 25.0, 31.0, 2, 4, 7, 7),
+        ShipPoint::new(-15.0, -10.0, 25.0, 31.0, 3, 5, 7, 7),
+        ShipPoint::new(26.0, -10.0, -25.0, 31.0, 4, 6, 7, 7),
+        ShipPoint::new(-26.0, -10.0, -25.0, 31.0, 5, 6, 7, 7),
+        ShipPoint::new(8.0, 14.0, -25.0, 31.0, 1, 4, 6, 6),
+        ShipPoint::new(-8.0, 14.0, -25.0, 31.0, 1, 5, 6, 6),
     ];
 
     let worm_line: Vec<ShipLine> = vec![
@@ -2077,14 +2080,14 @@ async fn main() {
     ];
 
     let worm_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 88, 70),
-        ShipFaceNormal::new(31, 0, 69, 14),
-        ShipFaceNormal::new(31, 70, 66, 35),
-        ShipFaceNormal::new(31, -70, 66, 35),
-        ShipFaceNormal::new(31, 64, 49, 14),
-        ShipFaceNormal::new(31, -64, 49, 14),
-        ShipFaceNormal::new(31, 0, 0, -200),
-        ShipFaceNormal::new(31, 0, -80, 0),
+        ShipFaceNormal::new(31.0, 0.0, 88.0, 70.0),
+        ShipFaceNormal::new(31.0, 0.0, 69.0, 14.0),
+        ShipFaceNormal::new(31.0, 70.0, 66.0, 35.0),
+        ShipFaceNormal::new(31.0, -70.0, 66.0, 35.0),
+        ShipFaceNormal::new(31.0, 64.0, 49.0, 14.0),
+        ShipFaceNormal::new(31.0, -64.0, 49.0, 14.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -200.0),
+        ShipFaceNormal::new(31.0, 0.0, -80.0, 0.0),
     ];
 
     let worm_data: ShipData = ShipData {
@@ -2108,34 +2111,34 @@ async fn main() {
     };
 
     let cobra3b_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(32, 0, 76, 31, 15, 15, 15, 15),
-        ShipPoint::new(-32, 0, 76, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, 26, 24, 31, 15, 15, 15, 15),
-        ShipPoint::new(-120, -3, -8, 31, 7, 3, 10, 10),
-        ShipPoint::new(120, -3, -8, 31, 8, 4, 12, 12),
-        ShipPoint::new(-88, 16, -40, 31, 15, 15, 15, 15),
-        ShipPoint::new(88, 16, -40, 31, 15, 15, 15, 15),
-        ShipPoint::new(128, -8, -40, 31, 9, 8, 12, 12),
-        ShipPoint::new(-128, -8, -40, 31, 9, 7, 10, 10),
-        ShipPoint::new(0, 26, -40, 31, 6, 5, 9, 9),
-        ShipPoint::new(-32, -24, -40, 31, 10, 9, 11, 11),
-        ShipPoint::new(32, -24, -40, 31, 11, 9, 12, 12),
-        ShipPoint::new(-36, 8, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(-8, 12, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(8, 12, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(36, 8, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(36, -12, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(8, -16, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(-8, -16, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(-36, -12, -40, 20, 9, 9, 9, 9),
-        ShipPoint::new(0, 0, 76, 6, 11, 0, 11, 11),
-        ShipPoint::new(0, 0, 90, 31, 11, 0, 11, 11),
-        ShipPoint::new(-80, -6, -40, 8, 9, 9, 9, 9),
-        ShipPoint::new(-80, 6, -40, 8, 9, 9, 9, 9),
-        ShipPoint::new(-88, 0, -40, 6, 9, 9, 9, 9),
-        ShipPoint::new(80, 6, -40, 8, 9, 9, 9, 9),
-        ShipPoint::new(88, 0, -40, 6, 9, 9, 9, 9),
-        ShipPoint::new(80, -6, -40, 8, 9, 9, 9, 9),
+        ShipPoint::new(32.0, 0.0, 76.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-32.0, 0.0, 76.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, 26.0, 24.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-120.0, -3.0, -8.0, 31.0, 7, 3, 10, 10),
+        ShipPoint::new(120.0, -3.0, -8.0, 31.0, 8, 4, 12, 12),
+        ShipPoint::new(-88.0, 16.0, -40.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(88.0, 16.0, -40.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(128.0, -8.0, -40.0, 31.0, 9, 8, 12, 12),
+        ShipPoint::new(-128.0, -8.0, -40.0, 31.0, 9, 7, 10, 10),
+        ShipPoint::new(0.0, 26.0, -40.0, 31.0, 6, 5, 9, 9),
+        ShipPoint::new(-32.0, -24.0, -40.0, 31.0, 10, 9, 11, 11),
+        ShipPoint::new(32.0, -24.0, -40.0, 31.0, 11, 9, 12, 12),
+        ShipPoint::new(-36.0, 8.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(-8.0, 12.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(8.0, 12.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(36.0, 8.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(36.0, -12.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(8.0, -16.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(-8.0, -16.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(-36.0, -12.0, -40.0, 20.0, 9, 9, 9, 9),
+        ShipPoint::new(0.0, 0.0, 76.0, 6.0, 11, 0, 11, 11),
+        ShipPoint::new(0.0, 0.0, 90.0, 31.0, 11, 0, 11, 11),
+        ShipPoint::new(-80.0, -6.0, -40.0, 8.0, 9, 9, 9, 9),
+        ShipPoint::new(-80.0, 6.0, -40.0, 8.0, 9, 9, 9, 9),
+        ShipPoint::new(-88.0, 0.0, -40.0, 6.0, 9, 9, 9, 9),
+        ShipPoint::new(80.0, 6.0, -40.0, 8.0, 9, 9, 9, 9),
+        ShipPoint::new(88.0, 0.0, -40.0, 6.0, 9, 9, 9, 9),
+        ShipPoint::new(80.0, -6.0, -40.0, 8.0, 9, 9, 9, 9),
     ];
 
     let cobra3b_line: Vec<ShipLine> = vec![
@@ -2180,23 +2183,23 @@ async fn main() {
     ];
 
     let cobra3b_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 62, 31),
-        ShipFaceNormal::new(31, -18, 55, 16),
-        ShipFaceNormal::new(31, 18, 55, 16),
-        ShipFaceNormal::new(31, -16, 52, 14),
-        ShipFaceNormal::new(31, 16, 52, 14),
-        ShipFaceNormal::new(31, -14, 47, 0),
-        ShipFaceNormal::new(31, 14, 47, 0),
-        ShipFaceNormal::new(31, -61, 102, 0),
-        ShipFaceNormal::new(31, 61, 102, 0),
-        ShipFaceNormal::new(31, 0, 0, -80),
-        ShipFaceNormal::new(31, -7, -42, 9),
-        ShipFaceNormal::new(31, 0, -30, 6),
-        ShipFaceNormal::new(31, 7, -42, 9),
+        ShipFaceNormal::new(31.0, 0.0, 62.0, 31.0),
+        ShipFaceNormal::new(31.0, -18.0, 55.0, 16.0),
+        ShipFaceNormal::new(31.0, 18.0, 55.0, 16.0),
+        ShipFaceNormal::new(31.0, -16.0, 52.0, 14.0),
+        ShipFaceNormal::new(31.0, 16.0, 52.0, 14.0),
+        ShipFaceNormal::new(31.0, -14.0, 47.0, 0.0),
+        ShipFaceNormal::new(31.0, 14.0, 47.0, 0.0),
+        ShipFaceNormal::new(31.0, -61.0, 102.0, 0.0),
+        ShipFaceNormal::new(31.0, 61.0, 102.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -80.0),
+        ShipFaceNormal::new(31.0, -7.0, -42.0, 9.0),
+        ShipFaceNormal::new(31.0, 0.0, -30.0, 6.0),
+        ShipFaceNormal::new(31.0, 7.0, -42.0, 9.0),
     ];
 
     let cobra3b_data: ShipData = ShipData {
-        name: put_into_name("Cobra MkIII"),
+        name: put_into_name("Cobra MkIIIb"),
         num_points: 28,
         num_lines: 38,
         num_faces: 13,
@@ -2216,25 +2219,25 @@ async fn main() {
     };
 
     let asp2_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, -18, 0, 22, 0, 1, 2, 2),
-        ShipPoint::new(0, -9, -45, 31, 1, 2, 11, 11),
-        ShipPoint::new(43, 0, -45, 31, 1, 6, 11, 11),
-        ShipPoint::new(69, -3, 0, 31, 1, 6, 7, 9),
-        ShipPoint::new(43, -14, 28, 31, 0, 1, 7, 7),
-        ShipPoint::new(-43, 0, -45, 31, 2, 5, 11, 11),
-        ShipPoint::new(-69, -3, 0, 31, 2, 5, 8, 10),
-        ShipPoint::new(-43, -14, 28, 31, 0, 2, 8, 8),
-        ShipPoint::new(26, -7, 73, 31, 0, 4, 7, 9),
-        ShipPoint::new(-26, -7, 73, 31, 0, 4, 8, 10),
-        ShipPoint::new(43, 14, 28, 31, 3, 4, 6, 9),
-        ShipPoint::new(-43, 14, 28, 31, 3, 4, 5, 10),
-        ShipPoint::new(0, 9, -45, 31, 3, 5, 6, 11),
-        ShipPoint::new(-17, 0, -45, 10, 11, 11, 11, 11),
-        ShipPoint::new(17, 0, -45, 9, 11, 11, 11, 11),
-        ShipPoint::new(0, -4, -45, 10, 11, 11, 11, 11),
-        ShipPoint::new(0, 4, -45, 8, 11, 11, 11, 11),
-        ShipPoint::new(0, -7, 73, 10, 0, 4, 0, 4),
-        ShipPoint::new(0, -7, 83, 10, 0, 4, 0, 4),
+        ShipPoint::new(0.0, -18.0, 0.0, 22.0, 0, 1, 2, 2),
+        ShipPoint::new(0.0, -9.0, -45.0, 31.0, 1, 2, 11, 11),
+        ShipPoint::new(43.0, 0.0, -45.0, 31.0, 1, 6, 11, 11),
+        ShipPoint::new(69.0, -3.0, 0.0, 31.0, 1, 6, 7, 9),
+        ShipPoint::new(43.0, -14.0, 28.0, 31.0, 0, 1, 7, 7),
+        ShipPoint::new(-43.0, 0.0, -45.0, 31.0, 2, 5, 11, 11),
+        ShipPoint::new(-69.0, -3.0, 0.0, 31.0, 2, 5, 8, 10),
+        ShipPoint::new(-43.0, -14.0, 28.0, 31.0, 0, 2, 8, 8),
+        ShipPoint::new(26.0, -7.0, 73.0, 31.0, 0, 4, 7, 9),
+        ShipPoint::new(-26.0, -7.0, 73.0, 31.0, 0, 4, 8, 10),
+        ShipPoint::new(43.0, 14.0, 28.0, 31.0, 3, 4, 6, 9),
+        ShipPoint::new(-43.0, 14.0, 28.0, 31.0, 3, 4, 5, 10),
+        ShipPoint::new(0.0, 9.0, -45.0, 31.0, 3, 5, 6, 11),
+        ShipPoint::new(-17.0, 0.0, -45.0, 10.0, 11, 11, 11, 11),
+        ShipPoint::new(17.0, 0.0, -45.0, 9.0, 11, 11, 11, 11),
+        ShipPoint::new(0.0, -4.0, -45.0, 10.0, 11, 11, 11, 11),
+        ShipPoint::new(0.0, 4.0, -45.0, 8.0, 11, 11, 11, 11),
+        ShipPoint::new(0.0, -7.0, 73.0, 10.0, 0, 4, 0, 4),
+        ShipPoint::new(0.0, -7.0, 83.0, 10.0, 0, 4, 0, 4),
     ];
 
     let asp2_line: Vec<ShipLine> = vec![
@@ -2269,18 +2272,18 @@ async fn main() {
     ];
 
     let asp2_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, -35, 5),
-        ShipFaceNormal::new(31, 8, -38, -7),
-        ShipFaceNormal::new(31, -8, -38, -7),
-        ShipFaceNormal::new(22, 0, 24, -1),
-        ShipFaceNormal::new(31, 0, 43, 19),
-        ShipFaceNormal::new(31, -6, 28, -2),
-        ShipFaceNormal::new(31, 6, 28, -2),
-        ShipFaceNormal::new(31, 59, -64, 31),
-        ShipFaceNormal::new(31, -59, -64, 31),
-        ShipFaceNormal::new(31, 80, 46, 50),
-        ShipFaceNormal::new(31, -80, 46, 50),
-        ShipFaceNormal::new(31, 0, 0, -90),
+        ShipFaceNormal::new(31.0, 0.0, -35.0, 5.0),
+        ShipFaceNormal::new(31.0, 8.0, -38.0, -7.0),
+        ShipFaceNormal::new(31.0, -8.0, -38.0, -7.0),
+        ShipFaceNormal::new(22.0, 0.0, 24.0, -1.0),
+        ShipFaceNormal::new(31.0, 0.0, 43.0, 19.0),
+        ShipFaceNormal::new(31.0, -6.0, 28.0, -2.0),
+        ShipFaceNormal::new(31.0, 6.0, 28.0, -2.0),
+        ShipFaceNormal::new(31.0, 59.0, -64.0, 31.0),
+        ShipFaceNormal::new(31.0, -59.0, -64.0, 31.0),
+        ShipFaceNormal::new(31.0, 80.0, 46.0, 50.0),
+        ShipFaceNormal::new(31.0, -80.0, 46.0, 50.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -90.0),
     ];
 
     let asp2_data: ShipData = ShipData {
@@ -2304,17 +2307,17 @@ async fn main() {
     };
 
     let pythonb_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 0, 224, 31, 1, 0, 3, 2),
-        ShipPoint::new(0, 48, 48, 31, 1, 0, 5, 4),
-        ShipPoint::new(96, 0, -16, 31, 15, 15, 15, 15),
-        ShipPoint::new(-96, 0, -16, 31, 15, 15, 15, 15),
-        ShipPoint::new(0, 48, -32, 31, 5, 4, 9, 8),
-        ShipPoint::new(0, 24, -112, 31, 8, 9, 12, 12),
-        ShipPoint::new(-48, 0, -112, 31, 11, 8, 12, 12),
-        ShipPoint::new(48, 0, -112, 31, 10, 9, 12, 12),
-        ShipPoint::new(0, -48, 48, 31, 3, 2, 7, 6),
-        ShipPoint::new(0, -48, -32, 31, 7, 6, 11, 10),
-        ShipPoint::new(0, -24, -112, 31, 11, 10, 12, 12),
+        ShipPoint::new(0.0, 0.0, 224.0, 31.0, 1, 0, 3, 2),
+        ShipPoint::new(0.0, 48.0, 48.0, 31.0, 1, 0, 5, 4),
+        ShipPoint::new(96.0, 0.0, -16.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-96.0, 0.0, -16.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(0.0, 48.0, -32.0, 31.0, 5, 4, 9, 8),
+        ShipPoint::new(0.0, 24.0, -112.0, 31.0, 8, 9, 12, 12),
+        ShipPoint::new(-48.0, 0.0, -112.0, 31.0, 11, 8, 12, 12),
+        ShipPoint::new(48.0, 0.0, -112.0, 31.0, 10, 9, 12, 12),
+        ShipPoint::new(0.0, -48.0, 48.0, 31.0, 3, 2, 7, 6),
+        ShipPoint::new(0.0, -48.0, -32.0, 31.0, 7, 6, 11, 10),
+        ShipPoint::new(0.0, -24.0, -112.0, 31.0, 11, 10, 12, 12),
     ];
 
     let pythonb_line: Vec<ShipLine> = vec![
@@ -2347,19 +2350,19 @@ async fn main() {
     ];
 
     let pythonb_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, -27, 40, 11),
-        ShipFaceNormal::new(31, 27, 40, 11),
-        ShipFaceNormal::new(31, -27, -40, 11),
-        ShipFaceNormal::new(31, 27, -40, 11),
-        ShipFaceNormal::new(31, -19, 38, 0),
-        ShipFaceNormal::new(31, 19, 38, 0),
-        ShipFaceNormal::new(31, -19, -38, 0),
-        ShipFaceNormal::new(31, 19, -38, 0),
-        ShipFaceNormal::new(31, -25, 37, -11),
-        ShipFaceNormal::new(31, 25, 37, -11),
-        ShipFaceNormal::new(31, 25, -37, -11),
-        ShipFaceNormal::new(31, -25, -37, -11),
-        ShipFaceNormal::new(31, 0, 0, -112),
+        ShipFaceNormal::new(31.0, -27.0, 40.0, 11.0),
+        ShipFaceNormal::new(31.0, 27.0, 40.0, 11.0),
+        ShipFaceNormal::new(31.0, -27.0, -40.0, 11.0),
+        ShipFaceNormal::new(31.0, 27.0, -40.0, 11.0),
+        ShipFaceNormal::new(31.0, -19.0, 38.0, 0.0),
+        ShipFaceNormal::new(31.0, 19.0, 38.0, 0.0),
+        ShipFaceNormal::new(31.0, -19.0, -38.0, 0.0),
+        ShipFaceNormal::new(31.0, 19.0, -38.0, 0.0),
+        ShipFaceNormal::new(31.0, -25.0, 37.0, -11.0),
+        ShipFaceNormal::new(31.0, 25.0, 37.0, -11.0),
+        ShipFaceNormal::new(31.0, 25.0, -37.0, -11.0),
+        ShipFaceNormal::new(31.0, -25.0, -37.0, -11.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -112.0),
     ];
 
     let pythonb_data: ShipData = ShipData {
@@ -2383,25 +2386,25 @@ async fn main() {
     };
 
     let ferdlce_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, -14, 108, 31, 0, 1, 5, 9),
-        ShipPoint::new(-40, -14, -4, 31, 1, 2, 9, 9),
-        ShipPoint::new(-12, -14, -52, 31, 2, 3, 9, 9),
-        ShipPoint::new(12, -14, -52, 31, 3, 4, 9, 9),
-        ShipPoint::new(40, -14, -4, 31, 4, 5, 9, 9),
-        ShipPoint::new(-40, 14, -4, 28, 0, 1, 2, 6),
-        ShipPoint::new(-12, 2, -52, 28, 2, 3, 6, 7),
-        ShipPoint::new(12, 2, -52, 28, 3, 4, 7, 8),
-        ShipPoint::new(40, 14, -4, 28, 0, 4, 5, 8),
-        ShipPoint::new(0, 18, -20, 15, 0, 6, 7, 8),
-        ShipPoint::new(-3, -11, 97, 11, 0, 0, 0, 0),
-        ShipPoint::new(-26, 8, 18, 9, 0, 0, 0, 0),
-        ShipPoint::new(-16, 14, -4, 11, 0, 0, 0, 0),
-        ShipPoint::new(3, -11, 97, 11, 0, 0, 0, 0),
-        ShipPoint::new(26, 8, 18, 9, 0, 0, 0, 0),
-        ShipPoint::new(16, 14, -4, 11, 0, 0, 0, 0),
-        ShipPoint::new(0, -14, -20, 12, 9, 9, 9, 9),
-        ShipPoint::new(-14, -14, 44, 12, 9, 9, 9, 9),
-        ShipPoint::new(14, -14, 44, 12, 9, 9, 9, 9),
+        ShipPoint::new(0.0, -14.0, 108.0, 31.0, 0, 1, 5, 9),
+        ShipPoint::new(-40.0, -14.0, -4.0, 31.0, 1, 2, 9, 9),
+        ShipPoint::new(-12.0, -14.0, -52.0, 31.0, 2, 3, 9, 9),
+        ShipPoint::new(12.0, -14.0, -52.0, 31.0, 3, 4, 9, 9),
+        ShipPoint::new(40.0, -14.0, -4.0, 31.0, 4, 5, 9, 9),
+        ShipPoint::new(-40.0, 14.0, -4.0, 28.0, 0, 1, 2, 6),
+        ShipPoint::new(-12.0, 2.0, -52.0, 28.0, 2, 3, 6, 7),
+        ShipPoint::new(12.0, 2.0, -52.0, 28.0, 3, 4, 7, 8),
+        ShipPoint::new(40.0, 14.0, -4.0, 28.0, 0, 4, 5, 8),
+        ShipPoint::new(0.0, 18.0, -20.0, 15.0, 0, 6, 7, 8),
+        ShipPoint::new(-3.0, -11.0, 97.0, 11.0, 0, 0, 0, 0),
+        ShipPoint::new(-26.0, 8.0, 18.0, 9.0, 0, 0, 0, 0),
+        ShipPoint::new(-16.0, 14.0, -4.0, 11.0, 0, 0, 0, 0),
+        ShipPoint::new(3.0, -11.0, 97.0, 11.0, 0, 0, 0, 0),
+        ShipPoint::new(26.0, 8.0, 18.0, 9.0, 0, 0, 0, 0),
+        ShipPoint::new(16.0, 14.0, -4.0, 11.0, 0, 0, 0, 0),
+        ShipPoint::new(0.0, -14.0, -20.0, 12.0, 9, 9, 9, 9),
+        ShipPoint::new(-14.0, -14.0, 44.0, 12.0, 9, 9, 9, 9),
+        ShipPoint::new(14.0, -14.0, 44.0, 12.0, 9, 9, 9, 9),
     ];
 
     let ferdlce_line: Vec<ShipLine> = vec![
@@ -2435,16 +2438,16 @@ async fn main() {
     ];
 
     let ferdlce_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(28, 0, 24, 6),
-        ShipFaceNormal::new(31, -68, 0, 24),
-        ShipFaceNormal::new(31, -63, 0, -37),
-        ShipFaceNormal::new(31, 0, 0, -104),
-        ShipFaceNormal::new(31, 63, 0, -37),
-        ShipFaceNormal::new(31, 68, 0, 24),
-        ShipFaceNormal::new(28, -12, 46, -19),
-        ShipFaceNormal::new(28, 0, 45, -22),
-        ShipFaceNormal::new(28, 12, 46, -19),
-        ShipFaceNormal::new(31, 0, -28, 0),
+        ShipFaceNormal::new(28.0, 0.0, 24.0, 6.0),
+        ShipFaceNormal::new(31.0, -68.0, 0.0, 24.0),
+        ShipFaceNormal::new(31.0, -63.0, 0.0, -37.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -104.0),
+        ShipFaceNormal::new(31.0, 63.0, 0.0, -37.0),
+        ShipFaceNormal::new(31.0, 68.0, 0.0, 24.0),
+        ShipFaceNormal::new(28.0, -12.0, 46.0, -19.0),
+        ShipFaceNormal::new(28.0, 0.0, 45.0, -22.0),
+        ShipFaceNormal::new(28.0, 12.0, 46.0, -19.0),
+        ShipFaceNormal::new(31.0, 0.0, -28.0, 0.0),
     ];
 
     let ferdlce_data: ShipData = ShipData {
@@ -2468,20 +2471,20 @@ async fn main() {
     };
 
     let moray_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(15, 0, 65, 31, 0, 2, 7, 8),
-        ShipPoint::new(-15, 0, 65, 31, 0, 1, 6, 7),
-        ShipPoint::new(0, 18, -40, 17, 15, 15, 15, 15),
-        ShipPoint::new(-60, 0, 0, 31, 1, 3, 6, 6),
-        ShipPoint::new(60, 0, 0, 31, 2, 5, 8, 8),
-        ShipPoint::new(30, -27, -10, 24, 4, 5, 7, 8),
-        ShipPoint::new(-30, -27, -10, 24, 3, 4, 6, 7),
-        ShipPoint::new(-9, -4, -25, 7, 4, 4, 4, 4),
-        ShipPoint::new(9, -4, -25, 7, 4, 4, 4, 4),
-        ShipPoint::new(0, -18, -16, 7, 4, 4, 4, 4),
-        ShipPoint::new(13, 3, 49, 5, 0, 0, 0, 0),
-        ShipPoint::new(6, 0, 65, 5, 0, 0, 0, 0),
-        ShipPoint::new(-13, 3, 49, 5, 0, 0, 0, 0),
-        ShipPoint::new(-6, 0, 65, 5, 0, 0, 0, 0),
+        ShipPoint::new(15.0, 0.0, 65.0, 31.0, 0, 2, 7, 8),
+        ShipPoint::new(-15.0, 0.0, 65.0, 31.0, 0, 1, 6, 7),
+        ShipPoint::new(0.0, 18.0, -40.0, 17.0, 15, 15, 15, 15),
+        ShipPoint::new(-60.0, 0.0, 0.0, 31.0, 1, 3, 6, 6),
+        ShipPoint::new(60.0, 0.0, 0.0, 31.0, 2, 5, 8, 8),
+        ShipPoint::new(30.0, -27.0, -10.0, 24.0, 4, 5, 7, 8),
+        ShipPoint::new(-30.0, -27.0, -10.0, 24.0, 3, 4, 6, 7),
+        ShipPoint::new(-9.0, -4.0, -25.0, 7.0, 4, 4, 4, 4),
+        ShipPoint::new(9.0, -4.0, -25.0, 7.0, 4, 4, 4, 4),
+        ShipPoint::new(0.0, -18.0, -16.0, 7.0, 4, 4, 4, 4),
+        ShipPoint::new(13.0, 3.0, 49.0, 5.0, 0, 0, 0, 0),
+        ShipPoint::new(6.0, 0.0, 65.0, 5.0, 0, 0, 0, 0),
+        ShipPoint::new(-13.0, 3.0, 49.0, 5.0, 0, 0, 0, 0),
+        ShipPoint::new(-6.0, 0.0, 65.0, 5.0, 0, 0, 0, 0),
     ];
 
     let moray_line: Vec<ShipLine> = vec![
@@ -2507,15 +2510,15 @@ async fn main() {
     ];
 
     let moray_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 43, 7),
-        ShipFaceNormal::new(31, -10, 49, 7),
-        ShipFaceNormal::new(31, 10, 49, 7),
-        ShipFaceNormal::new(24, -59, -28, -101),
-        ShipFaceNormal::new(24, 0, -52, -78),
-        ShipFaceNormal::new(24, 59, -28, -101),
-        ShipFaceNormal::new(31, -72, -99, 50),
-        ShipFaceNormal::new(31, 0, -83, 30),
-        ShipFaceNormal::new(31, 72, -99, 50),
+        ShipFaceNormal::new(31.0, 0.0, 43.0, 7.0),
+        ShipFaceNormal::new(31.0, -10.0, 49.0, 7.0),
+        ShipFaceNormal::new(31.0, 10.0, 49.0, 7.0),
+        ShipFaceNormal::new(24.0, -59.0, -28.0, -101.0),
+        ShipFaceNormal::new(24.0, 0.0, -52.0, -78.0),
+        ShipFaceNormal::new(24.0, 59.0, -28.0, -101.0),
+        ShipFaceNormal::new(31.0, -72.0, -99.0, 50.0),
+        ShipFaceNormal::new(31.0, 0.0, -83.0, 30.0),
+        ShipFaceNormal::new(31.0, 72.0, -99.0, 50.0),
     ];
 
     let moray_data: ShipData = ShipData {
@@ -2539,26 +2542,26 @@ async fn main() {
     };
 
     let thargoid_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(32, -48, 48, 31, 4, 0, 8, 8),
-        ShipPoint::new(32, -68, 0, 31, 1, 0, 4, 4),
-        ShipPoint::new(32, -48, -48, 31, 2, 1, 4, 4),
-        ShipPoint::new(32, 0, -68, 31, 3, 2, 4, 4),
-        ShipPoint::new(32, 48, -48, 31, 4, 3, 5, 5),
-        ShipPoint::new(32, 68, 0, 31, 5, 4, 6, 6),
-        ShipPoint::new(32, 48, 48, 31, 6, 4, 7, 7),
-        ShipPoint::new(32, 0, 68, 31, 7, 4, 8, 8),
-        ShipPoint::new(-24, -116, 116, 31, 8, 0, 9, 9),
-        ShipPoint::new(-24, -164, 0, 31, 1, 0, 9, 9),
-        ShipPoint::new(-24, -116, -116, 31, 2, 1, 9, 9),
-        ShipPoint::new(-24, 0, -164, 31, 3, 2, 9, 9),
-        ShipPoint::new(-24, 116, -116, 31, 5, 3, 9, 9),
-        ShipPoint::new(-24, 164, 0, 31, 6, 5, 9, 9),
-        ShipPoint::new(-24, 116, 116, 31, 7, 6, 9, 9),
-        ShipPoint::new(-24, 0, 164, 31, 8, 7, 9, 9),
-        ShipPoint::new(-24, 64, 80, 30, 9, 9, 9, 9),
-        ShipPoint::new(-24, 64, -80, 30, 9, 9, 9, 9),
-        ShipPoint::new(-24, -64, -80, 30, 9, 9, 9, 9),
-        ShipPoint::new(-24, -64, 80, 30, 9, 9, 9, 9),
+        ShipPoint::new(32.0, -48.0, 48.0, 31.0, 4, 0, 8, 8),
+        ShipPoint::new(32.0, -68.0, 0.0, 31.0, 1, 0, 4, 4),
+        ShipPoint::new(32.0, -48.0, -48.0, 31.0, 2, 1, 4, 4),
+        ShipPoint::new(32.0, 0.0, -68.0, 31.0, 3, 2, 4, 4),
+        ShipPoint::new(32.0, 48.0, -48.0, 31.0, 4, 3, 5, 5),
+        ShipPoint::new(32.0, 68.0, 0.0, 31.0, 5, 4, 6, 6),
+        ShipPoint::new(32.0, 48.0, 48.0, 31.0, 6, 4, 7, 7),
+        ShipPoint::new(32.0, 0.0, 68.0, 31.0, 7, 4, 8, 8),
+        ShipPoint::new(-24.0, -116.0, 116.0, 31.0, 8, 0, 9, 9),
+        ShipPoint::new(-24.0, -164.0, 0.0, 31.0, 1, 0, 9, 9),
+        ShipPoint::new(-24.0, -116.0, -116.0, 31.0, 2, 1, 9, 9),
+        ShipPoint::new(-24.0, 0.0, -164.0, 31.0, 3, 2, 9, 9),
+        ShipPoint::new(-24.0, 116.0, -116.0, 31.0, 5, 3, 9, 9),
+        ShipPoint::new(-24.0, 164.0, 0.0, 31.0, 6, 5, 9, 9),
+        ShipPoint::new(-24.0, 116.0, 116.0, 31.0, 7, 6, 9, 9),
+        ShipPoint::new(-24.0, 0.0, 164.0, 31.0, 8, 7, 9, 9),
+        ShipPoint::new(-24.0, 64.0, 80.0, 30.0, 9, 9, 9, 9),
+        ShipPoint::new(-24.0, 64.0, -80.0, 30.0, 9, 9, 9, 9),
+        ShipPoint::new(-24.0, -64.0, -80.0, 30.0, 9, 9, 9, 9),
+        ShipPoint::new(-24.0, -64.0, 80.0, 30.0, 9, 9, 9, 9),
     ];
 
     let thargoid_line: Vec<ShipLine> = vec![
@@ -2591,16 +2594,16 @@ async fn main() {
     ];
 
     let thargoid_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 103, -60, 25),
-        ShipFaceNormal::new(31, 103, -60, -25),
-        ShipFaceNormal::new(31, 103, -25, -60),
-        ShipFaceNormal::new(31, 103, 25, -60),
-        ShipFaceNormal::new(31, 64, 0, 0),
-        ShipFaceNormal::new(31, 103, 60, -25),
-        ShipFaceNormal::new(31, 103, 60, 25),
-        ShipFaceNormal::new(31, 103, 25, 60),
-        ShipFaceNormal::new(31, 103, -25, 60),
-        ShipFaceNormal::new(31, -48, 0, 0),
+        ShipFaceNormal::new(31.0, 103.0, -60.0, 25.0),
+        ShipFaceNormal::new(31.0, 103.0, -60.0, -25.0),
+        ShipFaceNormal::new(31.0, 103.0, -25.0, -60.0),
+        ShipFaceNormal::new(31.0, 103.0, 25.0, -60.0),
+        ShipFaceNormal::new(31.0, 64.0, 0.0, 0.0),
+        ShipFaceNormal::new(31.0, 103.0, 60.0, -25.0),
+        ShipFaceNormal::new(31.0, 103.0, 60.0, 25.0),
+        ShipFaceNormal::new(31.0, 103.0, 25.0, 60.0),
+        ShipFaceNormal::new(31.0, 103.0, -25.0, 60.0),
+        ShipFaceNormal::new(31.0, -48.0, 0.0, 0.0),
     ];
 
     let thargoid_data: ShipData = ShipData {
@@ -2624,16 +2627,16 @@ async fn main() {
     };
 
     let thargon_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(-9, 0, 40, 31, 0, 1, 5, 5),
-        ShipPoint::new(-9, -38, 12, 31, 0, 1, 2, 2),
-        ShipPoint::new(-9, -24, -32, 31, 0, 2, 3, 3),
-        ShipPoint::new(-9, 24, -32, 31, 0, 3, 4, 4),
-        ShipPoint::new(-9, 38, 12, 31, 0, 4, 5, 5),
-        ShipPoint::new(9, 0, -8, 31, 1, 5, 6, 6),
-        ShipPoint::new(9, -10, -15, 31, 1, 2, 6, 6),
-        ShipPoint::new(9, -6, -26, 31, 2, 3, 6, 6),
-        ShipPoint::new(9, 6, -26, 31, 3, 4, 6, 6),
-        ShipPoint::new(9, 10, -15, 31, 4, 5, 6, 6),
+        ShipPoint::new(-9.0, 0.0, 40.0, 31.0, 0, 1, 5, 5),
+        ShipPoint::new(-9.0, -38.0, 12.0, 31.0, 0, 1, 2, 2),
+        ShipPoint::new(-9.0, -24.0, -32.0, 31.0, 0, 2, 3, 3),
+        ShipPoint::new(-9.0, 24.0, -32.0, 31.0, 0, 3, 4, 4),
+        ShipPoint::new(-9.0, 38.0, 12.0, 31.0, 0, 4, 5, 5),
+        ShipPoint::new(9.0, 0.0, -8.0, 31.0, 1, 5, 6, 6),
+        ShipPoint::new(9.0, -10.0, -15.0, 31.0, 1, 2, 6, 6),
+        ShipPoint::new(9.0, -6.0, -26.0, 31.0, 2, 3, 6, 6),
+        ShipPoint::new(9.0, 6.0, -26.0, 31.0, 3, 4, 6, 6),
+        ShipPoint::new(9.0, 10.0, -15.0, 31.0, 4, 5, 6, 6),
     ];
 
     let thargon_line: Vec<ShipLine> = vec![
@@ -2655,13 +2658,13 @@ async fn main() {
     ];
 
     let thargon_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, -36, 0, 0),
-        ShipFaceNormal::new(31, 20, -5, 7),
-        ShipFaceNormal::new(31, 46, -42, -14),
-        ShipFaceNormal::new(31, 36, 0, -104),
-        ShipFaceNormal::new(31, 46, 42, -14),
-        ShipFaceNormal::new(31, 20, 5, 7),
-        ShipFaceNormal::new(31, 36, 0, 0),
+        ShipFaceNormal::new(31.0, -36.0, 0.0, 0.0),
+        ShipFaceNormal::new(31.0, 20.0, -5.0, 7.0),
+        ShipFaceNormal::new(31.0, 46.0, -42.0, -14.0),
+        ShipFaceNormal::new(31.0, 36.0, 0.0, -104.0),
+        ShipFaceNormal::new(31.0, 46.0, 42.0, -14.0),
+        ShipFaceNormal::new(31.0, 20.0, 5.0, 7.0),
+        ShipFaceNormal::new(31.0, 36.0, 0.0, 0.0),
     ];
 
     let thargon_data: ShipData = ShipData {
@@ -2685,23 +2688,23 @@ async fn main() {
     };
 
     let constrct_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(20, -7, 80, 31, 0, 2, 9, 9),
-        ShipPoint::new(-20, -7, 80, 31, 0, 1, 9, 9),
-        ShipPoint::new(-54, -7, 40, 31, 1, 4, 9, 9),
-        ShipPoint::new(-54, -7, -40, 31, 4, 5, 8, 9),
-        ShipPoint::new(-20, 13, -40, 31, 5, 6, 8, 8),
-        ShipPoint::new(20, 13, -40, 31, 6, 7, 8, 8),
-        ShipPoint::new(54, -7, -40, 31, 3, 7, 8, 9),
-        ShipPoint::new(54, -7, 40, 31, 2, 3, 9, 9),
-        ShipPoint::new(20, 13, 5, 31, 15, 15, 15, 15),
-        ShipPoint::new(-20, 13, 5, 31, 15, 15, 15, 15),
-        ShipPoint::new(20, -7, 62, 18, 9, 9, 9, 9),
-        ShipPoint::new(-20, -7, 62, 18, 9, 9, 9, 9),
-        ShipPoint::new(25, -7, -25, 18, 9, 9, 9, 9),
-        ShipPoint::new(-25, -7, -25, 18, 9, 9, 9, 9),
-        ShipPoint::new(15, -7, -15, 10, 9, 9, 9, 9),
-        ShipPoint::new(-15, -7, -15, 10, 9, 9, 9, 9),
-        ShipPoint::new(0, -7, 0, 0, 9, 15, 0, 1),
+        ShipPoint::new(20.0, -7.0, 80.0, 31.0, 0, 2, 9, 9),
+        ShipPoint::new(-20.0, -7.0, 80.0, 31.0, 0, 1, 9, 9),
+        ShipPoint::new(-54.0, -7.0, 40.0, 31.0, 1, 4, 9, 9),
+        ShipPoint::new(-54.0, -7.0, -40.0, 31.0, 4, 5, 8, 9),
+        ShipPoint::new(-20.0, 13.0, -40.0, 31.0, 5, 6, 8, 8),
+        ShipPoint::new(20.0, 13.0, -40.0, 31.0, 6, 7, 8, 8),
+        ShipPoint::new(54.0, -7.0, -40.0, 31.0, 3, 7, 8, 9),
+        ShipPoint::new(54.0, -7.0, 40.0, 31.0, 2, 3, 9, 9),
+        ShipPoint::new(20.0, 13.0, 5.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(-20.0, 13.0, 5.0, 31.0, 15, 15, 15, 15),
+        ShipPoint::new(20.0, -7.0, 62.0, 18.0, 9, 9, 9, 9),
+        ShipPoint::new(-20.0, -7.0, 62.0, 18.0, 9, 9, 9, 9),
+        ShipPoint::new(25.0, -7.0, -25.0, 18.0, 9, 9, 9, 9),
+        ShipPoint::new(-25.0, -7.0, -25.0, 18.0, 9, 9, 9, 9),
+        ShipPoint::new(15.0, -7.0, -15.0, 10.0, 9, 9, 9, 9),
+        ShipPoint::new(-15.0, -7.0, -15.0, 10.0, 9, 9, 9, 9),
+        ShipPoint::new(0.0, -7.0, 0.0, 0.0, 9, 15, 0, 1),
     ];
 
     let constrct_line: Vec<ShipLine> = vec![
@@ -2732,16 +2735,16 @@ async fn main() {
     ];
 
     let constrct_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 55, 15),
-        ShipFaceNormal::new(31, -24, 75, 20),
-        ShipFaceNormal::new(31, 24, 75, 20),
-        ShipFaceNormal::new(31, 44, 75, 0),
-        ShipFaceNormal::new(31, -44, 75, 0),
-        ShipFaceNormal::new(31, -44, 75, 0),
-        ShipFaceNormal::new(31, 0, 53, 0),
-        ShipFaceNormal::new(31, 44, 75, 0),
-        ShipFaceNormal::new(31, 0, 0, -160),
-        ShipFaceNormal::new(31, 0, -27, 0),
+        ShipFaceNormal::new(31.0, 0.0, 55.0, 15.0),
+        ShipFaceNormal::new(31.0, -24.0, 75.0, 20.0),
+        ShipFaceNormal::new(31.0, 24.0, 75.0, 20.0),
+        ShipFaceNormal::new(31.0, 44.0, 75.0, 0.0),
+        ShipFaceNormal::new(31.0, -44.0, 75.0, 0.0),
+        ShipFaceNormal::new(31.0, -44.0, 75.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 53.0, 0.0),
+        ShipFaceNormal::new(31.0, 44.0, 75.0, 0.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -160.0),
+        ShipFaceNormal::new(31.0, 0.0, -27.0, 0.0),
     ];
 
     let constrct_data: ShipData = ShipData {
@@ -2765,25 +2768,25 @@ async fn main() {
     };
 
     let cougar_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 5, 67, 31, 0, 2, 4, 4),
-        ShipPoint::new(-20, 0, 40, 31, 0, 1, 2, 2),
-        ShipPoint::new(-40, 0, -40, 31, 0, 1, 5, 5),
-        ShipPoint::new(0, 14, -40, 30, 0, 4, 5, 5),
-        ShipPoint::new(0, -14, -40, 30, 1, 2, 3, 5),
-        ShipPoint::new(20, 0, 40, 31, 2, 3, 4, 4),
-        ShipPoint::new(40, 0, -40, 31, 3, 4, 5, 5),
-        ShipPoint::new(-36, 0, 56, 31, 0, 1, 1, 1),
-        ShipPoint::new(-60, 0, -20, 31, 0, 1, 1, 1),
-        ShipPoint::new(36, 0, 56, 31, 3, 4, 4, 4),
-        ShipPoint::new(60, 0, -20, 31, 3, 4, 4, 4),
-        ShipPoint::new(0, 7, 35, 18, 0, 0, 4, 4),
-        ShipPoint::new(0, 8, 25, 20, 0, 0, 4, 4),
-        ShipPoint::new(-12, 2, 45, 20, 0, 0, 0, 0),
-        ShipPoint::new(12, 2, 45, 20, 4, 4, 4, 4),
-        ShipPoint::new(-10, 6, -40, 20, 5, 5, 5, 5),
-        ShipPoint::new(-10, -6, -40, 20, 5, 5, 5, 5),
-        ShipPoint::new(10, -6, -40, 20, 5, 5, 5, 5),
-        ShipPoint::new(10, 6, -40, 20, 5, 5, 5, 5),
+        ShipPoint::new(0.0, 5.0, 67.0, 31.0, 0, 2, 4, 4),
+        ShipPoint::new(-20.0, 0.0, 40.0, 31.0, 0, 1, 2, 2),
+        ShipPoint::new(-40.0, 0.0, -40.0, 31.0, 0, 1, 5, 5),
+        ShipPoint::new(0.0, 14.0, -40.0, 30.0, 0, 4, 5, 5),
+        ShipPoint::new(0.0, -14.0, -40.0, 30.0, 1, 2, 3, 5),
+        ShipPoint::new(20.0, 0.0, 40.0, 31.0, 2, 3, 4, 4),
+        ShipPoint::new(40.0, 0.0, -40.0, 31.0, 3, 4, 5, 5),
+        ShipPoint::new(-36.0, 0.0, 56.0, 31.0, 0, 1, 1, 1),
+        ShipPoint::new(-60.0, 0.0, -20.0, 31.0, 0, 1, 1, 1),
+        ShipPoint::new(36.0, 0.0, 56.0, 31.0, 3, 4, 4, 4),
+        ShipPoint::new(60.0, 0.0, -20.0, 31.0, 3, 4, 4, 4),
+        ShipPoint::new(0.0, 7.0, 35.0, 18.0, 0, 0, 4, 4),
+        ShipPoint::new(0.0, 8.0, 25.0, 20.0, 0, 0, 4, 4),
+        ShipPoint::new(-12.0, 2.0, 45.0, 20.0, 0, 0, 0, 0),
+        ShipPoint::new(12.0, 2.0, 45.0, 20.0, 4, 4, 4, 4),
+        ShipPoint::new(-10.0, 6.0, -40.0, 20.0, 5, 5, 5, 5),
+        ShipPoint::new(-10.0, -6.0, -40.0, 20.0, 5, 5, 5, 5),
+        ShipPoint::new(10.0, -6.0, -40.0, 20.0, 5, 5, 5, 5),
+        ShipPoint::new(10.0, 6.0, -40.0, 20.0, 5, 5, 5, 5),
     ];
 
     let cougar_line: Vec<ShipLine> = vec![
@@ -2815,12 +2818,12 @@ async fn main() {
     ];
 
     let cougar_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, -16, 46, 4),
-        ShipFaceNormal::new(31, -16, -46, 4),
-        ShipFaceNormal::new(31, 0, -27, 5),
-        ShipFaceNormal::new(31, 16, -46, 4),
-        ShipFaceNormal::new(31, 16, 46, 4),
-        ShipFaceNormal::new(30, 0, 0, -160),
+        ShipFaceNormal::new(31.0, -16.0, 46.0, 4.0),
+        ShipFaceNormal::new(31.0, -16.0, -46.0, 4.0),
+        ShipFaceNormal::new(31.0, 0.0, -27.0, 5.0),
+        ShipFaceNormal::new(31.0, 16.0, -46.0, 4.0),
+        ShipFaceNormal::new(31.0, 16.0, 46.0, 4.0),
+        ShipFaceNormal::new(30.0, 0.0, 0.0, -160.0),
     ];
 
     let cougar_data: ShipData = ShipData {
@@ -2844,30 +2847,30 @@ async fn main() {
     };
 
     let dodec_point: Vec<ShipPoint> = vec![
-        ShipPoint::new(0, 150, 196, 31, 0, 1, 5, 5),
-        ShipPoint::new(143, 46, 196, 31, 0, 1, 2, 2),
-        ShipPoint::new(88, -121, 196, 31, 0, 2, 3, 3),
-        ShipPoint::new(-88, -121, 196, 31, 0, 3, 4, 4),
-        ShipPoint::new(-143, 46, 196, 31, 0, 4, 5, 5),
-        ShipPoint::new(0, 243, 46, 31, 1, 5, 6, 6),
-        ShipPoint::new(231, 75, 46, 31, 1, 2, 7, 7),
-        ShipPoint::new(143, -196, 46, 31, 2, 3, 8, 8),
-        ShipPoint::new(-143, -196, 46, 31, 3, 4, 9, 9),
-        ShipPoint::new(-231, 75, 46, 31, 4, 5, 10, 10),
-        ShipPoint::new(143, 196, -46, 31, 1, 6, 7, 7),
-        ShipPoint::new(231, -75, -46, 31, 2, 7, 8, 8),
-        ShipPoint::new(0, -243, -46, 31, 3, 8, 9, 9),
-        ShipPoint::new(-231, -75, -46, 31, 4, 9, 10, 10),
-        ShipPoint::new(-143, 196, -46, 31, 5, 6, 10, 10),
-        ShipPoint::new(88, 121, -196, 31, 6, 7, 11, 11),
-        ShipPoint::new(143, -46, -196, 31, 7, 8, 11, 11),
-        ShipPoint::new(0, -150, -196, 31, 8, 9, 11, 11),
-        ShipPoint::new(-143, -46, -196, 31, 9, 10, 11, 11),
-        ShipPoint::new(-88, 121, -196, 31, 6, 10, 11, 11),
-        ShipPoint::new(-16, 32, 196, 30, 0, 0, 0, 0),
-        ShipPoint::new(-16, -32, 196, 30, 0, 0, 0, 0),
-        ShipPoint::new(16, 32, 196, 23, 0, 0, 0, 0),
-        ShipPoint::new(16, -32, 196, 23, 0, 0, 0, 0),
+        ShipPoint::new(0.0, 150.0, 196.0, 31.0, 0, 1, 5, 5),
+        ShipPoint::new(143.0, 46.0, 196.0, 31.0, 0, 1, 2, 2),
+        ShipPoint::new(88.0, -121.0, 196.0, 31.0, 0, 2, 3, 3),
+        ShipPoint::new(-88.0, -121.0, 196.0, 31.0, 0, 3, 4, 4),
+        ShipPoint::new(-143.0, 46.0, 196.0, 31.0, 0, 4, 5, 5),
+        ShipPoint::new(0.0, 243.0, 46.0, 31.0, 1, 5, 6, 6),
+        ShipPoint::new(231.0, 75.0, 46.0, 31.0, 1, 2, 7, 7),
+        ShipPoint::new(143.0, -196.0, 46.0, 31.0, 2, 3, 8, 8),
+        ShipPoint::new(-143.0, -196.0, 46.0, 31.0, 3, 4, 9, 9),
+        ShipPoint::new(-231.0, 75.0, 46.0, 31.0, 4, 5, 10, 10),
+        ShipPoint::new(143.0, 196.0, -46.0, 31.0, 1, 6, 7, 7),
+        ShipPoint::new(231.0, -75.0, -46.0, 31.0, 2, 7, 8, 8),
+        ShipPoint::new(0.0, -243.0, -46.0, 31.0, 3, 8, 9, 9),
+        ShipPoint::new(-231.0, -75.0, -46.0, 31.0, 4, 9, 10, 10),
+        ShipPoint::new(-143.0, 196.0, -46.0, 31.0, 5, 6, 10, 10),
+        ShipPoint::new(88.0, 121.0, -196.0, 31.0, 6, 7, 11, 11),
+        ShipPoint::new(143.0, -46.0, -196.0, 31.0, 7, 8, 11, 11),
+        ShipPoint::new(0.0, -150.0, -196.0, 31.0, 8, 9, 11, 11),
+        ShipPoint::new(-143.0, -46.0, -196.0, 31.0, 9, 10, 11, 11),
+        ShipPoint::new(-88.0, 121.0, -196.0, 31.0, 6, 10, 11, 11),
+        ShipPoint::new(-16.0, 32.0, 196.0, 30.0, 0, 0, 0, 0),
+        ShipPoint::new(-16.0, -32.0, 196.0, 30.0, 0, 0, 0, 0),
+        ShipPoint::new(16.0, 32.0, 196.0, 23.0, 0, 0, 0, 0),
+        ShipPoint::new(16.0, -32.0, 196.0, 23.0, 0, 0, 0, 0),
     ];
 
     let dodec_line: Vec<ShipLine> = vec![
@@ -2908,18 +2911,18 @@ async fn main() {
     ];
 
     let dodec_face_normal: Vec<ShipFaceNormal> = vec![
-        ShipFaceNormal::new(31, 0, 0, 196),
-        ShipFaceNormal::new(31, 103, 142, 88),
-        ShipFaceNormal::new(31, 169, -55, 89),
-        ShipFaceNormal::new(31, 0, -176, 88),
-        ShipFaceNormal::new(31, -169, -55, 89),
-        ShipFaceNormal::new(31, -103, 142, 88),
-        ShipFaceNormal::new(31, 0, 176, -88),
-        ShipFaceNormal::new(31, 169, 55, -89),
-        ShipFaceNormal::new(31, 103, -142, -88),
-        ShipFaceNormal::new(31, -103, -142, -88),
-        ShipFaceNormal::new(31, -169, 55, -89),
-        ShipFaceNormal::new(31, 0, 0, -196),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, 196.0),
+        ShipFaceNormal::new(31.0, 103.0, 142.0, 88.0),
+        ShipFaceNormal::new(31.0, 169.0, -55.0, 89.0),
+        ShipFaceNormal::new(31.0, 0.0, -176.0, 88.0),
+        ShipFaceNormal::new(31.0, -169.0, -55.0, 89.0),
+        ShipFaceNormal::new(31.0, -103.0, 142.0, 88.0),
+        ShipFaceNormal::new(31.0, 0.0, 176.0, -88.0),
+        ShipFaceNormal::new(31.0, 169.0, 55.0, -89.0),
+        ShipFaceNormal::new(31.0, 103.0, -142.0, -88.0),
+        ShipFaceNormal::new(31.0, -103.0, -142.0, -88.0),
+        ShipFaceNormal::new(31.0, -169.0, 55.0, -89.0),
+        ShipFaceNormal::new(31.0, 0.0, 0.0, -196.0),
     ];
 
     let dodec_data: ShipData = ShipData {
@@ -3011,17 +3014,17 @@ async fn main() {
     let mut message_width;
     let mut message_x_pos;
     let font = load_ttf_font("./assets/Terminus.ttf").await.unwrap();
-    let text_params = TextParams {
+    let mut text_params = TextParams {
         font: Some(&font),
         font_size: 12,
-        font_scale: GFX_SCALE as f32,
+        font_scale: GFX_SCALE,
         font_scale_aspect: 1.0,
         rotation: 0.0,
         color: WHITE,
     };
     set_pc_assets_folder("assets");
 
-    let beep = audio::load_sound("beep.wav").await.unwrap();
+    let beep_sfx = audio::load_sound("beep.wav").await.unwrap();
     let boop_sfx = audio::load_sound("boop.wav").await.unwrap();
     let pulse_sfx = audio::load_sound("pulse.wav").await.unwrap();
     let launch_sfx = audio::load_sound("launch.wav").await.unwrap();
@@ -3031,7 +3034,9 @@ async fn main() {
     let dock_sfx = audio::load_sound("dock.wav").await.unwrap();
     let incoming_1_sfx = audio::load_sound("incom1.wav").await.unwrap();
     let incoming_2_sfx = audio::load_sound("incom2.wav").await.unwrap();
-    let hit_enemy = audio::load_sound("hitem.wav").await.unwrap();
+    let enemy_sfx = audio::load_sound("hitem.wav").await.unwrap();
+    let danube = audio::load_sound("danube.wav").await.unwrap();
+    let theme = audio::load_sound("theme.wav").await.unwrap();
     while !params.finish {
         params.game_over = false;
         initialise_game(
@@ -3041,7 +3046,6 @@ async fn main() {
             &mut ship_count,
             &mut cmdr,
         );
-        params.update_screen_params();
         dock_player(&mut params);
 
         update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
@@ -3056,8 +3060,11 @@ async fn main() {
             &config,
             &text_params,
             &font,
+            &theme,
         );
+        audio::play_sound_once(&theme);
         loop {
+            params.update_screen_params(); // my macroquad admin stuff
             update_intro1(
                 &mut universe,
                 &mut params,
@@ -3071,20 +3078,23 @@ async fn main() {
                 &dock_sfx,
                 &incoming_1_sfx,
                 &incoming_2_sfx,
+                &beep_sfx,
+                &enemy_sfx,
             );
-            thread::sleep(frame_duration);
-            next_frame().await;
+            update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
             if is_key_down(KeyCode::Y) {
                 // snd_stop_midi();
                 // load_commander_screen();
                 break;
             }
-
             if is_key_down(KeyCode::N) {
                 // snd_stop_midi();
                 break;
             }
+            thread::sleep(frame_duration);
+            next_frame().await;
         }
+        audio::stop_sound(&theme);
         run_second_intro_screen(
             &mut da_stars,
             &mut params,
@@ -3094,7 +3104,9 @@ async fn main() {
             &config,
             &mut cmdr,
         );
+        audio::play_sound_once(&danube);
         loop {
+            params.update_screen_params();
             update_intro2(
                 &mut universe,
                 &mut da_stars,
@@ -3109,13 +3121,17 @@ async fn main() {
                 &dock_sfx,
                 &incoming_1_sfx,
                 &incoming_2_sfx,
+                &beep_sfx,
+                &enemy_sfx,
             );
-            thread::sleep(frame_duration);
-            next_frame().await;
+            update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
             if is_key_down(KeyCode::Space) {
                 break;
             }
+            thread::sleep(frame_duration);
+            next_frame().await;
         }
+        audio::stop_sound(&danube);
         params.old_cross_x = -1;
         params.old_cross_y = -1;
 
@@ -3140,6 +3156,9 @@ async fn main() {
                 &dock_sfx,
                 &missile_sfx,
                 &boop_sfx,
+                &danube,
+                &font,
+                &mut text_params,
             );
             if params.game_paused {
                 continue;
@@ -3169,7 +3188,7 @@ async fn main() {
                 }
             }
             if params.current_screen == SCR_CMDR_STATUS {
-                display_commander_status(&cmdr, &mut params, &universe);
+                display_commander_status(&cmdr, &mut params, &universe, &font, &mut text_params);
             }
             if !params.docked {
                 if (params.current_screen == SCR_FRONT_VIEW)
@@ -3201,6 +3220,8 @@ async fn main() {
                     &dock_sfx,
                     &incoming_1_sfx,
                     &incoming_2_sfx,
+                    &enemy_sfx,
+                    &beep_sfx,
                 );
 
                 // if params.docked {
@@ -3222,8 +3243,7 @@ async fn main() {
                 }
                 if params.message_count > 0 {
                     message_width =
-                        measure_text(&params.message_string, Some(&font), 18, GFX_SCALE as f32)
-                            .width;
+                        measure_text(&params.message_string, Some(&font), 18, GFX_SCALE).width;
                     message_x_pos = (params.screen_width - message_width) * 0.5;
                     draw_text_ex(
                         &params.message_string,
@@ -3234,7 +3254,7 @@ async fn main() {
                 }
 
                 if params.hyper_ready {
-                    // display_hyper_status();
+                    display_hyper_status(&mut params, &text_params, &font);
                     if (params.mcount & 3) == 0 {
                         // countdown_hyperspace();
                     }
@@ -3253,7 +3273,7 @@ async fn main() {
                 if (params.mcount & 31) == 10 {
                     if params.energy < 50 {
                         info_message("ENERGY LOW".to_string(), &mut params);
-                        snd_play_sample(&beep);
+                        snd_play_sample(&beep_sfx);
                     }
                     update_altitude(&mut params, &universe);
                 }
@@ -3276,16 +3296,18 @@ async fn main() {
                 // time_ecm();
 
                 update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
+            } else {
+                audio::stop_sound(&danube);
             }
 
             if params.current_screen == SCR_BREAK_PATTERN {
                 for i in 1..20 {
                     for j in 0..i {
                         draw_circle_lines(
-                            128.0 * GFX_SCALE as f32,
-                            96.0 * GFX_SCALE as f32,
-                            ((30 + j * 15) * GFX_SCALE) as f32,
-                            THICKNESS * GFX_SCALE as f32,
+                            128.0 * GFX_SCALE,
+                            96.0 * GFX_SCALE,
+                            ((30.0 + j as f32 * 15.0) * GFX_SCALE),
+                            THICKNESS * GFX_SCALE,
                             WHITE,
                         );
                     }
@@ -3295,7 +3317,13 @@ async fn main() {
 
                 if params.docked {
                     // check_mission_brief();
-                    display_commander_status(&cmdr, &mut params, &universe);
+                    display_commander_status(
+                        &cmdr,
+                        &mut params,
+                        &universe,
+                        &font,
+                        &mut text_params,
+                    );
                     // update_console(&params, &ship_list, &ship_count, &universe, &cmdr);
                 } else {
                     params.current_screen = SCR_FRONT_VIEW;
@@ -3320,7 +3348,6 @@ async fn main() {
 
                 draw_cross(&params, params.old_cross_x, params.old_cross_y);
             }
-            draw_ship(&mut universe[0], &params, &config, &ship_list);
             thread::sleep(frame_duration);
             next_frame().await
         }
@@ -3433,6 +3460,7 @@ fn move_cross(params: &mut GameParams, dx: My, dy: My) {
 
 fn draw_cross(params: &GameParams, cx: My, cy: My) {
     if params.current_screen == SCR_SHORT_RANGE {
+        // crst
         // gfx_set_clip_region(1, 37, 510, 339);
         // xor_mode(TRUE);
         draw_line(
@@ -3451,12 +3479,14 @@ fn draw_cross(params: &GameParams, cx: My, cy: My) {
             THICKNESS,
             RED,
         );
+        // crst
         // xor_mode(FALSE);
         // gfx_set_clip_region(1, 1, 510, 383);
         return;
     }
 
     if params.current_screen == SCR_GALACTIC_CHART {
+        // crst
         // gfx_set_clip_region(1, 37, 510, 293);
         // xor_mode(TRUE);
         draw_line(
@@ -3475,6 +3505,7 @@ fn draw_cross(params: &GameParams, cx: My, cy: My) {
             THICKNESS,
             RED,
         );
+        // crst
         // xor_mode(FALSE);
         // gfx_set_clip_region(1, 1, 510, 383);
     }
@@ -3482,10 +3513,10 @@ fn draw_cross(params: &GameParams, cx: My, cy: My) {
 
 fn draw_laser_sights(params: &GameParams, cmdr: &Commander, font: &Font, text_params: &TextParams) {
     let mut laser: My = 0;
-    let mut x1: My;
-    let mut y1: My;
-    let mut x2: My;
-    let mut y2: My;
+    let mut x1: f32;
+    let mut y1: f32;
+    let mut x2: f32;
+    let mut y2: f32;
     let mut msg = "".to_string();
 
     match params.current_screen {
@@ -3508,7 +3539,7 @@ fn draw_laser_sights(params: &GameParams, cmdr: &Commander, font: &Font, text_pa
         _ => (),
     }
 
-    let msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE as f32).width;
+    let msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE).width;
     let msg_x_pos = (params.screen_width - msg_width) * 0.5;
     draw_text_ex(
         &msg,
@@ -3516,102 +3547,35 @@ fn draw_laser_sights(params: &GameParams, cmdr: &Commander, font: &Font, text_pa
         params.screen_height * 0.1,
         text_params.clone(),
     );
+
+    let seg_length = params.screen_height / 10.0 * (1.0 - SCANNER_Y_PROPORTION);
     if laser != 0 {
-        x1 = 128 * GFX_SCALE;
-        y1 = (96 - 8) * GFX_SCALE;
-        y2 = (96 - 16) * GFX_SCALE;
-
-        draw_line(
-            (x1 - 1) as f32,
-            y1 as f32,
-            (x1 - 1) as f32,
-            y2 as f32,
-            THICKNESS,
-            GRAY,
-        );
-        draw_line(x1 as f32, y1 as f32, x1 as f32, y2 as f32, THICKNESS, WHITE);
-        draw_line(
-            (x1 + 1) as f32,
-            y1 as f32,
-            (x1 + 1) as f32,
-            y2 as f32,
-            THICKNESS,
-            GRAY,
-        );
-
-        y1 = (96 + 8) * GFX_SCALE;
-        y2 = (96 + 16) * GFX_SCALE;
-
-        draw_line(
-            (x1 - 1) as f32,
-            y1 as f32,
-            (x1 - 1) as f32,
-            y2 as f32,
-            THICKNESS,
-            GRAY,
-        );
-        draw_line(x1 as f32, y1 as f32, x1 as f32, y2 as f32, THICKNESS, WHITE);
-        draw_line(
-            (x1 + 1) as f32,
-            y1 as f32,
-            (x1 + 1) as f32,
-            y2 as f32,
-            THICKNESS,
-            GRAY,
-        );
-
-        x1 = (128 - 8) * GFX_SCALE;
-        y1 = 96 * GFX_SCALE;
-        x2 = (128 - 16) * GFX_SCALE;
-
-        draw_line(
-            x1 as f32,
-            (y1 - 1) as f32,
-            x2 as f32,
-            (y1 - 1) as f32,
-            THICKNESS,
-            GRAY,
-        );
-        draw_line(x1 as f32, y1 as f32, x2 as f32, y1 as f32, THICKNESS, WHITE);
-        draw_line(
-            x1 as f32,
-            (y1 + 1) as f32,
-            x2 as f32,
-            (y1 + 1) as f32,
-            THICKNESS,
-            GRAY,
-        );
-
-        x1 = (128 + 8) * GFX_SCALE;
-        x2 = (128 + 16) * GFX_SCALE;
-
-        draw_line(
-            x1 as f32,
-            (y1 - 1) as f32,
-            x2 as f32,
-            (y1 - 1) as f32,
-            THICKNESS,
-            GRAY,
-        );
-        draw_line(x1 as f32, y1 as f32, x2 as f32, y1 as f32, THICKNESS, WHITE);
-        draw_line(
-            x1 as f32,
-            (y1 + 1) as f32,
-            x2 as f32,
-            (y1 + 1) as f32,
-            THICKNESS,
-            GRAY,
-        );
+        x1 = params.screen_width * 0.5;
+        y1 = params.row_y_pos * 0.5 - 1.5 * seg_length;
+        y2 = params.row_y_pos * 0.5 - 0.5 * seg_length;
+        draw_line(x1, y1, x1, y2, THICKNESS, WHITE);
+        y1 = params.row_y_pos * 0.5 + 1.5 * seg_length;
+        y2 = params.row_y_pos * 0.5 + 0.5 * seg_length;
+        draw_line(x1, y1, x1, y2, THICKNESS, WHITE);
+        y1 = params.row_y_pos * 0.5;
+        x1 = params.screen_width * 0.5 - 1.5 * seg_length;
+        x2 = params.screen_width * 0.5 - 0.5 * seg_length;
+        draw_line(x1, y1, x2, y1, THICKNESS, WHITE);
+        x1 = params.screen_width * 0.5 + 0.5 * seg_length;
+        x2 = params.screen_width * 0.5 + 1.5 * seg_length;
+        draw_line(x1, y1, x2, y1, THICKNESS, WHITE);
     }
 }
 
 fn arrow_right(params: &mut GameParams) {
     match params.current_screen {
         SCR_MARKET_PRICES => {
+            // crst
             // buy_stock();
         }
 
         SCR_SETTINGS => {
+            // crst
             // select_right_setting();
         }
 
@@ -3635,10 +3599,12 @@ fn arrow_right(params: &mut GameParams) {
 fn arrow_left(params: &mut GameParams) {
     match params.current_screen {
         SCR_MARKET_PRICES => {
+            // crst
             // sell_stock();
         }
 
         SCR_SETTINGS => {
+            // crst
             // select_left_setting();
         }
 
@@ -3662,18 +3628,22 @@ fn arrow_left(params: &mut GameParams) {
 fn arrow_up(params: &mut GameParams) {
     match params.current_screen {
         SCR_MARKET_PRICES => {
+            // crst
             // select_previous_stock();
         }
 
         SCR_EQUIP_SHIP => {
+            // crst
             // select_previous_equip();
         }
 
         SCR_OPTIONS => {
+            // crst
             // select_previous_option();
         }
 
         SCR_SETTINGS => {
+            // crst
             // select_up_setting();
         }
 
@@ -3696,18 +3666,22 @@ fn arrow_up(params: &mut GameParams) {
 fn arrow_down(params: &mut GameParams) {
     match params.current_screen {
         SCR_MARKET_PRICES => {
+            // crst
             // select_next_stock();
         }
 
         SCR_EQUIP_SHIP => {
+            // crst
             // select_next_equip();
         }
 
         SCR_OPTIONS => {
+            // crst
             // select_next_option();
         }
 
         SCR_SETTINGS => {
+            // crst
             // select_down_setting();
         }
 
@@ -3740,6 +3714,9 @@ fn handle_flight_keys(
     dock_sfx: &Sound,
     missile_sfx: &Sound,
     boop_sfx: &Sound,
+    danube: &Sound,
+    font: &Font,
+    text_params: &mut TextParams,
 ) {
     let mut keyasc;
 
@@ -3749,6 +3726,7 @@ fn handle_flight_keys(
             || (params.current_screen == SCR_SETTINGS)
             || (params.current_screen == SCR_EQUIP_SHIP))
     {
+        // crst
         // kbd_read_key();
     }
 
@@ -3829,6 +3807,7 @@ fn handle_flight_keys(
         params.find_input = false;
 
         if params.docked {
+            // crst
             // equip_ship();
         } else {
             if params.current_screen != SCR_RIGHT_VIEW {
@@ -3841,37 +3820,43 @@ fn handle_flight_keys(
     if is_key_down(KeyCode::F5) {
         params.find_input = false;
         params.old_cross_x = -1;
+        // crst
         // display_galactic_chart();
     }
 
     if is_key_down(KeyCode::F6) {
         params.find_input = false;
         params.old_cross_x = -1;
+        // crst
         // display_short_range_chart();
     }
 
     if is_key_down(KeyCode::F7) {
         params.find_input = false;
+        // crst
         // display_data_on_planet();
     }
 
     if is_key_down(KeyCode::F8) && (!params.witchspace) {
         params.find_input = false;
+        // crst
         // display_market_prices();
     }
 
     if is_key_down(KeyCode::F9) {
         params.find_input = false;
-        display_commander_status(cmdr, params, universe);
+        display_commander_status(cmdr, params, universe, font, text_params);
     }
 
     if is_key_down(KeyCode::F10) {
         params.find_input = false;
+        // crst
         // display_inventory();
     }
 
     if is_key_down(KeyCode::F11) {
         params.find_input = false;
+        // crst
         // display_options();
     }
 
@@ -3880,16 +3865,19 @@ fn handle_flight_keys(
 
         if is_key_down(KeyCode::Enter) {
             params.find_input = false;
+            // crst
             // find_planet_by_name (find_name);
             return;
         }
 
         if is_key_down(KeyCode::Backspace) {
+            // crst
             // delete_find_char();
             return;
         }
 
         if isalpha(keyasc) {
+            // crst
             // add_find_char (keyasc);
         }
         return;
@@ -3914,7 +3902,7 @@ fn handle_flight_keys(
             if config.instant_dock != 0 {
                 engage_docking_computer(params, ship_count, dock_sfx);
             } else {
-                engage_auto_pilot(params);
+                engage_auto_pilot(params, danube);
             }
         }
     }
@@ -3925,18 +3913,22 @@ fn handle_flight_keys(
 
     if is_key_down(ECM_KEY) {
         if !params.docked && cmdr.ecm != 0 {
+            // crst
             // activate_ecm(1);
         }
     }
 
     if is_key_down(FIND_KEY) {
+        // crst
         // f_pressed ();
     }
 
     if is_key_down(HYPERSPACE_KEY) && (!params.docked) {
         if is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::RightControl) {
+            // crst
             // start_galactic_hyperspace();
         } else {
+            // crst
             // start_hyperspace();
         }
     }
@@ -3952,6 +3944,7 @@ fn handle_flight_keys(
     }
 
     if is_key_down(KeyCode::O) {
+        // crst
         // o_pressed();
     }
 
@@ -4004,6 +3997,7 @@ fn handle_flight_keys(
     }
 
     if is_key_down(KeyCode::Enter) {
+        // crst
         // return_pressed();
     }
 
@@ -4016,6 +4010,7 @@ fn handle_flight_keys(
 
     if is_key_down(ENERGY_BOMB_KEY) {
         if (!params.docked) && (cmdr.escape_pod != 0) && (!params.witchspace) {
+            // crst
             // run_escape_sequence();
         }
     }
@@ -4046,6 +4041,7 @@ fn isalpha(keyasc: KeyCode) -> bool {
 pub fn info_message(message: String, params: &mut GameParams) {
     params.message_string = message;
     params.message_count = 37;
+    // crst
     //	snd_play_sample (SND_BEEP);
 }
 pub fn auto_dock(
@@ -4062,6 +4058,7 @@ pub fn auto_dock(
     ship.rotmat = START_MATRIX;
     ship.rotmat[2].z = 1.0;
     ship.rotmat[0].x = -1.0;
+    // crst
     // ship.da_type = -96;
     // **warning
     ship.da_type = 170;
@@ -4152,7 +4149,7 @@ pub fn auto_pilot_ship(
     if ((ship.flags & FLG_FLY_TO_PLANET) != 0
         || ((ship_count[SHIP_CORIOLIS as usize] == 0) && (ship_count[SHIP_DODEC as usize] == 0)))
     {
-        // fly_to_planet (ship);
+        fly_to_planet(ship, universe);
         return;
     }
 
@@ -4171,18 +4168,18 @@ pub fn auto_pilot_ship(
     let mut dir = vector_dot_product(&universe[1].rotmat[2], &vec);
 
     if (dir < 0.9722) {
-        // fly_to_station_front (ship);
+        fly_to_station_front(ship, universe);
         return;
     }
 
     dir = vector_dot_product(&ship.rotmat[2], &vec);
 
     if (dir < -0.9444) {
-        // fly_to_docking_bay (ship);
+        fly_to_docking_bay(ship, universe);
         return;
     }
 
-    // fly_to_station (ship);
+    fly_to_station(ship, universe);
 }
 fn run_first_intro_screen(
     universe: &mut [UnivObject],
@@ -4193,33 +4190,11 @@ fn run_first_intro_screen(
     config: &Config,
     text_params: &TextParams,
     font: &Font,
+    theme: &Sound,
 ) {
     params.current_screen = SCR_INTRO_ONE;
-
-    // snd_play_midi (SND_ELITE_THEME, TRUE);
-
+    snd_play_sample(theme);
     initialise_intro1(params, universe, ship_count, params.in_battle, ship_list);
-
-    //    loop	{
-    // 	update_intro1(universe,params,cmdr,ship_list,ship_count, config,text_params,font);
-
-    // 	// gfx_update_screen();
-
-    // 	// kbd_poll_keyboard();
-
-    // 	if is_key_down(KeyCode::Y)
-    // 	{
-    // 		// snd_stop_midi();
-    // 		// load_commander_screen();
-    // 		break;
-    // 	}
-
-    // 	if is_key_down(KeyCode::N)
-    // 	{
-    // 		// snd_stop_midi();
-    // 		break;
-    // 	}
-    // }
 }
 
 fn run_second_intro_screen(
@@ -4232,29 +4207,10 @@ fn run_second_intro_screen(
     cmdr: &mut Commander,
 ) {
     params.current_screen = SCR_INTRO_TWO;
-
-    // snd_play_midi (SND_BLUE_DANUBE, TRUE);
-
     initialise_intro2(da_stars, params, universe, ship_count, ship_list);
-
     params.flight_speed = 3;
     params.flight_roll = 0;
     params.flight_climb = 0;
-
-    // loop
-    // {
-    // 	update_intro2(universe, da_stars,params,ship_count,ship_list,cmdr,config);
-
-    // 	// gfx_update_screen();
-
-    // 	// kbd_poll_keyboard();
-
-    // 	if is_key_down(KeyCode::Space) {
-    // 		break;
-    // 	}
-    // }
-
-    // snd_stop_midi();
 }
 
 fn initialise_intro1(
@@ -4323,14 +4279,14 @@ fn update_intro1(
     dock_sfx: &Sound,
     incoming_1_sfx: &Sound,
     incoming_2_sfx: &Sound,
+    beep_sfx: &Sound,
+    enemy_sfx: &Sound,
 ) {
     universe[0].location.z -= 100.0;
 
-    if (universe[0].location.z < 384.0) {
-        universe[0].location.z = 384.0;
+    if (universe[0].location.z < 984.0) {
+        universe[0].location.z = 984.0;
     }
-
-    // gfx_clear_display();
 
     params.flight_roll = 1;
     update_universe(
@@ -4344,37 +4300,24 @@ fn update_intro1(
         dock_sfx,
         incoming_1_sfx,
         incoming_2_sfx,
+        beep_sfx,
+        enemy_sfx,
     );
 
     // gfx_draw_sprite(IMG_ELITE_TXT, -1, 10);
 
     let mut msg = "Original Game (C) I.Bell & D.Braben.";
-    let mut msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE as f32).width;
+    let mut msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
     let mut msg_x_pos = (params.screen_width - msg_width) * 0.5;
-    draw_text_ex(
-        &msg,
-        msg_x_pos,
-        110.0 * GFX_SCALE as f32,
-        text_params.clone(),
-    );
+    draw_text_ex(&msg, msg_x_pos, 110.0 * GFX_SCALE, text_params.clone());
     msg = "Re-engineered by C.J.Pinder.";
-    msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE as f32).width;
+    msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
     msg_x_pos = (params.screen_width - msg_width) * 0.5;
-    draw_text_ex(
-        &msg,
-        msg_x_pos,
-        130.0 * GFX_SCALE as f32,
-        text_params.clone(),
-    );
+    draw_text_ex(&msg, msg_x_pos, 130.0 * GFX_SCALE, text_params.clone());
     msg = "Load New Commander (Y/N)?";
-    msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE as f32).width;
+    msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
     msg_x_pos = (params.screen_width - msg_width) * 0.5;
-    draw_text_ex(
-        &msg,
-        msg_x_pos,
-        160.0 * GFX_SCALE as f32,
-        text_params.clone(),
-    );
+    draw_text_ex(&msg, msg_x_pos, 160.0 * GFX_SCALE, text_params.clone());
 }
 
 fn update_intro2(
@@ -4391,6 +4334,8 @@ fn update_intro2(
     dock_sfx: &Sound,
     incoming_1_sfx: &Sound,
     incoming_2_sfx: &Sound,
+    beep_sfx: &Sound,
+    enemy_sfx: &Sound,
 ) {
     let mut intro_ship_matrix = START_MATRIX;
     params.show_time += 1;
@@ -4406,14 +4351,9 @@ fn update_intro2(
     }
 
     if (universe[0].location.z > 4500.0) {
-        loop {
-            params.ship_no += 1;
-            if (params.ship_no as usize > NO_OF_SHIPS) {
-                params.ship_no = 1;
-            }
-            if (MIN_DIST[params.ship_no as usize] == 0.0) {
-                break;
-            }
+        params.ship_no += 1;
+        if (params.ship_no as usize > NO_OF_SHIPS) {
+            params.ship_no = 1;
         }
 
         params.show_time = 0;
@@ -4436,7 +4376,6 @@ fn update_intro2(
         );
     }
 
-    // gfx_clear_display();
     update_starfield(da_stars, params);
     update_universe(
         universe,
@@ -4449,70 +4388,19 @@ fn update_intro2(
         dock_sfx,
         incoming_1_sfx,
         incoming_2_sfx,
+        enemy_sfx,
+        beep_sfx,
     );
 
     // gfx_draw_sprite (IMG_ELITE_TXT, -1, 10);
     let mut msg = "Press Fire or Space, Commander.";
-    let mut msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE as f32).width;
+    let mut msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
     let mut msg_x_pos = (params.screen_width - msg_width) * 0.5;
-    draw_text_ex(
-        &msg,
-        msg_x_pos,
-        160.0 * GFX_SCALE as f32,
-        text_params.clone(),
-    );
+    draw_text_ex(&msg, msg_x_pos, 160.0 * GFX_SCALE, text_params.clone());
 
     let ship_name = ship_list[params.ship_no as usize].get_name();
     msg = &ship_name;
-    msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE as f32).width;
+    msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
     msg_x_pos = (params.screen_width - msg_width) * 0.5;
-    draw_text_ex(
-        &msg,
-        msg_x_pos,
-        130.0 * GFX_SCALE as f32,
-        text_params.clone(),
-    );
-    gfx_display_centre_text(
-        330,
-        &ship_list[params.ship_no as usize].get_name().clone(),
-        120.0,
-        WHITE,
-        params,
-    );
-}
-
-fn gfx_display_centre_text(y_pos: My, msg: &str, psize: f32, col: Color, params: &GameParams) {
-    // let font = load_ttf_font("./assets/Terminus.ttf").await.unwrap();
-    // let text_params = TextParams {
-    //     font: Some(&font),
-    //     font_size: 18,
-    //     font_scale: GFX_SCALE as f32,
-    //     font_scale_aspect: 1.0,
-    //     rotation: 0.0,
-    //     color: WHITE,
-    // };
-    // let msg_width = measure_text(&msg, Some(&font), 18, GFX_SCALE as f32).width;
-    // let msg_x_pos = (params.screen_width - msg_width) * 0.5;
-    // draw_text_ex(
-    //     &msg,
-    //     msg_x_pos,
-    //     params.screen_height * 0.1,
-    //     text_params.clone(),
-    // );
-    // 	int txt_size;
-    // 	int txt_colour;
-
-    // 	if (psize == 140)
-    // 	{
-    // 		txt_size = ELITE_2;
-    // 		txt_colour = -1;
-    // 	}
-    // 	else
-    // 	{
-    // 		txt_size = ELITE_1;
-    // 		txt_colour = col;
-    // 	}
-
-    // 	text_mode (-1);
-    // 	textout_centre (gfx_screen,  datafile[txt_size].dat, str, (128 * GFX_SCALE) + GFX_X_OFFSET, (y / (2 / GFX_SCALE)) + GFX_Y_OFFSET, txt_colour);
+    draw_text_ex(&msg, msg_x_pos, 130.0 * GFX_SCALE, text_params.clone());
 }

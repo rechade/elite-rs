@@ -49,8 +49,8 @@ pub fn create_new_stars(da_stars: &mut Stars, params: &GameParams) {
     let nstars = { if params.witchspace { 3 } else { 12 } };
 
     for i in 0..nstars {
-        da_stars.stars[i].x = ((rand255() - 128) | 8) as f32;
-        da_stars.stars[i].y = ((rand255() - 128) | 4) as f32;
+        da_stars.stars[i].x = rand::gen_range(0.0, params.screen_width);
+        da_stars.stars[i].y = rand::gen_range(0.0, params.screen_height);
         da_stars.stars[i].z = (rand255() | 0x90) as f32;
     }
     da_stars.warp_stars = false;
@@ -61,8 +61,8 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut xx: f32;
     let mut yy: f32;
     let mut zz: f32;
-    let mut sx: My;
-    let mut sy: My;
+    let mut sx: f32;
+    let mut sy: f32;
 
     let nstars = { if params.witchspace { 3 } else { 12 } };
 
@@ -80,15 +80,15 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
     for i in 0..nstars {
         /* Plot the stars in their current locations... */
 
-        sy = (da_stars.stars[i].y) as My;
-        sx = (da_stars.stars[i].x) as My;
+        sy = (da_stars.stars[i].y);
+        sx = (da_stars.stars[i].x);
         zz = da_stars.stars[i].z;
 
-        sx += 256; // create the centre_x and y.
-        sy += 96;
+        sx += params.screen_width * 0.5;
+        sy += params.screen_height * 0.5;
 
-        sx *= GFX_SCALE;
-        sy *= GFX_SCALE;
+        // sx *= GFX_SCALE;
+        // sy *= GFX_SCALE;
 
         if (!da_stars.warp_stars)
             && (GFX_VIEW_TX..=GFX_VIEW_BX).contains(&sx)
@@ -135,21 +135,22 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
 
         if da_stars.warp_stars {
             draw_line(
-                sx as f32,
-                sy as f32,
-                (xx + 128.0) * GFX_SCALE as f32,
-                (yy + 96.0) * GFX_SCALE as f32,
+                sx,
+                sy,
+                (xx + params.screen_width * 0.5) * GFX_SCALE,
+                (yy + params.screen_height * 0.5) * GFX_SCALE,
                 THICKNESS,
                 WHITE,
             );
         }
 
-        sx = xx as My;
-        sy = yy as My;
-
-        if !(-240..=240).contains(&sx) || !(-240..=240).contains(&sy) || (zz < 16.0) {
-            da_stars.stars[i].x = ((rand255() - 128) | 8) as f32;
-            da_stars.stars[i].y = ((rand255() - 128) | 4) as f32;
+        sx = xx;
+        sy = yy;
+        let half_w = params.screen_width * 0.5;
+        let half_h = params.screen_height * 0.5;
+        if !(-half_w..=half_w).contains(&sx) || !(-half_h..=half_h).contains(&sy) || (zz < 16.0) {
+            da_stars.stars[i].x = rand::gen_range(-half_w, half_w);
+            da_stars.stars[i].y = rand::gen_range(-half_h, half_h);
             da_stars.stars[i].z = (rand255() | 0x90) as f32;
             continue;
         }
@@ -163,10 +164,10 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut xx: f32;
     let mut yy: f32;
     let mut zz: f32;
-    let mut sx: My;
-    let mut sy: My;
-    let mut ex: My;
-    let mut ey: My;
+    let mut sx: f32;
+    let mut sy: f32;
+    let mut ex: f32;
+    let mut ey: f32;
 
     let nstars = { if params.witchspace { 3 } else { 12 } };
 
@@ -184,15 +185,15 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
     for i in 0..nstars {
         /* Plot the stars in their current locations... */
 
-        sy = da_stars.stars[i].y as My;
-        sx = da_stars.stars[i].x as My;
+        sy = da_stars.stars[i].y;
+        sx = da_stars.stars[i].x;
         zz = da_stars.stars[i].z;
 
-        sx += 128;
-        sy += 96;
+        sx += params.screen_width * 0.5;
+        sy += params.screen_height * 0.5;
 
-        sx *= GFX_SCALE;
-        sy *= GFX_SCALE;
+        // sx *= GFX_SCALE;
+        // sy *= GFX_SCALE;
 
         if (!da_stars.warp_stars)
             && (GFX_VIEW_TX..=GFX_VIEW_BX).contains(&sx)
@@ -235,10 +236,10 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
         yy += beta;
 
         if da_stars.warp_stars {
-            ey = yy as My;
-            ex = xx as My;
-            ex = (ex + 128) * GFX_SCALE;
-            ey = (ey + 96) * GFX_SCALE;
+            ey = yy;
+            ex = xx;
+            ex = (ex + 128.0) * GFX_SCALE;
+            ey = (ey + 96.0) * GFX_SCALE;
 
             if (GFX_VIEW_TX..=GFX_VIEW_BX).contains(&sx)
                 && (GFX_VIEW_TY..=GFX_VIEW_BY).contains(&sy)
@@ -306,11 +307,11 @@ fn side_starfield(da_stars: &mut Stars, params: &GameParams) {
         sx = da_stars.stars[i].x;
         zz = da_stars.stars[i].z;
 
-        sx += 128.0;
-        sy += 96.0;
+        sx += params.screen_width * 0.5;
+        sy += params.screen_height * 0.5;
 
-        sx *= GFX_SCALE as f32;
-        sy *= GFX_SCALE as f32;
+        // sx *= GFX_SCALE as f32;
+        // sy *= GFX_SCALE as f32;
 
         if (!da_stars.warp_stars)
             && (sx >= GFX_VIEW_TX as f32)

@@ -1,4 +1,4 @@
-use crate::{space::DaType, My};
+use crate::{My, space::DaType};
 
 pub const NO_OF_SHIPS: usize = 33;
 

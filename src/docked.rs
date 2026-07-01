@@ -1,7 +1,7 @@
 use macroquad::{
     color::{GOLD, GREEN, WHITE},
     shapes::draw_line,
-    text::draw_text,
+    text::{Font, TextParams, draw_text, draw_text_ex, measure_text},
 };
 
 use crate::{
@@ -20,11 +20,11 @@ struct Rank {
 
 const NO_OF_RANKS: usize = 9;
 
-const EQUIP_START_Y: My = 202;
-const EQUIP_START_X: My = 50;
-const EQUIP_MAX_Y: My = 290;
-const EQUIP_WIDTH: My = 200;
-const Y_INC: My = 16;
+const EQUIP_START_Y: f32 = 202.0;
+const EQUIP_START_X: f32 = 50.0;
+const EQUIP_MAX_Y: f32 = 290.0;
+const EQUIP_WIDTH: f32 = 200.0;
+const Y_INC: f32 = 16.0;
 
 const CONDITION_TXT: [&str; 4] = ["Docked", "Green", "Yellow", "Red"];
 fn laser_type(strength: My) -> String {
@@ -51,6 +51,8 @@ pub fn display_commander_status(
     cmdr: &Commander,
     params: &mut GameParams,
     universe: &[UnivObject],
+    font: &Font,
+    text_params: &mut TextParams,
 ) {
     let rating: [Rank; NO_OF_RANKS] = [
         Rank {
@@ -91,8 +93,8 @@ pub fn display_commander_status(
         },
     ];
     let mut planet_name: String = "".to_string(); //[16];
-    let mut x: My;
-    let mut y: My;
+    let mut x: f32;
+    let mut y: f32;
 
     let mut condition: usize;
     let mut da_type: DaType;
@@ -104,22 +106,32 @@ pub fn display_commander_status(
         da_str += &c.to_string();
     }
     da_str = da_str.trim_end().to_string();
+    let msg_width = measure_text(&da_str, Some(font), 12, GFX_SCALE).width;
+    let x_pos = (params.screen_width - msg_width) * 0.5;
+    let width_factor = params.screen_width / 324.0;
+    let height_factor = params.row_y_pos / 300.0;
+    let pointsize_factor = height_factor;
+    let mut clone_params = text_params.clone();
+    clone_params.font_size = (clone_params.font_size as f32 * pointsize_factor) as u16;
+    clone_params.color = GOLD;
 
-    draw_text(
-        da_str,
-        100.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
-        12.0 * GFX_SCALE as f32,
-        GOLD,
-    ); // should be centred
+    // text_params for measuring centred
+    draw_text_ex(da_str, x_pos, 10.0 * height_factor, clone_params);
 
-    draw_line(0.0, 36.0, 511.0, 36.0, THICKNESS, WHITE);
+    draw_line(
+        0.0,
+        36.0 * height_factor,
+        params.screen_width,
+        36.0 * height_factor,
+        THICKNESS,
+        WHITE,
+    );
 
     draw_text(
         "Present System:",
-        16.0 * GFX_SCALE as f32,
-        58.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        16.0 * width_factor,
+        58.0 * height_factor,
+        10.0 * pointsize_factor,
         GREEN,
     );
 
@@ -132,17 +144,17 @@ pub fn display_commander_status(
         capitalise_name(&mut planet_name);
         draw_text(
             planet_name,
-            128.0 * GFX_SCALE as f32,
-            58.0 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            128.0 * width_factor,
+            58.0 * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
     } else {
         draw_text(
             "Hyperspace System:",
-            16.0 * GFX_SCALE as f32,
-            74.0 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            16.0 * width_factor,
+            74.0 * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
         name_planet(
@@ -153,9 +165,9 @@ pub fn display_commander_status(
         capitalise_name(&mut planet_name);
         draw_text(
             planet_name,
-            128.0 * GFX_SCALE as f32,
-            58.0 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            128.0 * width_factor,
+            58.0 * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
     }
@@ -181,48 +193,48 @@ pub fn display_commander_status(
 
     draw_text(
         "Condition:",
-        16.0 * GFX_SCALE as f32,
-        90.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        16.0 * width_factor,
+        90.0 * height_factor,
+        10.0 * pointsize_factor,
         GREEN,
     );
     draw_text(
         CONDITION_TXT[condition],
-        128.0 * GFX_SCALE as f32,
-        90.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        128.0 * width_factor,
+        90.0 * height_factor,
+        10.0 * pointsize_factor,
         WHITE,
     );
 
     da_str = format!("{},{} Light Years", cmdr.fuel / 10, cmdr.fuel % 10);
     draw_text(
         "Fuel:",
-        16.0 * GFX_SCALE as f32,
-        106.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        16.0 * width_factor,
+        106.0 * height_factor,
+        10.0 * pointsize_factor,
         GREEN,
     );
     draw_text(
         da_str,
-        128.0 * GFX_SCALE as f32,
-        106.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        128.0 * width_factor,
+        106.0 * height_factor,
+        10.0 * pointsize_factor,
         WHITE,
     );
 
     da_str = format!("{}.{} Cr", cmdr.credits / 10, cmdr.credits % 10);
     draw_text(
         "Cash:",
-        16.0 * GFX_SCALE as f32,
-        122.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        16.0 * width_factor,
+        122.0 * height_factor,
+        10.0 * pointsize_factor,
         GREEN,
     );
     draw_text(
         da_str,
-        128.0 * GFX_SCALE as f32,
-        122.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        128.0 * width_factor,
+        122.0 * height_factor,
+        10.0 * pointsize_factor,
         WHITE,
     );
 
@@ -238,16 +250,16 @@ pub fn display_commander_status(
 
     draw_text(
         "Legal Status:",
-        16.0 * GFX_SCALE as f32,
-        138.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        16.0 * width_factor,
+        138.0 * height_factor,
+        10.0 * pointsize_factor,
         GREEN,
     );
     draw_text(
         da_str,
-        128.0 * GFX_SCALE as f32,
-        138.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        128.0 * width_factor,
+        138.0 * height_factor,
+        10.0 * pointsize_factor,
         WHITE,
     );
 
@@ -260,24 +272,24 @@ pub fn display_commander_status(
 
     draw_text(
         "Rating:",
-        16.0 * GFX_SCALE as f32,
-        154.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        16.0 * width_factor,
+        154.0 * height_factor,
+        10.0 * pointsize_factor,
         GREEN,
     );
     draw_text(
         da_str.clone(),
-        128.0 * GFX_SCALE as f32,
-        154.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        128.0 * width_factor,
+        154.0 * height_factor,
+        10.0 * pointsize_factor,
         WHITE,
     );
 
     draw_text(
         "EQUIPMENT:",
-        16.0 * GFX_SCALE as f32,
-        186.0 * GFX_SCALE as f32,
-        10.0 * GFX_SCALE as f32,
+        16.0 * width_factor,
+        186.0 * height_factor,
+        10.0 * pointsize_factor,
         GREEN,
     );
 
@@ -287,56 +299,56 @@ pub fn display_commander_status(
     if cmdr.cargo_capacity > 20 {
         draw_text(
             "Large Cargo Bay",
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
     }
 
     if cmdr.escape_pod != 0 {
         draw_text(
             "Escape Pod",
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
     }
 
     if cmdr.fuel_scoop != 0 {
         draw_text(
             "Fuel Scoops",
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
     }
 
     if cmdr.ecm != 0 {
         draw_text(
             "E.C.M. System",
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
     }
 
     if cmdr.energy_bomb != 0 {
         draw_text(
             "Energy Bomb",
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
     }
 
     if cmdr.energy_unit != 0 {
@@ -346,12 +358,12 @@ pub fn display_commander_status(
             } else {
                 "Naval Energy Unit"
             },
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
@@ -361,12 +373,12 @@ pub fn display_commander_status(
     if cmdr.docking_computer != 0 {
         draw_text(
             "Docking Computers",
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
@@ -376,12 +388,12 @@ pub fn display_commander_status(
     if cmdr.galactic_hyperdrive != 0 {
         draw_text(
             "Galactic Hyperspace",
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
@@ -392,12 +404,12 @@ pub fn display_commander_status(
         da_str = format!("Front {} Laser", laser_type(cmdr.front_laser));
         draw_text(
             da_str,
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
@@ -408,12 +420,12 @@ pub fn display_commander_status(
         da_str = format!("Rear {} Laser", laser_type(cmdr.rear_laser));
         draw_text(
             da_str,
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
@@ -424,12 +436,12 @@ pub fn display_commander_status(
         da_str = format!("Left {} Laser", laser_type(cmdr.left_laser));
         draw_text(
             da_str,
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
-        y += Y_INC * GFX_SCALE;
+        y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
             y = EQUIP_START_Y;
             x += EQUIP_WIDTH;
@@ -440,9 +452,9 @@ pub fn display_commander_status(
         da_str = format!("Right {} Laser", laser_type(cmdr.right_laser));
         draw_text(
             da_str,
-            x as f32 * GFX_SCALE as f32,
-            y as f32 * GFX_SCALE as f32,
-            10.0 * GFX_SCALE as f32,
+            x * width_factor,
+            y * height_factor,
+            10.0 * pointsize_factor,
             WHITE,
         );
     }

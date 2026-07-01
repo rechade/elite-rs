@@ -1,7 +1,9 @@
 use macroquad::{
     audio::{self, Sound},
-    color::WHITE,
+    color::{RED, WHITE},
+    prelude::rand,
     shapes::draw_line,
+    window::clear_background,
 };
 
 use crate::{
@@ -97,32 +99,32 @@ pub fn reset_weapons(params: &mut GameParams) {
 pub fn draw_laser_lines(params: &GameParams, config: &Config) {
     if config.wireframe != 0 {
         draw_line(
-            32.0 * GFX_SCALE as f32,
-            GFX_VIEW_BY as f32,
+            params.screen_width * 0.1,
+            params.row_y_pos,
             params.myship.laser_x as f32,
             params.myship.laser_y as f32,
             THICKNESS,
             WHITE,
         );
         draw_line(
-            48.0 * GFX_SCALE as f32,
-            GFX_VIEW_BY as f32,
+            params.screen_width * 0.2,
+            params.row_y_pos,
             params.myship.laser_x as f32,
             params.myship.laser_y as f32,
             THICKNESS,
             WHITE,
         );
         draw_line(
-            208.0 * GFX_SCALE as f32,
-            GFX_VIEW_BY as f32,
+            params.screen_width * 0.8,
+            params.row_y_pos,
             params.myship.laser_x as f32,
             params.myship.laser_y as f32,
             THICKNESS,
             WHITE,
         );
         draw_line(
-            224.0 * GFX_SCALE as f32,
-            GFX_VIEW_BY as f32,
+            params.screen_width * 0.9,
+            params.row_y_pos,
             params.myship.laser_x as f32,
             params.myship.laser_y as f32,
             THICKNESS,
@@ -172,6 +174,7 @@ pub fn fire_laser(params: &mut GameParams, cmdr: &mut Commander, pulse: &Sound) 
                 params.myship.laser & 0xFA
             };
             params.myship.laser &= 127;
+            // crst
             // params.myship.laser2 = params.myship.laser;
 
             snd_play_sample(pulse);
@@ -180,8 +183,10 @@ pub fn fire_laser(params: &mut GameParams, cmdr: &mut Commander, pulse: &Sound) 
                 params.energy -= 1;
             }
 
-            params.myship.laser_x = ((rand255() & 3) + 128 - 2) as My * GFX_SCALE as My;
-            params.myship.laser_y = ((rand255() & 3) + 96 - 2) as My * GFX_SCALE as My;
+            params.myship.laser_x = (rand::gen_range(0.0, params.screen_width * 0.05)
+                + params.screen_width * 0.475) as i32;
+            params.myship.laser_y = (rand::gen_range(0.0, params.screen_height * 0.05)
+                + params.row_y_pos * 0.475) as i32;
 
             return 2;
         }
@@ -207,7 +212,6 @@ pub fn cool_laser(params: &mut GameParams) {
 }
 pub fn snd_play_sample(sound: &Sound) {
     audio::play_sound_once(sound);
-    // println!("snd_play_sample()")
 }
 pub fn clear_universe(
     univ: &mut [UnivObject],
@@ -247,6 +251,7 @@ pub fn remove_ship(
 
     universe[un].da_type = 0;
 
+    // crst
     // check_missiles (un);
 
     if (da_type == SHIP_CORIOLIS) || (da_type == SHIP_DODEC) {
@@ -280,7 +285,7 @@ pub fn add_new_station(
             SHIP_CORIOLIS
         }
     };
-    // stations go in universe[1]
+    // stations always go in universe[1]
     universe[1].da_type = 0;
     add_new_ship(
         station, sx, sy, sz, rotmat, 0, -127, universe, ship_list, ship_count,
@@ -339,6 +344,7 @@ pub fn random_encounter(
     cmdr: &Commander,
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
 ) {
+    // crst
     create_thargoid(universe, ship_list, ship_count); //test
     create_cougar(ship_count, universe, ship_list);
     create_trader(ship_count, universe, ship_list);
@@ -361,8 +367,10 @@ pub fn random_encounter(
         return;
     }
 
+    // crst
     // check_for_asteroids();
 
+    // crst
     // check_for_cops();
 
     if ship_count[SHIP_VIPER as usize] != 0 {
@@ -377,6 +385,7 @@ pub fn random_encounter(
         create_thargoid(universe, ship_list, ship_count);
     }
 
+    // crst
     // check_for_others();
 }
 fn create_other_ship(
@@ -437,6 +446,7 @@ fn create_cougar(
 
     let newship = create_other_ship(SHIP_COUGAR, universe, ship_list, ship_count);
     if let Some(ship) = newship {
+        // crst
         universe[ship as usize].flags = FLG_HAS_ECM; // | FLG_CLOAKED;
         universe[ship as usize].bravery = 121;
         universe[ship as usize].velocity = 18;
@@ -464,6 +474,7 @@ fn create_trader(
             universe[ship as usize].flags |= FLG_HAS_ECM;
         }
 
+        // crst
         //		if (rnd & 2)
         //			universe[newship].flags |= FLG_ANGRY;
     }
@@ -601,10 +612,9 @@ pub fn fire_missile(
     let mut rotmat = START_MATRIX;
 
     // warning
-    // params.myship.missile_target %= MAX_UNIV_OBJECTS;
-    // if params.myship.missile_target < 0 {
-    //     return;
-    // }
+    if params.myship.missile_target < 0 {
+        return;
+    }
 
     rotmat[2].z = 1.0;
     rotmat[0].x = -1.0;
@@ -725,6 +735,7 @@ pub fn missile_tactics(
 
             if ((target.da_type != SHIP_CORIOLIS) && (target.da_type != SHIP_DODEC)) {
                 // explode_object(universe[un as usize].target);
+                // crst
             } else {
                 snd_play_sample(explode_sfx);
             }
@@ -733,6 +744,7 @@ pub fn missile_tactics(
 
         if ((rand255() < 16) && (target.flags & FLG_HAS_ECM) != 0) {
             // activate_ecm(0);
+            // crst
             return;
         }
     }
@@ -804,7 +816,7 @@ fn in_target(
         return false;
     }
 
-    size = ship_list[da_type as usize].size;
+    size = ship_list[da_type as usize].size * GFX_SCALE * 100.0;
 
     return ((x * x + y * y) <= size);
 }
@@ -842,6 +854,7 @@ fn explode_object(
     }
 
     // snd_play_sample (SND_EXPLODE);
+    // crst
     universe[un as usize].flags |= FLG_DEAD;
 
     if (universe[un as usize].da_type == SHIP_CONSTRICTOR) {
@@ -856,6 +869,8 @@ pub fn check_target(
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
     cmdr: &mut Commander,
     ship_count: &mut [My; NO_OF_SHIPS + 1],
+    enemy_sfx: &Sound,
+    beep_sfx: &Sound,
 ) {
     let mut univ = universe[un as usize];
 
@@ -872,11 +887,12 @@ pub fn check_target(
         {
             params.myship.missile_target = un;
             info_message("Target Locked".to_string(), params);
-            // snd_play_sample (SND_BEEP);
+            snd_play_sample(beep_sfx);
         }
 
         if (params.myship.laser != 0) {
-            // snd_play_sample (SND_HIT_ENEMY);
+            snd_play_sample(enemy_sfx);
+            clear_background(RED);
 
             if ((univ.da_type != SHIP_CORIOLIS) && (univ.da_type != SHIP_DODEC)) {
                 if ((univ.da_type == SHIP_CONSTRICTOR) || (univ.da_type == SHIP_COUGAR)) {

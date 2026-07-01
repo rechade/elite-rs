@@ -44,248 +44,167 @@ use crate::{
     space::{DaType, UnivObject, damage_ship},
     stars::rand255,
     swat::{launch_enemy, missile_tactics, snd_play_sample, track_object},
-    vector::{unit_vector, vector_dot_product},
+    vector::{START_VECTOR, Vector, unit_vector, vector_dot_product},
 };
-/*
-void fly_to_vector (struct UnivObject *ship, Vector vec)
-{
-    Vector nvec;
-    double direction;
-    double dir;
-    int rat;
-    double rat2;
-    double cnt2;
+pub fn fly_to_vector(ship: &mut UnivObject, vec: &Vector) {
+    let mut nvec: Vector = START_VECTOR;
+    let mut rat = 3;
+    let mut rat2 = 0.1666;
+    let mut cnt2 = 0.8055;
 
-    rat = 3;
-    rat2 = 0.1666;
-    cnt2 = 0.8055;
+    let nvec = unit_vector(&vec);
+    let mut direction = vector_dot_product(&nvec, &ship.rotmat[2]);
 
-    nvec = unit_vector(&vec);
-    direction = vector_dot_product (&nvec, &ship->rotmat[2]);
+    if (direction < -0.6666) {
+        rat2 = 0.0;
+    }
 
-    if (direction < -0.6666)
-        rat2 = 0;
+    let mut dir = vector_dot_product(&nvec, &ship.rotmat[1]);
 
-    dir = vector_dot_product (&nvec, &ship->rotmat[1]);
-
-    if (direction < -0.861)
-    {
-        ship->rotx = (dir < 0) ? 7 : -7;
-        ship->rotz = 0;
+    if (direction < -0.861) {
+        ship.rotx = if (dir < 0.0) { 7 } else { -7 };
+        ship.rotz = 0;
         return;
     }
 
-    ship->rotx = 0;
+    ship.rotx = 0;
 
-    if ((fabs(dir) * 2) >= rat2)
-    {
-        ship->rotx = (dir < 0) ? rat : -rat;
+    if (((dir).abs() * 2.0) >= rat2) {
+        ship.rotx = if (dir < 0.0) { rat } else { -rat };
     }
 
-    if (abs(ship->rotz) < 16)
-    {
-        dir = vector_dot_product (&nvec, &ship->rotmat[0]);
+    if ((ship.rotz).abs() < 16) {
+        dir = vector_dot_product(&nvec, &ship.rotmat[0]);
 
-        ship->rotz = 0;
+        ship.rotz = 0;
 
-        if ((fabs(dir) * 2) >= rat2)
-        {
-            ship->rotz = (dir < 0) ? rat : -rat;
+        if (((dir).abs() * 2.0) >= rat2) {
+            ship.rotz = if (dir < 0.0) { rat } else { -rat };
 
-            if (ship->rotx < 0)
-                ship->rotz = -ship->rotz;
+            if (ship.rotx < 0) {
+                ship.rotz = -ship.rotz;
+            }
         }
     }
 
-    if (direction <= -0.167)
-    {
-        ship->acceleration = -1;
+    if (direction <= -0.167) {
+        ship.acceleration = -1;
         return;
     }
 
-    if (direction >= cnt2)
-    {
-        ship->acceleration = 3;
+    if (direction >= cnt2) {
+        ship.acceleration = 3;
         return;
     }
 }
-
-
 
 /*
  * Fly towards the planet.
  */
 
-void fly_to_planet (struct UnivObject *ship)
-{
-    Vector vec;
+pub fn fly_to_planet(ship: &mut UnivObject, universe: &mut [UnivObject]) {
+    let mut vec: Vector = START_VECTOR;
 
-    vec.x = universe[0].location.x - ship->location.x;
-    vec.y = universe[0].location.y - ship->location.y;
-    vec.z = universe[0].location.z - ship->location.z;
+    vec.x = universe[0].location.x - ship.location.x;
+    vec.y = universe[0].location.y - ship.location.y;
+    vec.z = universe[0].location.z - ship.location.z;
 
-    fly_to_vector (ship, vec);
+    fly_to_vector(ship, &vec);
 }
-
 
 /*
  * Fly to a point in front of the station docking bay.
  * Done prior to the final stage of docking.
  */
 
+pub fn fly_to_station_front(ship: &mut UnivObject, universe: &mut [UnivObject]) {
+    let mut vec: Vector = START_VECTOR;
 
-void fly_to_station_front (struct UnivObject *ship)
-{
-    Vector vec;
+    vec.x = universe[1].location.x - ship.location.x;
+    vec.y = universe[1].location.y - ship.location.y;
+    vec.z = universe[1].location.z - ship.location.z;
 
-    vec.x = universe[1].location.x - ship->location.x;
-    vec.y = universe[1].location.y - ship->location.y;
-    vec.z = universe[1].location.z - ship->location.z;
+    vec.x += universe[1].rotmat[2].x * 768.0;
+    vec.y += universe[1].rotmat[2].y * 768.0;
+    vec.z += universe[1].rotmat[2].z * 768.0;
 
-    vec.x += universe[1].rotmat[2].x * 768;
-    vec.y += universe[1].rotmat[2].y * 768;
-    vec.z += universe[1].rotmat[2].z * 768;
-
-    fly_to_vector (ship, vec);
+    fly_to_vector(ship, &vec);
 }
-
 
 /*
  * Fly towards the space station.
  */
 
-void fly_to_station (struct UnivObject *ship)
-{
-    Vector vec;
+pub fn fly_to_station(ship: &mut UnivObject, universe: &mut [UnivObject]) {
+    let mut vec: Vector = START_VECTOR;
 
-    vec.x = universe[1].location.x - ship->location.x;
-    vec.y = universe[1].location.y - ship->location.y;
-    vec.z = universe[1].location.z - ship->location.z;
+    vec.x = universe[1].location.x - ship.location.x;
+    vec.y = universe[1].location.y - ship.location.y;
+    vec.z = universe[1].location.z - ship.location.z;
 
-    fly_to_vector (ship, vec);
+    fly_to_vector(ship, &vec);
 }
-
 
 /*
  * Final stage of docking.
  * Fly into the docking bay.
  */
 
-void fly_to_docking_bay (struct UnivObject *ship)
-{
-    Vector diff;
-    Vector vec;
-    double dir;
+pub fn fly_to_docking_bay(ship: &mut UnivObject, universe: &mut [UnivObject]) {
+    let mut diff: Vector = START_VECTOR;
 
-    diff.x = ship->location.x - universe[1].location.x;
-    diff.y = ship->location.y - universe[1].location.y;
-    diff.z = ship->location.z - universe[1].location.z;
+    diff.x = ship.location.x - universe[1].location.x;
+    diff.y = ship.location.y - universe[1].location.y;
+    diff.z = ship.location.z - universe[1].location.z;
 
-    vec = unit_vector (&diff);
+    let mut vec = unit_vector(&diff);
 
-    ship->rotx = 0;
+    ship.rotx = 0;
 
-    if (ship->type < 0)
-    {
-        ship->rotz = 1;
-        if (((vec.x >= 0) && (vec.y >= 0)) ||
-             ((vec.x < 0) && (vec.y < 0)))
-        {
-            ship->rotz = -ship->rotz;
+    if (ship.da_type < 0) {
+        ship.rotz = 1;
+        if (((vec.x >= 0.0) && (vec.y >= 0.0)) || ((vec.x < 0.0) && (vec.y < 0.0))) {
+            ship.rotz = -ship.rotz;
         }
 
-        if (fabs(vec.x) >= 0.0625)
-        {
-            ship->acceleration = 0;
-            ship->velocity = 1;
+        if ((vec.x).abs() >= 0.0625) {
+            ship.acceleration = 0;
+            ship.velocity = 1;
             return;
         }
 
-        if (fabs(vec.y) > 0.002436)
-            ship->rotx = (vec.y < 0) ? -1 : 1;
+        if ((vec.y).abs() > 0.002436) {
+            ship.rotx = if (vec.y < 0.0) { -1 } else { 1 };
+        }
 
-        if (fabs(vec.y) >= 0.0625)
-        {
-             ship->acceleration = 0;
-             ship->velocity = 1;
-             return;
+        if ((vec.y).abs() >= 0.0625) {
+            ship.acceleration = 0;
+            ship.velocity = 1;
+            return;
         }
     }
 
-    ship->rotz = 0;
+    ship.rotz = 0;
 
-    dir = vector_dot_product (&ship->rotmat[0], &universe[1].rotmat[1]);
+    let dir = vector_dot_product(&ship.rotmat[0], &universe[1].rotmat[1]);
 
-    if (fabs(dir) >= 0.9166)
-    {
-        ship->acceleration++;
-        ship->rotz = 127;
+    if ((dir).abs() >= 0.9166) {
+        ship.acceleration += 1;
+        ship.rotz = 127;
         return;
     }
 
-    ship->acceleration = 0;
-    ship->rotz = 0;
+    ship.acceleration = 0;
+    ship.rotz = 0;
 }
 
-/*
- * Fly a ship to the planet or to the space station and dock it.
- */
-
-fn auto_pilot_ship (struct UnivObject *ship)
-{
-    Vector diff;
-    Vector vec;
-    double dist;
-    double dir;
-
-    if ((ship->flags & FLG_FLY_TO_PLANET) ||
-        ((ship_count[SHIP_CORIOLIS] == 0) && (ship_count[SHIP_DODEC] == 0)))
-    {
-        fly_to_planet (ship);
-        return;
-    }
-
-    diff.x = ship->location.x - universe[1].location.x;
-    diff.y = ship->location.y - universe[1].location.y;
-    diff.z = ship->location.z - universe[1].location.z;
-
-    dist = sqrt (diff.x * diff.x + diff.y * diff.y + diff.z * diff.z);
-
-    if (dist < 160)
-    {
-        ship->flags |= FLG_REMOVE;		// Ship has docked.
-        return;
-    }
-
-    vec = unit_vector (&diff);
-    dir = vector_dot_product (&universe[1].rotmat[2], &vec);
-
-    if (dir < 0.9722)
-    {
-        fly_to_station_front (ship);
-        return;
-    }
-
-    dir = vector_dot_product (&ship->rotmat[2], &vec);
-
-    if (dir < -0.9444)
-    {
-        fly_to_docking_bay (ship);
-        return;
-    }
-
-    fly_to_station (ship);
-}
-
-*/
-
-pub fn engage_auto_pilot(params: &mut GameParams) {
+pub fn engage_auto_pilot(params: &mut GameParams, danube: &Sound) {
     if params.auto_pilot || params.witchspace || params.hyper_ready {
         return;
     }
 
     params.auto_pilot = true;
-    snd_play_midi(SND_BLUE_DANUBE, 1);
+    snd_play_sample(danube);
 }
 
 fn snd_play_midi(_da_midi: usize, _arg: i32) {

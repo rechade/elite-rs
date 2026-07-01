@@ -47,6 +47,7 @@ pub fn scoop_item(
     if (da_type == SHIP_MISSILE) {
         return;
     }
+    // crst
     // if ((cmdr.fuel_scoop == 0)
     //     || (universe[un].location.y >= 0.0)
     //     || (total_cargo() == cmdr.cargo_capacity))

@@ -13,27 +13,36 @@
  */
 
 use crate::{
-    planet::{find_planet, generate_planet_data, GalaxySeed},
+    GameParams, My,
+    planet::{GalaxySeed, find_planet, generate_planet_data},
     space::DaType,
     swat::MISSILE_UNARMED,
     trade::NO_OF_STOCK_ITEMS,
-    GameParams, My,
 };
 
 #[derive(Copy, Clone)]
 pub struct ShipPoint {
-    pub x: My,
-    pub y: My,
-    pub z: My,
-    pub dist: My,
-    pub face1: My,
-    pub face2: My,
-    pub face3: My,
-    pub face4: My,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+    pub dist: f32,
+    pub face1: usize,
+    pub face2: usize,
+    pub face3: usize,
+    pub face4: usize,
 }
 
 impl ShipPoint {
-    pub fn new(x: My, y: My, z: My, dist: My, face1: My, face2: My, face3: My, face4: My) -> Self {
+    pub fn new(
+        x: f32,
+        y: f32,
+        z: f32,
+        dist: f32,
+        face1: usize,
+        face2: usize,
+        face3: usize,
+        face4: usize,
+    ) -> Self {
         Self {
             x,
             y,
@@ -49,7 +58,7 @@ impl ShipPoint {
 
 #[derive(Copy, Clone)]
 pub struct ShipLine {
-    pub dist: My,
+    pub dist: i32,
     pub face1: usize,
     pub face2: usize,
     pub start_point: usize,
@@ -70,14 +79,14 @@ impl ShipLine {
 
 #[derive(Copy, Clone)]
 pub struct ShipFaceNormal {
-    pub dist: My,
-    pub x: My,
-    pub y: My,
-    pub z: My,
+    pub dist: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 
 impl ShipFaceNormal {
-    pub fn new(dist: My, x: My, y: My, z: My) -> Self {
+    pub fn new(dist: f32, x: f32, y: f32, z: f32) -> Self {
         Self { dist, x, y, z }
     }
 }
@@ -321,7 +330,7 @@ impl Commander {
         result.fuel_scoop = 0; /* Fuel Scoop		*/
         result.energy_bomb = 0; /* Energy Bomb		*/
         result.energy_unit = 0; /* Energy Unit		*/
-        result.docking_computer = 0; /* Docking Computer */
+        result.docking_computer = 1; /* Docking Computer */
         result.galactic_hyperdrive = 0; /* Galactic H'Drive	*/
         result.escape_pod = 0; /* Escape Pod		*/
         result.unused4 = 0;
