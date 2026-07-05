@@ -16,12 +16,14 @@ use crate::{
     planet::PlanetData,
     shipdata::{
         NO_OF_SHIPS, SHIP_ALLOY, SHIP_ASTEROID, SHIP_CARGO, SHIP_COBRA3, SHIP_COBRA3_LONE,
-        SHIP_CONSTRICTOR, SHIP_CORIOLIS, SHIP_COUGAR, SHIP_DODEC, SHIP_MISSILE, SHIP_PLANET,
-        SHIP_ROCK, SHIP_SUN, SHIP_THARGLET, SHIP_THARGOID, SHIP_VIPER,
+        SHIP_CONSTRICTOR, SHIP_CORIOLIS, SHIP_COUGAR, SHIP_DODEC, SHIP_HERMIT, SHIP_MISSILE,
+        SHIP_PLANET, SHIP_ROCK, SHIP_SIDEWINDER, SHIP_SUN, SHIP_THARGLET, SHIP_THARGOID,
+        SHIP_VIPER,
     },
     sound::{SND_BOOP, SND_EXPLODE, SND_MISSILE, SND_PULSE},
     space::{DaType, UnivObject, damage_ship},
     stars::{rand255, randint},
+    trade::carrying_contraband,
     vector::{Matrix, START_MATRIX, START_VECTOR, Vector, unit_vector, vector_dot_product},
 };
 
@@ -216,7 +218,7 @@ pub fn snd_play_sample(sound: &Sound) {
 pub fn clear_universe(
     univ: &mut [UnivObject],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
-    in_battle: &mut bool,
+    in_battle: &mut usize,
 ) {
     for obj in univ.iter_mut() {
         obj.da_type = 0;
@@ -226,20 +228,33 @@ pub fn clear_universe(
         *sh = 0;
     }
 
-    *in_battle = false;
+    *in_battle = 0;
+}
+fn check_missiles(un: DaType, params: &mut GameParams, universe: &mut [UnivObject]) {
+    if (params.myship.missile_target == un) {
+        params.myship.missile_target = MISSILE_UNARMED;
+        info_message("Target Lost".to_string(), params);
+    }
+
+    for i in 0..MAX_UNIV_OBJECTS {
+        if ((universe[i].da_type == SHIP_MISSILE) && (universe[i].target == un)) {
+            universe[i].flags |= FLG_DEAD;
+        }
+    }
 }
 pub fn remove_ship(
-    un: usize,
+    un: DaType,
     universe: &mut [UnivObject],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+    params: &mut GameParams,
 ) {
     let rotmat: Matrix = START_MATRIX;
     let px: My;
     let mut py: My;
     let pz: My;
 
-    let da_type = universe[un].da_type;
+    let da_type = universe[un as usize].da_type;
 
     if da_type == 0 {
         return;
@@ -249,15 +264,14 @@ pub fn remove_ship(
         ship_count[da_type as usize] -= 1;
     }
 
-    universe[un].da_type = 0;
+    universe[un as usize].da_type = 0;
 
-    // crst
-    // check_missiles (un);
+    check_missiles(un, params, universe);
 
     if (da_type == SHIP_CORIOLIS) || (da_type == SHIP_DODEC) {
-        px = universe[un].location.x as My;
-        py = universe[un].location.y as My;
-        pz = universe[un].location.z as My;
+        px = universe[un as usize].location.x as My;
+        py = universe[un as usize].location.y as My;
+        pz = universe[un as usize].location.z as My;
 
         py &= 0xFFFF;
         py |= 0x60000;
@@ -337,18 +351,165 @@ pub fn add_new_ship(
     }
     None
 }
+fn create_lone_hunter(
+    cmdr: &Commander,
+    params: &mut GameParams,
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    universe: &mut [UnivObject],
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+) {
+    let rnd;
+    let da_type;
+
+    if ((cmdr.mission == 1)
+        && (cmdr.galaxy_number == 1)
+        && (params.docked_planet.d == 144)
+        && (params.docked_planet.b == 33)
+        && (ship_count[SHIP_CONSTRICTOR as usize] == 0))
+    {
+        da_type = SHIP_CONSTRICTOR;
+    } else {
+        rnd = rand255();
+        // crst
+        da_type =
+            SHIP_COBRA3_LONE + (if rnd & 3 != 0 { 1 } else { 0 }) + (if rnd > 127 { 1 } else { 0 });
+    }
+
+    let newship = create_other_ship(da_type, universe, ship_list, ship_count);
+
+    if let Some(ship) = newship {
+        universe[ship as usize].flags = FLG_ANGRY;
+        if ((rand255() > 200) || (da_type == SHIP_CONSTRICTOR)) {
+            universe[ship as usize].flags |= FLG_HAS_ECM;
+        }
+
+        universe[ship as usize].bravery = ((rand255() * 2) | 64) & 127;
+        params.in_battle += 1;
+    }
+}
+/* Check for a random asteroid encounter... */
+
+fn check_for_asteroids(
+    universe: &mut [UnivObject],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+) {
+    let da_type;
+    if ((rand255() >= 35) || (ship_count[SHIP_ASTEROID as usize] >= 3)) {
+        return;
+    }
+
+    if (rand255() > 253) {
+        da_type = SHIP_HERMIT;
+    } else {
+        da_type = SHIP_ASTEROID;
+    }
+
+    let newship = create_other_ship(da_type, universe, ship_list, ship_count);
+
+    if let Some(ship) = newship {
+        // universe[newship].velocity = (rand255() & 31) | 16;
+        universe[ship as usize].velocity = 8;
+        universe[ship as usize].rotz = if rand255() > 127 { -127 } else { 127 };
+        universe[ship as usize].rotx = 16;
+    }
+}
+
+/* If we've been a bad boy then send the cops after us... */
+
+fn check_for_cops(
+    universe: &mut [UnivObject],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    cmdr: &Commander,
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+) {
+    let mut offense = carrying_contraband(cmdr) * 2;
+    if (ship_count[SHIP_VIPER as usize] == 0) {
+        offense |= cmdr.legal_status;
+    }
+
+    if (rand255() >= offense) {
+        return;
+    }
+
+    let newship = create_other_ship(SHIP_VIPER, universe, ship_list, ship_count);
+
+    if let Some(ship) = newship {
+        universe[ship as usize].flags = FLG_ANGRY;
+        if (rand255() > 245) {
+            universe[ship as usize].flags |= FLG_HAS_ECM;
+        }
+
+        universe[ship as usize].bravery = ((rand255() * 2) | 64) & 127;
+    }
+}
+
+fn check_for_others(
+    universe: &mut [UnivObject],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    params: &mut GameParams,
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+    cmdr: &Commander,
+) {
+    let mut rotmat: Matrix = START_MATRIX;
+    let mut da_type;
+    let mut newship;
+
+    let gov = params.current_planet_data.government as My;
+    let rnd = rand255();
+
+    if ((gov != 0) && ((rnd >= 90) || ((rnd & 7) < gov))) {
+        return;
+    }
+
+    if (rand255() < 100) {
+        create_lone_hunter(cmdr, params, ship_count, universe, ship_list);
+        return;
+    }
+
+    /* Pack hunters... */
+
+    let mut z = 12000.0;
+    let mut x = 1000.0 + { if (randint() & 8191 != 0) { 1.0 } else { 0.0 } };
+    let mut y = 1000.0 + { if (randint() & 8191 != 0) { 1.0 } else { 0.0 } };
+
+    if (rand255() > 127) {
+        x = -x;
+    }
+    if (rand255() > 127) {
+        y = -y;
+    }
+
+    let rnd = rand255() & 3;
+
+    for i in 0..rnd {
+        da_type = SHIP_SIDEWINDER
+            + (if (rand255() & rand255() & 7) != 0 {
+                1
+            } else {
+                0
+            });
+        newship = add_new_ship(
+            da_type, x, y, z, &rotmat, 0, 0, universe, ship_list, ship_count,
+        );
+        if let Some(ship) = newship {
+            universe[ship as usize].flags = FLG_ANGRY;
+            if (rand255() > 245) {
+                universe[ship as usize].flags |= FLG_HAS_ECM;
+            }
+
+            universe[ship as usize].bravery = ((rand255() * 2) | 64) & 127;
+            params.in_battle += 1;
+        }
+    }
+}
 pub fn random_encounter(
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     universe: &mut [UnivObject],
     params: &mut GameParams,
     cmdr: &Commander,
-    ship_list: &[ShipData; NO_OF_SHIPS + 1],
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
 ) {
-    // crst
-    create_thargoid(universe, ship_list, ship_count); //test
-    create_cougar(ship_count, universe, ship_list);
-    create_trader(ship_count, universe, ship_list);
-    lone_hunter(ship_count, universe, ship_list, cmdr, params);
     if (ship_count[SHIP_CORIOLIS as usize] != 0) || (ship_count[SHIP_DODEC as usize] != 0) {
         return;
     }
@@ -367,17 +528,15 @@ pub fn random_encounter(
         return;
     }
 
-    // crst
-    // check_for_asteroids();
+    check_for_asteroids(universe, ship_count, ship_list);
 
-    // crst
-    // check_for_cops();
+    check_for_cops(universe, ship_count, cmdr, ship_list);
 
     if ship_count[SHIP_VIPER as usize] != 0 {
         return;
     }
 
-    if params.in_battle {
+    if params.in_battle != 0 {
         return;
     }
 
@@ -385,8 +544,7 @@ pub fn random_encounter(
         create_thargoid(universe, ship_list, ship_count);
     }
 
-    // crst
-    // check_for_others();
+    check_for_others(universe, ship_count, params, ship_list, cmdr);
 }
 fn create_other_ship(
     da_type: DaType,
@@ -517,7 +675,7 @@ pub fn lone_hunter(
         }
 
         universe[ship as usize].bravery = ((rand255() * 2) | 64) & 127;
-        params.in_battle = true;
+        params.in_battle += 1;
     }
 }
 pub fn launch_enemy(

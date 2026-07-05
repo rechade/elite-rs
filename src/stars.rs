@@ -414,6 +414,28 @@ pub fn update_starfield(da_stars: &mut Stars, params: &GameParams) {
         side_starfield(da_stars, params);
     }
 }
+/*
+ * Generate a random number between 0 and 255.
+ * This is the version used in the 6502 Elites.
+ */
+
+pub fn gen_rnd_number(rnd_seed: &mut GalaxySeed) -> u8 {
+    // crst
+    let mut x = (rnd_seed.a * 2) & 0xFF;
+    let mut a = x + rnd_seed.c;
+    if (rnd_seed.a > 127) {
+        a += 1;
+    }
+    rnd_seed.a = a & 0xFF;
+    rnd_seed.c = x;
+
+    a = a / 255; /* a = any carry left from above */
+    x = rnd_seed.b;
+    a = (a + x + rnd_seed.d) & 0xFF;
+    rnd_seed.b = a;
+    rnd_seed.d = x;
+    a
+}
 pub fn rand255() -> My {
     rand::gen_range(0, 255)
 }

@@ -10,7 +10,10 @@ use macroquad::{
 use std::{thread, time};
 
 use crate::{
-    docked::display_commander_status,
+    docked::{
+        display_commander_status, display_data_on_planet, display_galactic_chart,
+        display_short_range_chart,
+    },
     elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW, *},
     gfx::GFX_SCALE,
     pilot::{
@@ -159,7 +162,7 @@ struct GameParams {
     finish: bool,
     game_over: bool,
     find_name: [char; 20],
-    in_battle: bool,
+    in_battle: usize,
     docked_planet: GalaxySeed,
     hyperspace_planet: GalaxySeed,
     destination_planet: GalaxySeed,
@@ -254,7 +257,7 @@ impl GameParams {
         finish: bool,
         game_over: bool,
         find_name: [char; 20],
-        in_battle: bool,
+        in_battle: usize,
         docked_planet: GalaxySeed,
         hyperspace_planet: GalaxySeed,
         current_planet_data: PlanetData,
@@ -377,7 +380,7 @@ impl GameParams {
             finish: false,
             game_over: false,
             find_name: ['b'; 20],
-            in_battle: false,
+            in_battle: 0,
             docked_planet: GalaxySeed::new(),
             hyperspace_planet: GalaxySeed::new(),
             current_planet_data: PlanetData::new(0, 0, 0, 0, 0, 0),
@@ -3160,6 +3163,24 @@ async fn main() {
                 &font,
                 &mut text_params,
             );
+            display_screens(
+                &mut params,
+                &config,
+                &mut cmdr,
+                &mut da_stars,
+                &mut universe,
+                &mut ship_count,
+                &mut ship_list,
+                &pulse_sfx,
+                &launch_sfx,
+                &dock_sfx,
+                &missile_sfx,
+                &boop_sfx,
+                &danube,
+                &font,
+                &mut text_params,
+            );
+            // dbg!(&params.current_screen);
             if params.game_paused {
                 continue;
             }
@@ -3256,6 +3277,7 @@ async fn main() {
                 if params.hyper_ready {
                     display_hyper_status(&mut params, &text_params, &font);
                     if (params.mcount & 3) == 0 {
+                        // crst
                         // countdown_hyperspace();
                     }
                 }
@@ -3288,11 +3310,12 @@ async fn main() {
                         &mut universe,
                         &mut params,
                         &cmdr,
-                        &ship_list,
+                        &mut ship_list,
                     );
                 }
 
                 cool_laser(&mut params);
+                // crst
                 // time_ecm();
 
                 update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
@@ -3304,8 +3327,8 @@ async fn main() {
                 for i in 1..20 {
                     for j in 0..i {
                         draw_circle_lines(
-                            128.0 * GFX_SCALE,
-                            96.0 * GFX_SCALE,
+                            0.5 * params.screen_width * GFX_SCALE,
+                            0.5 * params.screen_height * GFX_SCALE,
                             ((30.0 + j as f32 * 15.0) * GFX_SCALE),
                             THICKNESS * GFX_SCALE,
                             WHITE,
@@ -3316,6 +3339,7 @@ async fn main() {
                 }
 
                 if params.docked {
+                    // crst
                     // check_mission_brief();
                     display_commander_status(
                         &cmdr,
@@ -3334,10 +3358,12 @@ async fn main() {
             if params.cross_timer > 0 {
                 params.cross_timer -= 1;
                 if params.cross_timer == 0 {
+                    // crst
                     // show_distance_to_planet();
                 }
             }
 
+            // xyz
             if (params.cross_x != params.old_cross_x) || (params.cross_y != params.old_cross_y) {
                 if params.old_cross_x != -1 {
                     draw_cross(&params, params.old_cross_x, params.old_cross_y);
@@ -3353,6 +3379,7 @@ async fn main() {
         }
 
         if !params.finish {
+            // crst
             // run_game_over_screen();
         }
         thread::sleep(frame_duration);
@@ -3438,6 +3465,7 @@ fn move_cross(params: &mut GameParams, dx: My, dy: My) {
         return;
     }
 
+    // xyz
     if params.current_screen == SCR_GALACTIC_CHART {
         params.cross_x += dx * 2;
         params.cross_y += dy * 2;
@@ -3664,43 +3692,81 @@ fn arrow_up(params: &mut GameParams) {
 }
 
 fn arrow_down(params: &mut GameParams) {
-    match params.current_screen {
-        SCR_MARKET_PRICES => {
-            // crst
-            // select_next_stock();
+    if params.current_screen == SCR_MARKET_PRICES {
+        // crst
+        // select_next_stock();
+    } else if params.current_screen == SCR_EQUIP_SHIP {
+        // crst
+        // select_next_equip();
+    } else if params.current_screen == SCR_OPTIONS {
+        // crst
+        // select_next_option();
+    } else if params.current_screen == SCR_SETTINGS {
+        // crst
+        // select_down_setting();
+    } else if params.current_screen == SCR_SHORT_RANGE
+        || params.current_screen == SCR_GALACTIC_CHART
+    {
+        // xyz
+        move_cross(params, 0, 1);
+    } else if params.current_screen == SCR_FRONT_VIEW
+        || params.current_screen == SCR_REAR_VIEW
+        || params.current_screen == SCR_RIGHT_VIEW
+        || params.current_screen == SCR_LEFT_VIEW
+    {
+        if params.flight_climb < 0 {
+            params.flight_climb = 0;
+        } else {
+            params.increase_flight_climb();
         }
-
-        SCR_EQUIP_SHIP => {
-            // crst
-            // select_next_equip();
-        }
-
-        SCR_OPTIONS => {
-            // crst
-            // select_next_option();
-        }
-
-        SCR_SETTINGS => {
-            // crst
-            // select_down_setting();
-        }
-
-        SCR_SHORT_RANGE | SCR_GALACTIC_CHART => {
-            move_cross(params, 0, 1);
-        }
-
-        SCR_FRONT_VIEW | SCR_REAR_VIEW | SCR_RIGHT_VIEW | SCR_LEFT_VIEW => {
-            if params.flight_climb < 0 {
-                params.flight_climb = 0;
-            } else {
-                params.increase_flight_climb();
-            }
-            params.climbing = true;
-        }
-        _ => (),
+        params.climbing = true;
     }
 }
 
+fn display_screens(
+    params: &mut GameParams,
+    config: &Config,
+    cmdr: &mut Commander,
+    da_stars: &mut Stars,
+    universe: &mut [UnivObject],
+    ship_count: &mut [My; NO_OF_SHIPS + 1],
+    ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
+    pulse_sfx: &Sound,
+    launch_sfx: &Sound,
+    dock_sfx: &Sound,
+    missile_sfx: &Sound,
+    boop_sfx: &Sound,
+    danube: &Sound,
+    font: &Font,
+    text_params: &mut TextParams,
+) {
+    if params.current_screen == SCR_EQUIP_SHIP {
+        if params.docked {
+            // crst
+            // equip_ship();
+        }
+    } else if params.current_screen == SCR_GALACTIC_CHART {
+        // xyz move_cross?
+        display_galactic_chart(params, text_params, font, cmdr);
+    } else if params.current_screen == SCR_SHORT_RANGE {
+        // xyz move_cross?
+        display_short_range_chart(params, cmdr, text_params, font);
+    } else if params.current_screen == SCR_PLANET_DATA {
+        //crst
+        display_data_on_planet(params, text_params, font, cmdr, config);
+    } else if params.current_screen == SCR_MARKET_PRICES {
+        // crst
+        // display_market_prices();
+    } else if params.current_screen == SCR_CMDR_STATUS {
+        display_commander_status(cmdr, params, universe, font, text_params);
+    } else if params.current_screen == SCR_INVENTORY {
+        // crst
+        // display_inventory();
+    } else if params.current_screen == SCR_OPTIONS {
+        // crst
+        // display_options();
+    }
+}
 fn handle_flight_keys(
     params: &mut GameParams,
     config: &Config,
@@ -3807,8 +3873,7 @@ fn handle_flight_keys(
         params.find_input = false;
 
         if params.docked {
-            // crst
-            // equip_ship();
+            params.current_screen = SCR_EQUIP_SHIP;
         } else {
             if params.current_screen != SCR_RIGHT_VIEW {
                 params.current_screen = SCR_RIGHT_VIEW;
@@ -3820,44 +3885,38 @@ fn handle_flight_keys(
     if is_key_down(KeyCode::F5) {
         params.find_input = false;
         params.old_cross_x = -1;
-        // crst
-        // display_galactic_chart();
+        params.current_screen = SCR_GALACTIC_CHART;
     }
 
     if is_key_down(KeyCode::F6) {
         params.find_input = false;
         params.old_cross_x = -1;
-        // crst
-        // display_short_range_chart();
+        params.current_screen = SCR_SHORT_RANGE;
     }
 
     if is_key_down(KeyCode::F7) {
         params.find_input = false;
-        // crst
-        // display_data_on_planet();
+        params.current_screen = SCR_PLANET_DATA;
     }
 
     if is_key_down(KeyCode::F8) && (!params.witchspace) {
         params.find_input = false;
-        // crst
-        // display_market_prices();
+        params.current_screen = SCR_MARKET_PRICES;
     }
 
     if is_key_down(KeyCode::F9) {
         params.find_input = false;
-        display_commander_status(cmdr, params, universe, font, text_params);
+        params.current_screen = SCR_CMDR_STATUS;
     }
 
     if is_key_down(KeyCode::F10) {
+        params.current_screen = SCR_INVENTORY;
         params.find_input = false;
-        // crst
-        // display_inventory();
     }
 
     if is_key_down(KeyCode::F11) {
         params.find_input = false;
-        // crst
-        // display_options();
+        params.current_screen = SCR_OPTIONS;
     }
 
     if params.find_input {
@@ -4194,7 +4253,7 @@ fn run_first_intro_screen(
 ) {
     params.current_screen = SCR_INTRO_ONE;
     snd_play_sample(theme);
-    initialise_intro1(params, universe, ship_count, params.in_battle, ship_list);
+    initialise_intro1(params, universe, ship_count, ship_list);
 }
 
 fn run_second_intro_screen(
@@ -4217,7 +4276,6 @@ fn initialise_intro1(
     params: &mut GameParams,
     universe: &mut [UnivObject],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
-    in_battle: bool,
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
 ) {
     let mut intro_ship_matrix = START_MATRIX;

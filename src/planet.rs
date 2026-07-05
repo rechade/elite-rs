@@ -1,6 +1,11 @@
 use macroquad::prelude::rand;
 
-use crate::{GameParams, My, elite::Commander};
+use crate::{
+    Config, GameParams, My,
+    docked::DESC_LIST,
+    elite::Commander,
+    stars::{gen_rnd_number, rand255},
+};
 #[derive(Copy, Clone)]
 pub struct GalaxySeed {
     pub a: u8, /* 6c */
@@ -28,13 +33,142 @@ impl GalaxySeed {
     }
 }
 
+fn expand_description(
+    source: &str,
+    hyperspace_planet: &mut GalaxySeed,
+    carry_flag: &mut My,
+) -> String {
+    let mut processing = true;
+    let mut num: usize;
+    let mut start = 0;
+    let mut end = 0;
+    let mut rnd;
+    let mut option = 0;
+    let mut result = source.to_string();
+    let mut da_str = "".to_string();
+    while result.contains("<") && result.contains(">") {
+        for i in 0..result.len() {
+            if &result[i..i + 1] == "<" {
+                start = i;
+                break;
+            }
+        }
+        for j in 0..result.len() {
+            if &result[j..j + 1] == ">" {
+                end = j;
+                break;
+            }
+        }
+        num = result[start + 1..end].parse().unwrap();
+        // if (hoopy_casinos)
+        // crst
+        if (false) {
+            // option = gen_msx_rnd_number();
+        } else {
+            rnd = gen_rnd_number(&mut hyperspace_planet.clone());
+            option = 0;
+            if (rnd >= 0x33) {
+                option += 1
+            };
+            if (rnd >= 0x66) {
+                option += 1
+            };
+            if (rnd >= 0x99) {
+                option += 1
+            };
+            if (rnd >= 0xCC) {
+                option += 1
+            };
+        }
+        for n in start..=end {
+            result.remove(start);
+        }
+        result =
+            result[0..start].to_string() + DESC_LIST[num][option] + &result[start..].to_string();
+    }
+    while result.contains("%") {
+        for i in 0..result.len() {
+            if &result[i..i + 1] == "%" {
+                start = i;
+                break;
+            }
+        }
+        result.remove(start);
+        match &result[start..start + 1] {
+            "H" => {
+                result.remove(start);
+                name_planet(&mut da_str, &mut hyperspace_planet.clone(), carry_flag);
+                capitalise_name(&mut da_str);
+                result = result[0..start].to_string() + &da_str + &result[start..];
+            }
+            "I" => {
+                result.remove(start);
+                name_planet(&mut da_str, &mut hyperspace_planet.clone(), carry_flag);
+                capitalise_name(&mut da_str);
+                result = result[0..start].to_string() + &da_str + "ian" + &result[start..];
+            }
+            "R" => {
+                result.remove(start);
+                let len = gen_rnd_number(&mut hyperspace_planet.clone()) & 3;
+                for i in 0..len {
+                    let x = gen_rnd_number(&mut hyperspace_planet.clone()) & 0x3e;
+                    if (i == 0) {
+                        result = result + &DIGRAMS[x as usize..x as usize];
+                    } else {
+                        result = result + &DIGRAMS[x as usize..x as usize].to_ascii_lowercase();
+                    }
+                    result = result + &DIGRAMS[x as usize..x as usize].to_ascii_lowercase();
+                }
+            }
+            _ => (),
+        }
+    }
+    result = result.replace("  ", " ");
+    result
+}
+pub fn describe_planet(
+    planet: &mut GalaxySeed,
+    cmdr: &Commander,
+    config: &Config,
+    carry_flag: &mut My,
+) -> String {
+    let mut mission_text = "".to_string();
+    // crst
+    let mut rnd_seed: GalaxySeed = *planet;
+
+    if (cmdr.mission == 1) {
+        //crst
+        // mission_text = mission_planet_desc (planet);
+        // if (mission_text != NULL){
+        // 	return mission_text;
+        // }
+    }
+
+    let mut planet_description = "".to_string();
+    rnd_seed.a = planet.c;
+    rnd_seed.b = planet.d;
+    rnd_seed.c = planet.e;
+    rnd_seed.d = planet.f;
+
+    // crst
+    // if (config.hoopy_casinos != 0) {
+    //     rnd_seed.a ^= planet.a;
+    //     rnd_seed.b ^= planet.b;
+    //     rnd_seed.c ^= rnd_seed.a;
+    //     rnd_seed.d ^= rnd_seed.b;
+    // }
+
+    // desc_ptr = planet_description;
+
+    expand_description("<14> is <22>.", &mut rnd_seed, carry_flag)
+}
 pub struct PlanetData {
-    government: u8,
-    economy: u8,
+    pub government: u8,
+    pub economy: u8,
     pub techlevel: u8,
-    population: u8,
-    productivity: u8,
-    radius: My,
+    pub population: u8,
+    pub productivity: u8,
+    pub radius: My,
 }
 
 impl PlanetData {
@@ -117,7 +251,7 @@ pub fn find_planet(cx: My, cy: My, cmdr: &Commander, params: &mut GameParams) ->
 
     planet
 }
-fn waggle_galaxy(glx_ptr: &mut GalaxySeed, carry_flag: &mut My) {
+pub fn waggle_galaxy(glx_ptr: &mut GalaxySeed, carry_flag: &mut My) {
     let mut x: u16;
     let mut y: u16;
 

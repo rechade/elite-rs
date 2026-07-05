@@ -185,7 +185,7 @@ pub fn jump_warp(universe: &mut [UnivObject], params: &mut GameParams) {
 
     params.warp_stars = true;
     params.mcount &= 63;
-    params.in_battle = false;
+    params.in_battle = 0;
 }
 pub fn launch_player(
     params: &mut GameParams,
@@ -341,7 +341,7 @@ pub fn update_universe(
                     info_message(msg, params);
                 }
 
-                remove_ship(i, universe, ship_count, ship_list);
+                remove_ship(i as DaType, universe, ship_count, ship_list, params);
                 continue;
             }
 
@@ -411,7 +411,7 @@ pub fn update_universe(
             }
 
             if universe[i].distance > 57344 {
-                remove_ship(i, universe, ship_count, ship_list);
+                remove_ship(i as DaType, universe, ship_count, ship_list, params);
                 continue;
             }
 
@@ -1239,7 +1239,7 @@ pub fn start_hyperspace(params: &mut GameParams, cmdr: &Commander) {
     params.destination_planet = params.hyperspace_planet;
     name_planet(
         &mut params.hyper_name,
-        &mut params.destination_planet,
+        &mut params.destination_planet.clone(),
         &mut params.carry_flag,
     );
     capitalise_name(&mut params.hyper_name);

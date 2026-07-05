@@ -455,7 +455,7 @@ impl PlayerShip {
             laser_x: 0,
             laser_y: 0,
             ecm_active: false,
-            missile_target: MISSILE_UNARMED as DaType,
+            missile_target: MISSILE_UNARMED,
         }
     }
     fn _set(
