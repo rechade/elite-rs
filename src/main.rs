@@ -11,21 +11,18 @@ use std::{thread, time};
 
 use crate::{
     docked::{
-        display_commander_status, display_data_on_planet, display_galactic_chart,
-        display_short_range_chart,
+        display_commander_status, display_data_on_planet, display_galactic_chart, display_short_range_chart, move_cursor_to_origin, show_distance_to_planet
     },
     elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW, *},
-    gfx::GFX_SCALE,
+    gfx::{GFX_SCALE, GFX_X_CENTRE, GFX_Y_CENTRE},
     pilot::{
         engage_auto_pilot, fly_to_docking_bay, fly_to_planet, fly_to_station, fly_to_station_front,
     },
     planet::{GalaxySeed, PlanetData},
     shipdata::{NO_OF_SHIPS, SHIP_COBRA3, SHIP_CORIOLIS, SHIP_DODEC},
-    sound::SND_BEEP,
+    sound::{SND_BEEP, SND_BLUE_DANUBE, SND_ELITE_THEME},
     space::{
-        DaType, UnivObject, display_hyper_status, dock_player, engage_docking_computer, jump_warp,
-        launch_player, regenerate_shields, update_altitude, update_cabin_temp, update_console,
-        update_universe,
+        DaType, UnivObject, countdown_hyperspace, display_hyper_status, dock_player, engage_docking_computer, jump_warp, launch_player, regenerate_shields, start_galactic_hyperspace, start_hyperspace, update_altitude, update_cabin_temp, update_console, update_universe
     },
     stars::{Stars, create_new_stars, flip_stars, update_starfield},
     swat::{
@@ -41,6 +38,7 @@ const MIN_DIST: [f32; NO_OF_SHIPS + 1] = [
     800.0, 384.0, 384.0, 384.0, 384.0, 384.0, 200.0, 384.0, 384.0, 384.0, 0.0, 384.0, 0.0, 384.0,
     384.0, 700.0, 384.0, 0.0, 0.0, 900.0,
 ];
+
 pub(crate) mod docked;
 pub(crate) mod elite;
 pub(crate) mod gfx;
@@ -166,6 +164,7 @@ struct GameParams {
     docked_planet: GalaxySeed,
     hyperspace_planet: GalaxySeed,
     destination_planet: GalaxySeed,
+    dest_planet_string: String,
     current_planet_data: PlanetData,
     curr_galaxy_num: My,
     curr_fuel: My,
@@ -186,7 +185,7 @@ struct GameParams {
     show_time: My,
     ship_no: DaType,
     hyper_distance: My,
-    hyper_galactic: My,
+    hyper_galactic: bool,
     hyper_countdown: My,
     hyper_name: String,
 }
@@ -261,6 +260,7 @@ impl GameParams {
         docked_planet: GalaxySeed,
         hyperspace_planet: GalaxySeed,
         current_planet_data: PlanetData,
+        dest_planet_string: String,
         curr_galaxy_num: My,
         curr_fuel: My,
         carry_flag: My,
@@ -281,7 +281,7 @@ impl GameParams {
         ship_no: DaType,
         destination_planet: GalaxySeed,
         hyper_distance: My,
-        hyper_galactic: My,
+        hyper_galactic: bool,
         hyper_countdown: My,
         hyper_name: String,
     ) -> Self {
@@ -321,6 +321,7 @@ impl GameParams {
             docked_planet,
             hyperspace_planet,
             current_planet_data,
+            dest_planet_string,
             curr_galaxy_num,
             curr_fuel,
             carry_flag,
@@ -384,6 +385,7 @@ impl GameParams {
             docked_planet: GalaxySeed::new(),
             hyperspace_planet: GalaxySeed::new(),
             current_planet_data: PlanetData::new(0, 0, 0, 0, 0, 0),
+            dest_planet_string: "".to_string(),
             curr_galaxy_num: 1,
             curr_fuel: 70,
             carry_flag: 0,
@@ -404,15 +406,53 @@ impl GameParams {
             direction: 0.0,
             destination_planet: GalaxySeed::new(),
             hyper_distance: 0,
-            hyper_galactic: 0,
+            hyper_galactic: false,
             hyper_countdown: 0,
             hyper_name: "".to_string(),
         }
     }
 }
-
+const NUM_SAMPLES:usize = 16;
 #[macroquad::main("EliteRS")]
 async fn main() {
+    let font = load_ttf_font("./assets/Terminus.ttf").await.unwrap();
+    set_pc_assets_folder("assets");
+    let beep_sfx = audio::load_sound("beep.wav").await.unwrap();
+    let boop_sfx = audio::load_sound("boop.wav").await.unwrap();
+    let crash_sfx = audio::load_sound("crash.wav").await.unwrap();
+    let danube_sfx = audio::load_sound("danube.wav").await.unwrap();
+    let dock_sfx = audio::load_sound("dock.wav").await.unwrap();
+    let ecm_sfx = audio::load_sound("ecm.wav").await.unwrap();
+    let enemy_sfx = audio::load_sound("hitem.wav").await.unwrap();
+    let explode_sfx = audio::load_sound("explode.wav").await.unwrap();
+    let gameover_sfx = audio::load_sound("gameover.wav").await.unwrap();
+    let hitem_sfx = audio::load_sound("hitem.wav").await.unwrap();
+    let hyper_sfx = audio::load_sound("hyper.wav").await.unwrap();
+    let incom1_sfx = audio::load_sound("incom1.wav").await.unwrap();
+    let incom2_sfx = audio::load_sound("incom2.wav").await.unwrap();
+    let launch_sfx = audio::load_sound("launch.wav").await.unwrap();
+    let missile_sfx = audio::load_sound("missile.wav").await.unwrap();
+    let pulse_sfx = audio::load_sound("pulse.wav").await.unwrap();
+    let theme_sfx = audio::load_sound("theme.wav").await.unwrap();
+let sample_list:[Sound;NUM_SAMPLES] =
+[
+	launch_sfx,
+	crash_sfx,
+	dock_sfx,
+	gameover_sfx,
+	pulse_sfx,
+	hitem_sfx,
+	explode_sfx,
+	ecm_sfx,
+	missile_sfx,
+	hyper_sfx,
+	incom1_sfx,
+	incom2_sfx,
+	beep_sfx,
+	boop_sfx,
+	theme_sfx,
+	danube_sfx
+];
     let labels: Vec<&str> = vec![
         "FS", "SP", "AS", "RL", "FU", "DC", "CT", " 1", "LT", " 2", "AL", " 3", "MI", " 4",
     ];
@@ -1221,6 +1261,7 @@ async fn main() {
         lines: cobra3a_line,
         normals: cobra3a_face_normal,
     };
+
     let pythona_point: Vec<ShipPoint> = vec![
         ShipPoint::new(0.0, 0.0, 224.0, 31.0, 1, 0, 3, 2),
         ShipPoint::new(0.0, 48.0, 48.0, 31.0, 1, 0, 5, 4),
@@ -3009,6 +3050,7 @@ async fn main() {
         universe.push(UnivObject::new());
     }
     let frame_duration = time::Duration::from_millis(60);
+    let debug_duration = time::Duration::from_millis(60);
     let config: Config = Config::new();
     let mut cmdr = Commander::get_saved();
     let mut params: GameParams = GameParams::new();
@@ -3016,7 +3058,6 @@ async fn main() {
     // let overlay: Texture2D = load_texture("assets/scanner.png").await.unwrap();
     let mut message_width;
     let mut message_x_pos;
-    let font = load_ttf_font("./assets/Terminus.ttf").await.unwrap();
     let mut text_params = TextParams {
         font: Some(&font),
         font_size: 12,
@@ -3025,21 +3066,7 @@ async fn main() {
         rotation: 0.0,
         color: WHITE,
     };
-    set_pc_assets_folder("assets");
 
-    let beep_sfx = audio::load_sound("beep.wav").await.unwrap();
-    let boop_sfx = audio::load_sound("boop.wav").await.unwrap();
-    let pulse_sfx = audio::load_sound("pulse.wav").await.unwrap();
-    let launch_sfx = audio::load_sound("launch.wav").await.unwrap();
-    let ecm = audio::load_sound("ecm.wav").await.unwrap();
-    let missile_sfx = audio::load_sound("missile.wav").await.unwrap();
-    let explode_sfx = audio::load_sound("explode.wav").await.unwrap();
-    let dock_sfx = audio::load_sound("dock.wav").await.unwrap();
-    let incoming_1_sfx = audio::load_sound("incom1.wav").await.unwrap();
-    let incoming_2_sfx = audio::load_sound("incom2.wav").await.unwrap();
-    let enemy_sfx = audio::load_sound("hitem.wav").await.unwrap();
-    let danube = audio::load_sound("danube.wav").await.unwrap();
-    let theme = audio::load_sound("theme.wav").await.unwrap();
     while !params.finish {
         params.game_over = false;
         initialise_game(
@@ -3063,9 +3090,9 @@ async fn main() {
             &config,
             &text_params,
             &font,
-            &theme,
+            &sample_list,
         );
-        audio::play_sound_once(&theme);
+        audio::play_sound_once(&sample_list[SND_ELITE_THEME]);
         loop {
             params.update_screen_params(); // my macroquad admin stuff
             update_intro1(
@@ -3077,12 +3104,7 @@ async fn main() {
                 &config,
                 &text_params,
                 &font,
-                &explode_sfx,
-                &dock_sfx,
-                &incoming_1_sfx,
-                &incoming_2_sfx,
-                &beep_sfx,
-                &enemy_sfx,
+                &sample_list
             );
             update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
             if is_key_down(KeyCode::Y) {
@@ -3097,7 +3119,7 @@ async fn main() {
             thread::sleep(frame_duration);
             next_frame().await;
         }
-        audio::stop_sound(&theme);
+        audio::stop_sound(&sample_list[SND_ELITE_THEME]);
         run_second_intro_screen(
             &mut da_stars,
             &mut params,
@@ -3107,7 +3129,7 @@ async fn main() {
             &config,
             &mut cmdr,
         );
-        audio::play_sound_once(&danube);
+        audio::play_sound_once(&sample_list[SND_BLUE_DANUBE]);
         loop {
             params.update_screen_params();
             update_intro2(
@@ -3120,12 +3142,7 @@ async fn main() {
                 &config,
                 &text_params,
                 &font,
-                &explode_sfx,
-                &dock_sfx,
-                &incoming_1_sfx,
-                &incoming_2_sfx,
-                &beep_sfx,
-                &enemy_sfx,
+                &sample_list
             );
             update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
             if is_key_down(KeyCode::Space) {
@@ -3134,7 +3151,7 @@ async fn main() {
             thread::sleep(frame_duration);
             next_frame().await;
         }
-        audio::stop_sound(&danube);
+        audio::stop_sound(&sample_list[SND_BLUE_DANUBE]);
         params.old_cross_x = -1;
         params.old_cross_y = -1;
 
@@ -3154,12 +3171,7 @@ async fn main() {
                 &mut universe,
                 &mut ship_count,
                 &mut ship_list,
-                &pulse_sfx,
-                &launch_sfx,
-                &dock_sfx,
-                &missile_sfx,
-                &boop_sfx,
-                &danube,
+                &sample_list,
                 &font,
                 &mut text_params,
             );
@@ -3171,16 +3183,10 @@ async fn main() {
                 &mut universe,
                 &mut ship_count,
                 &mut ship_list,
-                &pulse_sfx,
-                &launch_sfx,
-                &dock_sfx,
-                &missile_sfx,
-                &boop_sfx,
-                &danube,
+                &sample_list,
                 &font,
                 &mut text_params,
             );
-            // dbg!(&params.current_screen);
             if params.game_paused {
                 continue;
             }
@@ -3226,7 +3232,7 @@ async fn main() {
                 if params.auto_pilot {
                     auto_dock(&mut params, &ship_count, &mut universe);
                     if (params.mcount & 127) == 0 {
-                        info_message("Docking Computers On".to_string(), &mut params);
+                        info_message("Docking Computers On".to_string(), &mut params,&sample_list);
                     }
                 }
 
@@ -3237,12 +3243,7 @@ async fn main() {
                     &mut params,
                     &mut ship_count,
                     &config,
-                    &explode_sfx,
-                    &dock_sfx,
-                    &incoming_1_sfx,
-                    &incoming_2_sfx,
-                    &enemy_sfx,
-                    &beep_sfx,
+                    &sample_list,
                 );
 
                 // if params.docked {
@@ -3277,8 +3278,7 @@ async fn main() {
                 if params.hyper_ready {
                     display_hyper_status(&mut params, &text_params, &font);
                     if (params.mcount & 3) == 0 {
-                        // crst
-                        // countdown_hyperspace();
+                        countdown_hyperspace(&mut params,&mut cmdr,&mut da_stars, &mut universe,&mut ship_count,&mut ship_list, &sample_list);
                     }
                 }
 
@@ -3294,14 +3294,14 @@ async fn main() {
 
                 if (params.mcount & 31) == 10 {
                     if params.energy < 50 {
-                        info_message("ENERGY LOW".to_string(), &mut params);
-                        snd_play_sample(&beep_sfx);
+                        info_message("ENERGY LOW".to_string(), &mut params,&sample_list);
+                        snd_play_sample(&sample_list,SND_BEEP);
                     }
                     update_altitude(&mut params, &universe);
                 }
 
                 if (params.mcount & 31) == 20 {
-                    update_cabin_temp(&mut params, &universe, &mut ship_count, &mut cmdr);
+                    update_cabin_temp(&mut params, &universe, &mut ship_count, &mut cmdr,&sample_list);
                 }
 
                 if (params.mcount == 0) && (!params.witchspace) {
@@ -3320,16 +3320,16 @@ async fn main() {
 
                 update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
             } else {
-                audio::stop_sound(&danube);
+                audio::stop_sound(&sample_list[SND_BLUE_DANUBE]);
             }
 
             if params.current_screen == SCR_BREAK_PATTERN {
-                for i in 1..20 {
+                for i in 1..12 {
                     for j in 0..i {
                         draw_circle_lines(
                             0.5 * params.screen_width * GFX_SCALE,
                             0.5 * params.screen_height * GFX_SCALE,
-                            ((30.0 + j as f32 * 15.0) * GFX_SCALE),
+                            ((70.0 + j as f32 * 35.0) * GFX_SCALE),
                             THICKNESS * GFX_SCALE,
                             WHITE,
                         );
@@ -3358,28 +3358,27 @@ async fn main() {
             if params.cross_timer > 0 {
                 params.cross_timer -= 1;
                 if params.cross_timer == 0 {
-                    // crst
-                    // show_distance_to_planet();
+                    show_distance_to_planet(&mut params, &text_params,&font, &mut cmdr);
                 }
             }
+            show_distance_to_planet(&mut params, &text_params,&font, &mut cmdr);
 
             // xyz
-            if (params.cross_x != params.old_cross_x) || (params.cross_y != params.old_cross_y) {
-                if params.old_cross_x != -1 {
-                    draw_cross(&params, params.old_cross_x, params.old_cross_y);
-                }
+            // if (params.cross_x != params.old_cross_x) || (params.cross_y != params.old_cross_y) {
+            //     if params.old_cross_x != -1 {
+            //         draw_cross(&params, params.old_cross_x, params.old_cross_y);
+            //     }
 
-                params.old_cross_x = params.cross_x;
-                params.old_cross_y = params.cross_y;
+            //     params.old_cross_x = params.cross_x;
+            //     params.old_cross_y = params.cross_y;
 
-                draw_cross(&params, params.old_cross_x, params.old_cross_y);
-            }
-            thread::sleep(frame_duration);
+            //     draw_cross(&params, params.old_cross_x, params.old_cross_y);
+            // }
+            thread::sleep(debug_duration);
             next_frame().await
         }
 
         if !params.finish {
-            // crst
             // run_game_over_screen();
         }
         thread::sleep(frame_duration);
@@ -3458,26 +3457,21 @@ fn finish_game(params: &mut GameParams) {
 
 fn move_cross(params: &mut GameParams, dx: My, dy: My) {
     params.cross_timer = 5;
-
     if params.current_screen == SCR_SHORT_RANGE {
         params.cross_x += dx * 4;
         params.cross_y += dy * 4;
         return;
     }
-
     // xyz
     if params.current_screen == SCR_GALACTIC_CHART {
         params.cross_x += dx * 2;
         params.cross_y += dy * 2;
-
         if params.cross_x < 1 {
             params.cross_x = 1;
         }
-
         if params.cross_x > 510 {
             params.cross_x = 510;
         }
-
         params.cross_y = params.cross_y.clamp(37, 293);
     }
 }
@@ -3512,7 +3506,6 @@ fn draw_cross(params: &GameParams, cx: My, cy: My) {
         // gfx_set_clip_region(1, 1, 510, 383);
         return;
     }
-
     if params.current_screen == SCR_GALACTIC_CHART {
         // crst
         // gfx_set_clip_region(1, 37, 510, 293);
@@ -3731,12 +3724,7 @@ fn display_screens(
     universe: &mut [UnivObject],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
-    pulse_sfx: &Sound,
-    launch_sfx: &Sound,
-    dock_sfx: &Sound,
-    missile_sfx: &Sound,
-    boop_sfx: &Sound,
-    danube: &Sound,
+    sample_list: &[Sound],
     font: &Font,
     text_params: &mut TextParams,
 ) {
@@ -3748,9 +3736,11 @@ fn display_screens(
     } else if params.current_screen == SCR_GALACTIC_CHART {
         // xyz move_cross?
         display_galactic_chart(params, text_params, font, cmdr);
+        draw_cross(&params, params.cross_x, params.cross_y);
     } else if params.current_screen == SCR_SHORT_RANGE {
         // xyz move_cross?
         display_short_range_chart(params, cmdr, text_params, font);
+        draw_cross(&params, params.cross_x, params.cross_y);
     } else if params.current_screen == SCR_PLANET_DATA {
         //crst
         display_data_on_planet(params, text_params, font, cmdr, config);
@@ -3775,12 +3765,7 @@ fn handle_flight_keys(
     universe: &mut [UnivObject],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
-    pulse_sfx: &Sound,
-    launch_sfx: &Sound,
-    dock_sfx: &Sound,
-    missile_sfx: &Sound,
-    boop_sfx: &Sound,
-    danube: &Sound,
+    sample_list: &[Sound],
     font: &Font,
     text_params: &mut TextParams,
 ) {
@@ -3837,7 +3822,7 @@ fn handle_flight_keys(
 
         if params.docked {
             launch_player(
-                params, cmdr, da_stars, universe, ship_count, ship_list, launch_sfx,
+                params, cmdr, da_stars, universe, ship_count, ship_list, sample_list,
             );
         } else {
             if params.current_screen != SCR_FRONT_VIEW {
@@ -3886,12 +3871,23 @@ fn handle_flight_keys(
         params.find_input = false;
         params.old_cross_x = -1;
         params.current_screen = SCR_GALACTIC_CHART;
+        params.hyperspace_planet = params.docked_planet;
+        // params.cross_x = (params.hyperspace_planet.d as f32 * GFX_SCALE) as My;
+        // params.cross_y =
+        //     ((params.hyperspace_planet.b as f32 / (2.0 / GFX_SCALE)) + (18.0 * GFX_SCALE) + 1.0) as My;
     }
 
     if is_key_down(KeyCode::F6) {
         params.find_input = false;
         params.old_cross_x = -1;
         params.current_screen = SCR_SHORT_RANGE;
+        params.hyperspace_planet = params.docked_planet;
+        // params.cross_x =
+        //     (((params.hyperspace_planet.d as f32 - params.docked_planet.d as f32) * 1.0 * GFX_SCALE)
+        //          ) as My;
+        // params.cross_y =
+        //     (((params.hyperspace_planet.b as f32 - params.docked_planet.b as f32) * 0.5 * GFX_SCALE)
+        //         ) as My;
     }
 
     if is_key_down(KeyCode::F7) {
@@ -3952,16 +3948,16 @@ fn handle_flight_keys(
 
     if is_key_down(FIRE_KEY) {
         if (!params.docked) && (params.draw_lasers == 0) {
-            params.draw_lasers = fire_laser(params, cmdr, pulse_sfx);
+            params.draw_lasers = fire_laser(params, cmdr, sample_list);
         }
     }
 
     if is_key_down(DOCK_KEY) {
         if !params.docked && cmdr.docking_computer != 0 {
             if config.instant_dock != 0 {
-                engage_docking_computer(params, ship_count, dock_sfx);
+                engage_docking_computer(params, ship_count, sample_list);
             } else {
-                engage_auto_pilot(params, danube);
+                engage_auto_pilot(params, sample_list);
             }
         }
     }
@@ -3984,27 +3980,24 @@ fn handle_flight_keys(
 
     if is_key_down(HYPERSPACE_KEY) && (!params.docked) {
         if is_key_down(KeyCode::LeftControl) || is_key_down(KeyCode::RightControl) {
-            // crst
-            // start_galactic_hyperspace();
+            start_galactic_hyperspace(params,cmdr);
         } else {
-            // crst
-            // start_hyperspace();
+            start_hyperspace(params,cmdr);
         }
     }
 
     if is_key_down(JUMP_KEY) && (!params.docked) && (!params.witchspace) {
-        jump_warp(universe, params);
+        jump_warp(universe, params,sample_list);
     }
 
     if is_key_down(FIRE_MISSILE_KEY) {
         if !params.docked {
-            fire_missile(universe, params, cmdr, ship_list, ship_count, missile_sfx);
+            fire_missile(universe, params, cmdr, ship_list, ship_count, sample_list);
         }
     }
 
     if is_key_down(KeyCode::O) {
-        // crst
-        // o_pressed();
+        o_pressed(params);
     }
 
     if is_key_down(PAUSE_KEY) {
@@ -4019,7 +4012,7 @@ fn handle_flight_keys(
 
     if is_key_down(UNARM_MISSILE_KEY) {
         if !params.docked {
-            unarm_missile(params, boop_sfx);
+            unarm_missile(params, sample_list);
         }
     }
 
@@ -4097,11 +4090,10 @@ fn isalpha(keyasc: KeyCode) -> bool {
     false
 }
 
-pub fn info_message(message: String, params: &mut GameParams) {
+pub fn info_message(message: String, params: &mut GameParams,sample_list: &[Sound]) {
     params.message_string = message;
     params.message_count = 37;
-    // crst
-    //	snd_play_sample (SND_BEEP);
+	snd_play_sample (sample_list,SND_BEEP);
 }
 pub fn auto_dock(
     params: &mut GameParams,
@@ -4249,10 +4241,10 @@ fn run_first_intro_screen(
     config: &Config,
     text_params: &TextParams,
     font: &Font,
-    theme: &Sound,
+    sample_list: &[Sound],
 ) {
     params.current_screen = SCR_INTRO_ONE;
-    snd_play_sample(theme);
+    snd_play_sample(sample_list,SND_ELITE_THEME);
     initialise_intro1(params, universe, ship_count, ship_list);
 }
 
@@ -4333,12 +4325,7 @@ fn update_intro1(
     config: &Config,
     text_params: &TextParams,
     font: &Font,
-    explode_sfx: &Sound,
-    dock_sfx: &Sound,
-    incoming_1_sfx: &Sound,
-    incoming_2_sfx: &Sound,
-    beep_sfx: &Sound,
-    enemy_sfx: &Sound,
+    sample_list:&[Sound]
 ) {
     universe[0].location.z -= 100.0;
 
@@ -4354,12 +4341,7 @@ fn update_intro1(
         params,
         ship_count,
         config,
-        explode_sfx,
-        dock_sfx,
-        incoming_1_sfx,
-        incoming_2_sfx,
-        beep_sfx,
-        enemy_sfx,
+        sample_list
     );
 
     // gfx_draw_sprite(IMG_ELITE_TXT, -1, 10);
@@ -4388,12 +4370,7 @@ fn update_intro2(
     config: &Config,
     text_params: &TextParams,
     font: &Font,
-    explode_sfx: &Sound,
-    dock_sfx: &Sound,
-    incoming_1_sfx: &Sound,
-    incoming_2_sfx: &Sound,
-    beep_sfx: &Sound,
-    enemy_sfx: &Sound,
+    sample_list: &[Sound],
 ) {
     let mut intro_ship_matrix = START_MATRIX;
     params.show_time += 1;
@@ -4442,12 +4419,7 @@ fn update_intro2(
         params,
         ship_count,
         config,
-        explode_sfx,
-        dock_sfx,
-        incoming_1_sfx,
-        incoming_2_sfx,
-        enemy_sfx,
-        beep_sfx,
+        sample_list
     );
 
     // gfx_draw_sprite (IMG_ELITE_TXT, -1, 10);
@@ -4461,4 +4433,11 @@ fn update_intro2(
     msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
     msg_x_pos = (params.screen_width - msg_width) * 0.5;
     draw_text_ex(&msg, msg_x_pos, 130.0 * GFX_SCALE, text_params.clone());
+}
+fn o_pressed(params:&mut GameParams)
+{
+	if params.current_screen == SCR_GALACTIC_CHART
+	|| params.current_screen == SCR_SHORT_RANGE{
+		move_cursor_to_origin(params);
+	}
 }

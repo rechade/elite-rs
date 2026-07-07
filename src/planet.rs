@@ -1,12 +1,12 @@
 use macroquad::prelude::rand;
 
 use crate::{
-    Config, GameParams, My,
     docked::DESC_LIST,
     elite::Commander,
     stars::{gen_rnd_number, rand255},
+    Config, GameParams, My,
 };
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GalaxySeed {
     pub a: u8, /* 6c */
     pub b: u8, /* 6d */
@@ -217,38 +217,38 @@ pub fn generate_planet_data(planet_seed: &GalaxySeed) -> PlanetData {
     pl.radius = (((planet_seed.f as My & 15) + 11) * 255) + planet_seed.d as My;
     pl
 }
-pub fn find_planet(cx: My, cy: My, cmdr: &Commander, params: &mut GameParams) -> GalaxySeed {
-    let mut min_dist = 10000;
+pub fn find_planet(cx: My, cy: My, base_location: &GalaxySeed, carry_flag: &mut My) -> GalaxySeed {
+    let mut min_dist = 127;
     let mut glx: GalaxySeed;
     let mut planet: GalaxySeed;
     let mut distance;
     let mut dx;
     let mut dy;
 
-    glx = cmdr.galaxy_seed;
+    glx = *base_location;
     planet = glx;
 
     for _ in 0..256 {
         dx = (cx - glx.d as My).abs();
         dy = (cy - glx.b as My).abs();
+        distance = (dx * dx) + (dy * dy);
+        distance = distance.isqrt();
 
-        if dx > dy {
-            distance = (dx + dx + dy) / 2;
-        } else {
-            distance = (dx + dy + dy) / 2;
-        }
-
-        if distance < min_dist {
+        // distance = (dx + dy) / 2;
+        // if (dx > dy) {
+        //     distance = (dx + dx + dy) / 2;
+        // } else {
+        //     distance = (dx + dy + dy) / 2;
+        // }
+        if distance <= min_dist {
             min_dist = distance;
             planet = glx;
         }
-
-        waggle_galaxy(&mut glx, &mut params.carry_flag);
-        waggle_galaxy(&mut glx, &mut params.carry_flag);
-        waggle_galaxy(&mut glx, &mut params.carry_flag);
-        waggle_galaxy(&mut glx, &mut params.carry_flag);
+        waggle_galaxy(&mut glx, carry_flag);
+        waggle_galaxy(&mut glx, carry_flag);
+        waggle_galaxy(&mut glx, carry_flag);
+        waggle_galaxy(&mut glx, carry_flag);
     }
-
     planet
 }
 pub fn waggle_galaxy(glx_ptr: &mut GalaxySeed, carry_flag: &mut My) {
@@ -304,8 +304,7 @@ pub fn name_planet(gname: &mut String, glx: &mut GalaxySeed, carry_flag: &mut My
             x += 12;
             x *= 2;
             *gname += &DIGRAMS[x as usize..(x + 1) as usize];
-            let contains = DIGRAMS[(x + 1) as usize..(x + 2) as usize].contains('?');
-            if contains {
+            if !DIGRAMS[x as usize + 1..x as usize + 2].contains("?") {
                 *gname += &DIGRAMS[(x + 1) as usize..(x + 2) as usize];
             }
         }
@@ -323,4 +322,24 @@ pub fn capitalise_name(name: &mut String) {
         remaining = name[1..name.len()].to_lowercase();
     }
     *name = initial + &remaining;
+}
+// crst
+pub fn find_planet_number(planet: &mut GalaxySeed, carry_flag: &mut My, cmdr: &Commander) -> My {
+    let mut glx = cmdr.galaxy;
+    for i in 0..256 {
+        if ((planet.a == glx.a)
+            && (planet.b == glx.b)
+            && (planet.c == glx.c)
+            && (planet.d == glx.d)
+            && (planet.e == glx.e)
+            && (planet.f == glx.f))
+        {
+            return i;
+        }
+        waggle_galaxy(&mut glx, carry_flag);
+        waggle_galaxy(&mut glx, carry_flag);
+        waggle_galaxy(&mut glx, carry_flag);
+        waggle_galaxy(&mut glx, carry_flag);
+    }
+    return -1;
 }

@@ -13,11 +13,11 @@
  */
 
 use crate::{
-    GameParams, My,
-    planet::{GalaxySeed, find_planet, generate_planet_data},
+    planet::{find_planet, generate_planet_data, GalaxySeed},
     space::DaType,
     swat::MISSILE_UNARMED,
     trade::NO_OF_STOCK_ITEMS,
+    GameParams, My,
 };
 
 #[derive(Copy, Clone)]
@@ -187,7 +187,7 @@ pub const MAX_UNIV_OBJECTS: usize = 20;
 
 pub struct Commander {
     pub name: [char; 32],
-    pub galaxy_seed: GalaxySeed,
+    pub galaxy: GalaxySeed,
     pub mission: My,
     pub ship_x: My,
     pub ship_y: My,
@@ -237,7 +237,7 @@ impl Commander {
         Self {
             name: ['x'; 32],
             mission: 1,
-            galaxy_seed: GalaxySeed::new(),
+            galaxy: GalaxySeed::new(),
             ship_x: 1,
             ship_y: 1,
             credits: 1,
@@ -275,7 +275,7 @@ impl Commander {
         let mut result = Self {
             name: ['x'; 32],
             mission: 1,
-            galaxy_seed: GalaxySeed::new(),
+            galaxy: GalaxySeed::new(),
             ship_x: 1,
             ship_y: 1,
             credits: 1,
@@ -312,8 +312,8 @@ impl Commander {
         result.mission = 0; /* Mission Number */
         result.ship_x = 0x14; /* Ship X,Y */
         result.ship_y = 0xAD; /* Ship X,Y */
-        result.galaxy_seed = GalaxySeed::new();
-        result.galaxy_seed.set(0x4a, 0x5a, 0x48, 0x02, 0x53, 0xb7); /* Galaxy Seed */
+        result.galaxy = GalaxySeed::new();
+        result.galaxy.set(0x4a, 0x5a, 0x48, 0x02, 0x53, 0xb7); /* Galaxy Seed */
         result.credits = 1000; /* Credits * 10 */
         result.fuel = 70; /* Fuel * 10 */
         result.unused1 = 0;
@@ -387,7 +387,7 @@ impl Commander {
     ) -> Self {
         Self {
             name,
-            galaxy_seed,
+            galaxy: galaxy_seed,
             mission,
             ship_x,
             ship_y,
@@ -494,7 +494,12 @@ impl PlayerShip {
 pub fn restore_saved_commander(cmdr: &mut Commander, params: &mut GameParams) {
     *cmdr = Commander::get_saved();
 
-    params.docked_planet = find_planet(cmdr.ship_x, cmdr.ship_y, cmdr, params);
+    params.docked_planet = find_planet(
+        cmdr.ship_x,
+        cmdr.ship_y,
+        &cmdr.galaxy,
+        &mut params.carry_flag,
+    );
     params.hyperspace_planet = params.docked_planet;
 
     params.current_planet_data = generate_planet_data(&params.docked_planet);

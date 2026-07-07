@@ -31,8 +31,7 @@
 use macroquad::{audio::Sound, prelude::rand};
 
 use crate::{
-    FLG_ANGRY, FLG_BOLD, FLG_DEAD, FLG_FIRING, FLG_FLY_TO_PLANET, FLG_FLY_TO_STATION, FLG_HAS_ECM,
-    FLG_HOSTILE, FLG_INACTIVE, FLG_POLICE, FLG_SLOW, GameParams, My, auto_pilot_ship,
+    auto_pilot_ship,
     elite::{Commander, ShipData},
     info_message,
     shipdata::{
@@ -41,10 +40,12 @@ use crate::{
         SHIP_VIPER, SHIP_WORM,
     },
     sound::{SND_BLUE_DANUBE, SND_INCOMMING_FIRE_1, SND_INCOMMING_FIRE_2},
-    space::{DaType, UnivObject, damage_ship},
+    space::{damage_ship, DaType, UnivObject},
     stars::rand255,
     swat::{launch_enemy, missile_tactics, snd_play_sample, track_object},
-    vector::{START_VECTOR, Vector, unit_vector, vector_dot_product},
+    vector::{unit_vector, vector_dot_product, Vector, START_VECTOR},
+    GameParams, My, FLG_ANGRY, FLG_BOLD, FLG_DEAD, FLG_FIRING, FLG_FLY_TO_PLANET,
+    FLG_FLY_TO_STATION, FLG_HAS_ECM, FLG_HOSTILE, FLG_INACTIVE, FLG_POLICE, FLG_SLOW,
 };
 pub fn fly_to_vector(ship: &mut UnivObject, vec: &Vector) {
     let mut nvec: Vector = START_VECTOR;
@@ -198,13 +199,13 @@ pub fn fly_to_docking_bay(ship: &mut UnivObject, universe: &mut [UnivObject]) {
     ship.rotz = 0;
 }
 
-pub fn engage_auto_pilot(params: &mut GameParams, danube: &Sound) {
+pub fn engage_auto_pilot(params: &mut GameParams, sample_list: &[Sound]) {
     if params.auto_pilot || params.witchspace || params.hyper_ready {
         return;
     }
 
     params.auto_pilot = true;
-    snd_play_sample(danube);
+    snd_play_sample(sample_list, SND_BLUE_DANUBE);
 }
 
 fn snd_play_midi(_da_midi: usize, _arg: i32) {
@@ -226,11 +227,9 @@ pub fn tactics(
     universe: &mut [UnivObject],
     params: &mut GameParams,
     ship_count: &mut [My; NO_OF_SHIPS + 1],
-    cmdr: &Commander,
+    cmdr: &mut Commander,
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
-    incoming_1_sfx: &Sound,
-    incoming_2_sfx: &Sound,
-    explode_sfx: &Sound,
+    sample_list: &[Sound],
 ) {
     let cnt2 = 0.223;
 
@@ -250,7 +249,7 @@ pub fn tactics(
 
     if (da_type == SHIP_MISSILE) {
         if (flags & FLG_ANGRY) != 0 {
-            missile_tactics(un, universe, params, explode_sfx);
+            missile_tactics(un, universe, params, sample_list, cmdr);
         }
         return;
     }
@@ -414,7 +413,7 @@ pub fn tactics(
                     ship_list,
                     ship_count,
                 );
-                info_message("INCOMING MISSILE".to_string(), params);
+                info_message("INCOMING MISSILE".to_string(), params, sample_list);
             }
             return;
         }
@@ -447,9 +446,9 @@ pub fn tactics(
             if (((ship.location.z >= 0.0) && (params.front_shield == 0))
                 || ((ship.location.z < 0.0) && (params.aft_shield == 0)))
             {
-                snd_play_sample(incoming_2_sfx);
+                snd_play_sample(sample_list, SND_INCOMMING_FIRE_2);
             } else {
-                snd_play_sample(incoming_1_sfx);
+                snd_play_sample(sample_list, SND_INCOMMING_FIRE_1);
             }
         } else {
             nvec.x = -nvec.x;

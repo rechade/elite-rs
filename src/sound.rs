@@ -12,5 +12,5 @@ pub const SND_INCOMMING_FIRE_1: usize = 10;
 pub const SND_INCOMMING_FIRE_2: usize = 11;
 pub const SND_BEEP: usize = 12;
 pub const SND_BOOP: usize = 13;
-pub const SND_ELITE_THEME: usize = 0;
-pub const SND_BLUE_DANUBE: usize = 1;
+pub const SND_ELITE_THEME: usize = 14;
+pub const SND_BLUE_DANUBE: usize = 15;
