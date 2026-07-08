@@ -163,6 +163,7 @@ struct GameParams {
     in_battle: usize,
     docked_planet: GalaxySeed,
     hyperspace_planet: GalaxySeed,
+    hack_planet: GalaxySeed,
     destination_planet: GalaxySeed,
     dest_planet_string: String,
     current_planet_data: PlanetData,
@@ -171,6 +172,9 @@ struct GameParams {
     carry_flag: My,
     screen_width: f32,
     screen_height: f32,
+    mid_screen_x: f32,
+    mid_screen_y: f32,
+    screen_scale:f32,
     scanner_cx: f32,
     scanner_cy: f32,
     row_y_pos: f32,
@@ -203,6 +207,13 @@ impl GameParams {
         self.compass_x = self.screen_width * 0.716;
         self.compass_y = self.screen_height - (self.screen_height * SCANNER_Y_PROPORTION * 0.75);
         self.compass_r = self.screen_width * 0.03;
+        self.mid_screen_x=self.screen_width * 0.5;
+        self.mid_screen_y=self.screen_height * 0.5;
+        if self.screen_width < self.screen_height {
+            self.screen_scale=self.screen_width/511.0;
+        } else {
+            self.screen_scale=self.screen_height/511.0;
+            }
     }
     pub fn increase_flight_roll(&mut self) {
         if self.flight_roll < self.myship.max_roll {
@@ -259,6 +270,7 @@ impl GameParams {
         in_battle: usize,
         docked_planet: GalaxySeed,
         hyperspace_planet: GalaxySeed,
+        hack_planet: GalaxySeed,
         current_planet_data: PlanetData,
         dest_planet_string: String,
         curr_galaxy_num: My,
@@ -266,6 +278,9 @@ impl GameParams {
         carry_flag: My,
         screen_width: f32,
         screen_height: f32,
+        mid_screen_x:f32,
+        mid_screen_y:f32,
+        screen_scale:f32,
         scanner_cx: f32,
         scanner_cy: f32,
         row_y_pos: f32,
@@ -320,6 +335,7 @@ impl GameParams {
             in_battle,
             docked_planet,
             hyperspace_planet,
+            hack_planet,
             current_planet_data,
             dest_planet_string,
             curr_galaxy_num,
@@ -327,6 +343,9 @@ impl GameParams {
             carry_flag,
             screen_width,
             screen_height,
+            mid_screen_x,
+            mid_screen_y,
+            screen_scale,
             scanner_cx,
             scanner_cy,
             row_y_pos,
@@ -384,6 +403,7 @@ impl GameParams {
             in_battle: 0,
             docked_planet: GalaxySeed::new(),
             hyperspace_planet: GalaxySeed::new(),
+            hack_planet: GalaxySeed::new(),
             current_planet_data: PlanetData::new(0, 0, 0, 0, 0, 0),
             dest_planet_string: "".to_string(),
             curr_galaxy_num: 1,
@@ -391,6 +411,9 @@ impl GameParams {
             carry_flag: 0,
             screen_width: screen_width(),
             screen_height: screen_height(),
+            mid_screen_x:0.0,
+            mid_screen_y:0.0,
+            screen_scale:0.0,
             scanner_cx: 0.0,
             scanner_cy: 0.0,
             row_y_pos: 0.0,
@@ -3154,11 +3177,14 @@ let sample_list:[Sound;NUM_SAMPLES] =
         audio::stop_sound(&sample_list[SND_BLUE_DANUBE]);
         params.old_cross_x = -1;
         params.old_cross_y = -1;
+        params.cross_x = params.screen_width as My;
+        params.cross_y = params.screen_height as My;
 
         dock_player(&mut params);
         params.current_screen = SCR_CMDR_STATUS;
         while !params.game_over {
             params.update_screen_params(); // my macroquad admin stuff
+            text_params.font_size = (12.0* params.screen_scale) as u16;
             update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
             params.rolling = false;
             params.climbing = false;
@@ -3458,8 +3484,8 @@ fn finish_game(params: &mut GameParams) {
 fn move_cross(params: &mut GameParams, dx: My, dy: My) {
     params.cross_timer = 5;
     if params.current_screen == SCR_SHORT_RANGE {
-        params.cross_x += dx * 4;
-        params.cross_y += dy * 4;
+        params.cross_x += (dx as f32 * 4.0 * params.screen_scale) as My;
+        params.cross_y += (dy as f32 * 4.0 * params.screen_scale) as My;
         return;
     }
     // xyz
@@ -3486,18 +3512,18 @@ fn draw_cross(params: &GameParams, cx: My, cy: My) {
         // gfx_set_clip_region(1, 37, 510, 339);
         // xor_mode(TRUE);
         draw_line(
-            (cx - 16) as f32,
-            cy as f32,
-            (cx + 16) as f32,
-            cy as f32,
+            (params.cross_x - 16) as f32,
+            params.cross_y as f32,
+            (params.cross_x+ 16) as f32,
+            params.cross_y as f32,
             THICKNESS,
             RED,
         );
         draw_line(
-            cx as f32,
-            (cy - 16) as f32,
-            cx as f32,
-            (cy + 16) as f32,
+            params.cross_x as f32,
+            (params.cross_y - 16) as f32,
+            params.cross_x as f32,
+            (params.cross_y + 16) as f32,
             THICKNESS,
             RED,
         );
@@ -3600,10 +3626,6 @@ fn arrow_right(params: &mut GameParams) {
             // select_right_setting();
         }
 
-        SCR_SHORT_RANGE | SCR_GALACTIC_CHART => {
-            move_cross(params, 1, 0);
-        }
-
         SCR_FRONT_VIEW | SCR_REAR_VIEW | SCR_RIGHT_VIEW | SCR_LEFT_VIEW => {
             if params.flight_roll > 0 {
                 params.flight_roll = 0;
@@ -3627,10 +3649,6 @@ fn arrow_left(params: &mut GameParams) {
         SCR_SETTINGS => {
             // crst
             // select_left_setting();
-        }
-
-        SCR_SHORT_RANGE | SCR_GALACTIC_CHART => {
-            move_cross(params, -1, 0);
         }
 
         SCR_FRONT_VIEW | SCR_REAR_VIEW | SCR_RIGHT_VIEW | SCR_LEFT_VIEW => {
@@ -3668,10 +3686,6 @@ fn arrow_up(params: &mut GameParams) {
             // select_up_setting();
         }
 
-        SCR_SHORT_RANGE | SCR_GALACTIC_CHART => {
-            move_cross(params, 0, -1);
-        }
-
         SCR_FRONT_VIEW | SCR_REAR_VIEW | SCR_RIGHT_VIEW | SCR_LEFT_VIEW => {
             if params.flight_climb > 0 {
                 params.flight_climb = 0;
@@ -3697,11 +3711,6 @@ fn arrow_down(params: &mut GameParams) {
     } else if params.current_screen == SCR_SETTINGS {
         // crst
         // select_down_setting();
-    } else if params.current_screen == SCR_SHORT_RANGE
-        || params.current_screen == SCR_GALACTIC_CHART
-    {
-        // xyz
-        move_cross(params, 0, 1);
     } else if params.current_screen == SCR_FRONT_VIEW
         || params.current_screen == SCR_REAR_VIEW
         || params.current_screen == SCR_RIGHT_VIEW
@@ -3736,11 +3745,9 @@ fn display_screens(
     } else if params.current_screen == SCR_GALACTIC_CHART {
         // xyz move_cross?
         display_galactic_chart(params, text_params, font, cmdr);
-        draw_cross(&params, params.cross_x, params.cross_y);
     } else if params.current_screen == SCR_SHORT_RANGE {
         // xyz move_cross?
         display_short_range_chart(params, cmdr, text_params, font);
-        draw_cross(&params, params.cross_x, params.cross_y);
     } else if params.current_screen == SCR_PLANET_DATA {
         //crst
         display_data_on_planet(params, text_params, font, cmdr, config);

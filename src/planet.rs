@@ -231,15 +231,12 @@ pub fn find_planet(cx: My, cy: My, base_location: &GalaxySeed, carry_flag: &mut 
     for _ in 0..256 {
         dx = (cx - glx.d as My).abs();
         dy = (cy - glx.b as My).abs();
-        distance = (dx * dx) + (dy * dy);
-        distance = distance.isqrt();
+        if (dx > dy) {
+            distance = (dx + dx + dy) / 2;
+        } else {
+            distance = (dx + dy + dy) / 2;
+        }
 
-        // distance = (dx + dy) / 2;
-        // if (dx > dy) {
-        //     distance = (dx + dx + dy) / 2;
-        // } else {
-        //     distance = (dx + dy + dy) / 2;
-        // }
         if distance <= min_dist {
             min_dist = distance;
             planet = glx;

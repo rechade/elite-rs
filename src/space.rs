@@ -1,9 +1,6 @@
-use std::i16;
-
 use macroquad::{
     audio::Sound,
     color::{Color, GOLD, GREEN, MAGENTA, PINK, RED, WHITE, YELLOW},
-    miniquad::TextureParams,
     shapes::{draw_circle, draw_line, draw_rectangle},
     text::{draw_text_ex, measure_text, Font, TextParams},
 };
@@ -1242,11 +1239,14 @@ pub fn start_hyperspace(params: &mut GameParams, cmdr: &Commander) {
     params.hyper_distance =
         calc_distance_to_planet(&params.docked_planet, &params.hyperspace_planet);
 
+    // jjj
+    // dbg!(cmdr.fuel);
     if ((params.hyper_distance == 0) || (params.hyper_distance > cmdr.fuel)) {
-        return;
+        // return;
     }
 
     params.destination_planet = params.hyperspace_planet;
+    params.destination_planet = params.hack_planet;
     name_planet(
         &mut params.hyper_name,
         &mut params.destination_planet.clone(),
@@ -1289,7 +1289,7 @@ pub fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, f
         draw_text_ex(
             &msg,
             msg_x_pos,
-            params.screen_height * 0.1,
+            params.screen_height * 0.2,
             text_params.clone(),
         );
         if (params.hyper_galactic) {
@@ -1299,7 +1299,7 @@ pub fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, f
             draw_text_ex(
                 &msg,
                 msg_x_pos,
-                params.screen_height * 0.1,
+                params.screen_height * 0.3,
                 text_params.clone(),
             );
         } else {
@@ -1309,7 +1309,7 @@ pub fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, f
             draw_text_ex(
                 &msg,
                 msg_x_pos,
-                params.screen_height * 0.1,
+                params.screen_height * 0.3,
                 text_params.clone(),
             );
         }
@@ -1317,7 +1317,7 @@ pub fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, f
         draw_text_ex(
             &msg,
             msg_x_pos,
-            params.screen_height * 0.1,
+            params.screen_height * 0.2,
             text_params.clone(),
         );
     }
@@ -1331,6 +1331,8 @@ pub fn calc_distance_to_planet(from_planet: &GalaxySeed, to_planet: &GalaxySeed)
     dy = dy * dy;
     let mut light_years = (dx + dy).isqrt();
     light_years *= 4;
+    // jjj
+    // dbg!(light_years);
     return light_years as My;
 }
 pub fn countdown_hyperspace(
@@ -1366,9 +1368,7 @@ pub fn complete_hyperspace(
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
     sample_list: &[Sound],
 ) {
-    // Matrix rotmat;
-    // int px,py,pz;
-
+    let mut rotmat: Matrix = START_MATRIX;
     params.hyper_ready = false;
     params.witchspace = false;
 
@@ -1377,7 +1377,6 @@ pub fn complete_hyperspace(
         enter_next_galaxy(cmdr, params);
         cmdr.legal_status = 0;
     } else {
-        cmdr.fuel -= params.hyper_distance;
         cmdr.legal_status /= 2;
 
         if ((rand255() > 253) || (params.flight_climb == params.myship.max_climb)) {
@@ -1391,10 +1390,62 @@ pub fn complete_hyperspace(
             );
             return;
         }
-
-        // crst
         params.docked_planet = params.destination_planet;
+        params.cross_x = params.mid_screen_x as My;
+        params.cross_y = params.mid_screen_y as My;
     }
+
+    cmdr.market_rnd = rand255();
+    // crst
+    // generate_planet_data(&mut params.current_planet_data, &params.docked_planet);
+    // generate_stock_market();
+
+    params.flight_speed = 12;
+    params.flight_roll = 0;
+    params.flight_climb = 0;
+    create_new_stars(da_stars, params);
+    clear_universe(universe, ship_count, &mut params.in_battle);
+
+    // generate_landscape(docked_planet.a * 251 + docked_planet.b);
+    // set_init_matrix(rotmat);
+
+    let mut pz = (((params.docked_planet.b as u32) & 7) + 7) / 2;
+    let mut px = pz / 2;
+    let mut py = px;
+
+    px <<= 16;
+    py <<= 16;
+    pz <<= 16;
+
+    if ((params.docked_planet.b & 1) == 0) {
+        px = px.overflowing_neg().0;
+        py = py.overflowing_neg().0;
+    }
+
+    add_new_ship(
+        SHIP_PLANET,
+        px as f32,
+        py as f32,
+        pz as f32,
+        &rotmat,
+        0,
+        0,
+        universe,
+        ship_list,
+        ship_count,
+    );
+
+    pz = (((params.docked_planet.d as u32 & 7) | 1) << 16)
+        .overflowing_neg()
+        .0;
+    px = ((params.docked_planet.f as u32 & 3) << 16) | ((params.docked_planet.f as u32 & 3) << 8);
+
+    add_new_ship(
+        SHIP_SUN, px as f32, py as f32, pz as f32, &rotmat, 0, 0, universe, ship_list, ship_count,
+    );
+
+    params.current_screen = SCR_BREAK_PATTERN;
+    snd_play_sample(sample_list, SND_HYPERSPACE);
 }
 pub fn rotate_byte_left(x: u8) -> u8 {
     return ((x << 1) | (x >> 7)) & 255;

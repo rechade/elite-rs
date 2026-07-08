@@ -6,8 +6,10 @@ use macroquad::{
 };
 
 use crate::{
+    draw_cross,
     elite::{Commander, SCR_CMDR_STATUS, SCR_GALACTIC_CHART, SCR_PLANET_DATA, SCR_SHORT_RANGE},
     gfx::{GFX_SCALE, GFX_X_CENTRE, GFX_Y_CENTRE},
+    move_cross,
     planet::{
         capitalise_name, describe_planet, find_planet, generate_planet_data, name_planet,
         waggle_galaxy, GalaxySeed, PlanetData,
@@ -22,6 +24,8 @@ struct Rank {
     title: String,
 }
 
+pub const SHORT_RANGE_X_FACTOR: f32 = 4.0;
+pub const SHORT_RANGE_Y_FACTOR: f32 = 2.0;
 pub const DESC_LIST: [[&str; 5]; 36] = [
     /*  0	*/ ["fabled", "notable", "well known", "famous", "noted"],
     /*  1	*/ ["very", "mildly", "most", "reasonably", ""],
@@ -169,20 +173,20 @@ const EQUIP_WIDTH: f32 = 200.0;
 const Y_INC: f32 = 16.0;
 
 const CONDITION_TXT: [&str; 4] = ["Docked", "Green", "Yellow", "Red"];
-
 pub fn display_short_range_chart(
     params: &mut GameParams,
     cmdr: &mut Commander,
     text_params: &mut TextParams,
     font: &Font,
 ) {
-    // struct galaxy_seed glx;
+    // jjj
+    const NUM_ROWS: usize = 128;
     let mut dx;
     let mut dy;
     let mut px;
     let mut py;
     let mut planet_name: String = "".to_string();
-    let mut row_used: [i16; 64] = [0; 64];
+    let mut row_used: [i16; NUM_ROWS] = [0; NUM_ROWS];
     let mut row;
     let mut blob_size;
     params.current_screen = SCR_SHORT_RANGE;
@@ -190,13 +194,14 @@ pub fn display_short_range_chart(
     let mut text_params_clone = text_params.clone();
     text_params_clone.color = GOLD;
     text_params_clone.font_size = 12;
-    let pos_x =
-        (params.screen_width - measure_text(&da_str, Some(&font), 12, GFX_SCALE).width) * 0.5;
+    let pos_x = (params.screen_width
+        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
     draw_text_ex(&da_str, pos_x, 140.0, text_params_clone.clone());
     draw_text_ex(&"SHORT RANGE CHART", pos_x, 140.0, text_params_clone);
-    draw_line(0.0, 36.0, 511.0, 36.0, THICKNESS, WHITE);
-    draw_fuel_limit_circle(GFX_X_CENTRE, GFX_Y_CENTRE, params, cmdr);
-    for i in 0..64 {
+    draw_line(0.0, 36.0, params.screen_width, 36.0, THICKNESS, WHITE);
+    draw_fuel_limit_circle(params.mid_screen_x, params.mid_screen_y, params, cmdr);
+    for i in 0..NUM_ROWS {
         row_used[i] = 0;
     }
     let mut glx = cmdr.galaxy;
@@ -216,12 +221,22 @@ pub fn display_short_range_chart(
         }
         /* Convert to screen co-ords */
         // glx has now been waggled, generates different coords
-        px = (glx.d as f32 - params.docked_planet.d as f32);
-        px = px * 4.0 * GFX_SCALE + GFX_X_CENTRE;
-        py = (glx.b as f32 - params.docked_planet.b as f32);
-        py = py * 2.0 * GFX_SCALE + GFX_Y_CENTRE;
+        px = short_range_world_to_screen(
+            glx.d,
+            params.docked_planet.d,
+            SHORT_RANGE_X_FACTOR,
+            params.mid_screen_x,
+            params.screen_scale,
+        ) as f32;
+        py = short_range_world_to_screen(
+            glx.b,
+            params.docked_planet.b,
+            SHORT_RANGE_Y_FACTOR,
+            params.mid_screen_y,
+            params.screen_scale,
+        ) as f32;
 
-        row = (py / (8.0 * GFX_SCALE)) as usize;
+        row = (py / (8.0 * params.screen_scale)) as usize;
         if (row_used[row] == 1) {
             row += 1;
         }
@@ -242,8 +257,8 @@ pub fn display_short_range_chart(
             capitalise_name(&mut planet_name);
             draw_text_ex(
                 &planet_name,
-                px + (4.0 * GFX_SCALE),
-                (row * 8 - 5) as f32 * GFX_SCALE,
+                px + (4.0 * params.screen_scale),
+                (row * 8 - 5) as f32 * params.screen_scale,
                 text_params.clone(),
             );
         }
@@ -251,7 +266,7 @@ pub fn display_short_range_chart(
         /* a planet.  The carry_flag is left over from the name generation. */
         /* Yes this was how it was done... don't ask :-( */
         blob_size = (glx.f & 1) as f32 + 2.0 + params.carry_flag as f32;
-        blob_size *= GFX_SCALE;
+        blob_size *= params.screen_scale;
         draw_circle(px, py, blob_size, GOLD);
         // dbg!(px, py, &planet_name);
         // waggle ready for start of next loop
@@ -260,36 +275,97 @@ pub fn display_short_range_chart(
         waggle_galaxy(&mut glx, &mut params.carry_flag);
         waggle_galaxy(&mut glx, &mut params.carry_flag);
     }
-    // uof display_short_range_chart
-    // hyperspace is where the cross is.
-    if is_key_down(KeyCode::Up)
-        || is_key_down(KeyCode::S)
-        || is_key_down(KeyCode::Down)
-        || is_key_down(KeyCode::X)
-        || is_key_down(KeyCode::Left)
-        || is_key_down(KeyCode::Comma)
-        || is_key_down(KeyCode::Right)
-        || is_key_down(KeyCode::Period)
-    {
-    } else {
-        println!("#");
-        // params.cross_x =
-        //     ((params.hyperspace_planet.d as f32 - params.docked_planet.d as f32) * 4.0 * GFX_SCALE
-        //         + GFX_X_CENTRE) as My;
-        // params.cross_y =
-        //     ((params.hyperspace_planet.b as f32 - params.docked_planet.b as f32) * 2.0 * GFX_SCALE
-        //         + GFX_Y_CENTRE) as My;
+    if is_key_down(KeyCode::Up) || is_key_down(KeyCode::S) {
+        move_cross(params, 0, -1);
     }
+
+    if is_key_down(KeyCode::Down) || is_key_down(KeyCode::X) {
+        move_cross(params, 0, 1);
+    }
+
+    if is_key_down(KeyCode::Left) || is_key_down(KeyCode::Comma) {
+        move_cross(params, -1, 0);
+    }
+
+    if is_key_down(KeyCode::Right) || is_key_down(KeyCode::Period) {
+        move_cross(params, 1, 0);
+    }
+    dbg!(params.cross_x, params.cross_y);
+    draw_cross(params, 0, 0);
+}
+pub fn show_distance_to_planet(
+    params: &mut GameParams,
+    text_params: &TextParams,
+    font: &Font,
+    cmdr: &mut Commander,
+) {
+    // jjj
+    let mut px;
+    let mut py;
+    let mut planet_name = "".to_string();
+
+    if (params.current_screen == SCR_GALACTIC_CHART) {
+        px = params.cross_x as f32 / params.screen_scale;
+        py = (params.cross_y as f32 - ((18.0 * params.screen_scale) + 1.0))
+            * (2.0 / params.screen_scale);
+    } else {
+        // use cross screen coords and docked planet world coords
+        // to get the world-coords of the targetted spot
+        px = short_range_screen_to_world(
+            params.cross_x as f32,
+            params.mid_screen_x,
+            SHORT_RANGE_X_FACTOR,
+            params.docked_planet.d as f32,
+            params.screen_scale,
+        );
+        py = short_range_screen_to_world(
+            params.cross_y as f32,
+            params.mid_screen_y,
+            SHORT_RANGE_Y_FACTOR,
+            params.docked_planet.b as f32,
+            params.screen_scale,
+        );
+    }
+
+    // find the closest planet to the targetted spot
+    params.hyperspace_planet =
+        find_planet(px as My, py as My, &cmdr.galaxy, &mut params.carry_flag);
+    dbg!(params.hyperspace_planet);
+    params.hack_planet = params.hyperspace_planet;
+    name_planet(
+        &mut planet_name,
+        &mut params.hyperspace_planet.clone(),
+        &mut params.carry_flag,
+    );
+    dbg!(params.hyperspace_planet);
+    params.dest_planet_string = planet_name;
+    capitalise_name(&mut params.dest_planet_string);
+    params.dest_planet_string = params.dest_planet_string.clone() + " - ";
+
+    show_distance(
+        356,
+        &params.docked_planet,
+        &params.hyperspace_planet,
+        &mut params.dest_planet_string,
+    );
+    // snap the cross to the location returned from find_planet()
+    if (params.current_screen == SCR_GALACTIC_CHART) {
+        params.cross_x = (params.hyperspace_planet.d as f32 * params.screen_scale) as My;
+        params.cross_y = (params.hyperspace_planet.b as f32 / (2.0 / params.screen_scale)
+            + (18.0 * params.screen_scale)
+            + 1.0) as My;
+    }
+    draw_text(&params.dest_planet_string, 1.0, 20.0, 24.0, WHITE);
 }
 fn draw_fuel_limit_circle(cx: f32, cy: f32, params: &mut GameParams, cmdr: &mut Commander) {
     let radius;
     let cross_size;
     if (params.current_screen == SCR_GALACTIC_CHART) {
-        radius = cmdr.fuel as f32 / 4.0 * GFX_SCALE;
-        cross_size = 7.0 * GFX_SCALE;
+        radius = cmdr.fuel as f32 / 4.0 * params.screen_scale;
+        cross_size = 7.0 * params.screen_scale;
     } else {
-        radius = cmdr.fuel as f32 * GFX_SCALE;
-        cross_size = 16.0 * GFX_SCALE;
+        radius = cmdr.fuel as f32 * params.screen_scale;
+        cross_size = 16.0 * params.screen_scale;
     }
     draw_circle_lines(cx, cy, radius, THICKNESS, GREEN);
     draw_line(cx, cy - cross_size, cx, cy + cross_size, THICKNESS, WHITE);
@@ -319,8 +395,9 @@ pub fn display_data_on_planet(
     let mut text_params_clone = text_params.clone();
     text_params_clone.color = GOLD;
     text_params_clone.font_size = 12;
-    let mut pos_x =
-        (params.screen_width - measure_text(&da_str, Some(&font), 12, GFX_SCALE).width) * 0.5;
+    let mut pos_x = (params.screen_width
+        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
     draw_text_ex(&da_str, pos_x, 10.0, text_params.clone());
     draw_line(0.0, 36.0, params.screen_width, 36.0, THICKNESS, WHITE);
     hyper_planet_data = generate_planet_data(&params.hyperspace_planet);
@@ -335,29 +412,41 @@ pub fn display_data_on_planet(
         "Economy:{}",
         ECONOMY_TYPE[hyper_planet_data.economy as usize]
     );
-    pos_x = (params.screen_width - measure_text(&da_str, Some(&font), 12, GFX_SCALE).width) * 0.5;
+    pos_x = (params.screen_width
+        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
     draw_text_ex(&da_str, pos_x, 74.0, text_params_clone.clone());
-    pos_x = (params.screen_width - measure_text(&da_str, Some(&font), 12, GFX_SCALE).width) * 0.5;
+    pos_x = (params.screen_width
+        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
     da_str = format!(
         "Government:{}",
         GOVERNMENT_TYPE[hyper_planet_data.government as usize],
     );
     draw_text_ex(&da_str, pos_x, 106.0, text_params_clone.clone());
     da_str = format!("Tech.Level:{}", hyper_planet_data.techlevel + 1);
-    pos_x = (params.screen_width - measure_text(&da_str, Some(&font), 12, GFX_SCALE).width) * 0.5;
+    pos_x = (params.screen_width
+        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
     draw_text_ex(&da_str, pos_x, 138.0, text_params_clone.clone());
     da_str = format!(
         "Population:{}.{} Billion",
         hyper_planet_data.population / 10,
         hyper_planet_data.population % 10,
     );
-    pos_x = (params.screen_width - measure_text(&da_str, Some(&font), 12, GFX_SCALE).width) * 0.5;
+    pos_x = (params.screen_width
+        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
     draw_text_ex(&da_str, pos_x, 170.0, text_params_clone.clone());
     describe_inhabitants(&mut da_str, &params.hyperspace_planet);
-    pos_x = (params.screen_width - measure_text(&da_str, Some(&font), 12, GFX_SCALE).width) * 0.5;
+    pos_x = (params.screen_width
+        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
     draw_text_ex(&da_str, pos_x, 202.0, text_params_clone.clone());
     da_str = format!("Gross Productivity:{} M CR", hyper_planet_data.productivity,);
-    pos_x = (params.screen_width - measure_text(&da_str, Some(&font), 12, GFX_SCALE).width) * 0.5;
+    pos_x = (params.screen_width
+        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
     draw_text_ex(&da_str, pos_x, 234.0, text_params_clone.clone());
     da_str = format!("Average Radius:{} km", hyper_planet_data.radius);
     draw_text_ex(&da_str, pos_x, 266.0, text_params_clone.clone());
@@ -405,21 +494,24 @@ pub fn display_galactic_chart(
     let mut text_params_clone = text_params.clone();
     text_params_clone.color = GOLD;
     text_params_clone.font_size = 12;
-    let pos_x =
-        (params.screen_width - measure_text(&da_str, Some(&font), 12, GFX_SCALE).width) * 0.5;
+    let pos_x = (params.screen_width
+        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
     draw_text_ex(&da_str, pos_x, 140.0, text_params_clone);
     draw_line(0.0, 36.0, 511.0, 36.0, THICKNESS, WHITE);
     draw_line(0.0, 36.0 + 258.0, 511.0, 36.0 + 258.0, THICKNESS, WHITE);
     draw_fuel_limit_circle(
-        params.docked_planet.d as f32 * GFX_SCALE,
-        (params.docked_planet.b as f32 / (2.0 / GFX_SCALE)) + (18.0 * GFX_SCALE) + 1.0,
+        params.docked_planet.d as f32 * params.screen_scale,
+        (params.docked_planet.b as f32 / (2.0 / params.screen_scale))
+            + (18.0 * params.screen_scale)
+            + 1.0,
         params,
         cmdr,
     );
     let mut glx = cmdr.galaxy;
     for i in 0..256 {
-        px = glx.d as f32 * GFX_SCALE;
-        py = (glx.b as f32 / (2.0 / GFX_SCALE)) + (18.0 * GFX_SCALE) + 1.0;
+        px = glx.d as f32 * params.screen_scale;
+        py = (glx.b as f32 / (2.0 / params.screen_scale)) + (18.0 * params.screen_scale) + 1.0;
         draw_rectangle(px, py, 1.0, 1.0, WHITE);
         if ((glx.e | 0x50) < 0x90) {
             draw_rectangle(px + 1.0, py, 1.0, 1.0, WHITE);
@@ -440,10 +532,9 @@ pub fn display_galactic_chart(
         || is_key_down(KeyCode::Period)
     {
     } else {
-        println!("@");
-        params.cross_x = (params.hyperspace_planet.d as f32 * GFX_SCALE) as My;
-        params.cross_y = ((params.hyperspace_planet.b as f32 / (2.0 / GFX_SCALE))
-            + (18.0 * GFX_SCALE)
+        params.cross_x = (params.hyperspace_planet.d as f32 * params.screen_scale) as My;
+        params.cross_y = ((params.hyperspace_planet.b as f32 / (2.0 / params.screen_scale))
+            + (18.0 * params.screen_scale)
             + 1.0) as My;
     }
 }
@@ -527,17 +618,17 @@ pub fn display_commander_status(
         da_str += &c.to_string();
     }
     da_str = da_str.trim_end().to_string();
-    let msg_width = measure_text(&da_str, Some(font), 12, GFX_SCALE).width;
+    let msg_width = measure_text(&da_str, Some(font), 12, params.screen_scale).width;
     let x_pos = (params.screen_width - msg_width) * 0.5;
     let width_factor = params.screen_width / 324.0;
     let height_factor = params.row_y_pos / 300.0;
-    let pointsize_factor = height_factor;
+    let pointsize_factor = params.screen_scale;
     let mut clone_params = text_params.clone();
     clone_params.font_size = (clone_params.font_size as f32 * pointsize_factor) as u16;
     clone_params.color = GOLD;
 
     // text_params for measuring centred
-    draw_text_ex(da_str, x_pos, 10.0 * height_factor, clone_params);
+    draw_text_ex(da_str, x_pos, 20.0 * height_factor, clone_params);
 
     draw_line(
         0.0,
@@ -881,110 +972,24 @@ pub fn display_commander_status(
     }
 }
 
-pub fn move_cursor_to_origin(params: &mut GameParams) {
-    println!("&");
-    if (params.current_screen == SCR_GALACTIC_CHART) {
-        params.cross_x = (params.docked_planet.d as f32 * GFX_SCALE) as My;
-        params.cross_y =
-            (params.docked_planet.b as f32 / (2.0 / GFX_SCALE) + (18.0 * GFX_SCALE) + 1.0) as My;
-    } else {
-        params.cross_x = GFX_X_CENTRE as My;
-        params.cross_y = GFX_Y_CENTRE as My;
-    }
-    // show_distance_to_planet();
+fn short_range_screen_to_world(
+    p1: f32,
+    mid_screen: f32,
+    p_factor: f32,
+    p2: f32,
+    screen_scale: f32,
+) -> f32 {
+    (p1 - mid_screen) / (p_factor * screen_scale) + p2
 }
-pub fn show_distance_to_planet(
-    params: &mut GameParams,
-    text_params: &TextParams,
-    font: &Font,
-    cmdr: &mut Commander,
-) {
-    let mut px;
-    let mut py;
-    let mut planet_name = "".to_string();
 
-    println!("show_distance_to_planet");
-    dbg!(params.cross_x, params.cross_y, &params.dest_planet_string);
-    if (params.current_screen == SCR_GALACTIC_CHART) {
-        px = params.cross_x as f32 / GFX_SCALE;
-        py = (params.cross_y as f32 - ((18.0 * GFX_SCALE) + 1.0)) * (2.0 / GFX_SCALE);
-    } else {
-        // use cross screen coords and docked planet world coords
-        // to get the world-coords of the targetted spot
-        px = (params.cross_x as f32 - GFX_X_CENTRE);
-        px /= (4.0 * GFX_SCALE);
-        px += params.docked_planet.d as f32;
-        py = (params.cross_y as f32 - GFX_Y_CENTRE);
-        py /= (2.0 * GFX_SCALE);
-        py += params.docked_planet.b as f32;
-    }
-
-    // find the closest planet to the targetted spot
-    let mut snapped_planet = find_planet(
-        px as My,
-        py as My,
-        &params.docked_planet,
-        &mut params.carry_flag,
-    );
-    dbg!(snapped_planet);
-    // params.hyperspace_planet = find_planet(px as My, py as My, cmdr, params);
-
-    name_planet(
-        &mut planet_name,
-        &mut snapped_planet,
-        &mut params.carry_flag,
-    );
-    params.dest_planet_string = planet_name;
-    capitalise_name(&mut params.dest_planet_string);
-    println!("In:");
-    dbg!(params.cross_x, params.cross_y, &params.dest_planet_string);
-    params.dest_planet_string = params.dest_planet_string.clone() + " - ";
-
-    show_distance(
-        356,
-        &params.docked_planet,
-        &snapped_planet,
-        &mut params.dest_planet_string,
-    );
-
-    // uof show_dist_to_planet
-    if is_key_down(KeyCode::Up)
-        || is_key_down(KeyCode::S)
-        || is_key_down(KeyCode::Down)
-        || is_key_down(KeyCode::X)
-        || is_key_down(KeyCode::Left)
-        || is_key_down(KeyCode::Comma)
-        || is_key_down(KeyCode::Right)
-        || is_key_down(KeyCode::Period)
-    {
-        // moving the cross is left to the move_cross() routine if keys are in use
-    } else {
-        // when movement keys have been released
-        // snap the cross to the location returned from find_planet()
-        if (params.current_screen == SCR_GALACTIC_CHART) {
-            params.cross_x = (params.hyperspace_planet.d as f32 * GFX_SCALE) as My;
-            params.cross_y = (params.hyperspace_planet.b as f32 / (2.0 / GFX_SCALE)
-                + (18.0 * GFX_SCALE)
-                + 1.0) as My;
-        } else {
-            println!("*");
-            // params.hyperspace_planet = snapped_planet;
-            params.cross_x =
-                (params.hyperspace_planet.d as f32 - params.docked_planet.d as f32) as My;
-            params.cross_x *= (4.0 * GFX_SCALE) as My;
-            params.cross_x += GFX_X_CENTRE as My;
-            params.cross_y =
-                (params.hyperspace_planet.b as f32 - params.docked_planet.b as f32) as My;
-            params.cross_y *= (2.0 * GFX_SCALE) as My;
-            params.cross_y += GFX_Y_CENTRE as My;
-            // params.cross_x = 220;
-            // params.cross_y = 194;
-        }
-    }
-    println!("Out:");
-    dbg!(params.cross_x, params.cross_y, &params.dest_planet_string);
-    // dbg!(cmdr.galaxy, params.docked_planet, params.hyperspace_planet);
-    draw_text(&params.dest_planet_string, 1.0, 20.0, 24.0, WHITE);
+fn short_range_world_to_screen(
+    p1: u8,
+    p2: u8,
+    p_factor: f32,
+    mid_screen: f32,
+    screen_scale: f32,
+) -> My {
+    ((p1 as f32 - p2 as f32) * (p_factor * screen_scale) + mid_screen) as My
 }
 
 pub fn show_distance(
@@ -1004,5 +1009,17 @@ pub fn show_distance(
     } else {
     }
     *dest_planet_string += &dist_string;
+}
+pub fn move_cursor_to_origin(params: &mut GameParams) {
+    if (params.current_screen == SCR_GALACTIC_CHART) {
+        params.cross_x = (params.docked_planet.d as f32 * params.screen_scale) as My;
+        params.cross_y = (params.docked_planet.b as f32 / (2.0 / params.screen_scale)
+            + (18.0 * params.screen_scale)
+            + 1.0) as My;
+    } else {
+        params.cross_x = params.mid_screen_x as My;
+        params.cross_y = params.mid_screen_y as My;
+    }
+    // show_distance_to_planet();
 }
 /***********************************************************************************/
