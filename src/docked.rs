@@ -1,22 +1,22 @@
 use macroquad::{
     color::{GOLD, GREEN, WHITE},
-    input::{is_key_down, KeyCode},
+    input::{KeyCode, is_key_down},
     shapes::{draw_circle, draw_circle_lines, draw_line, draw_rectangle},
-    text::{draw_text, draw_text_ex, measure_text, Font, TextParams},
+    text::{Font, TextParams, draw_text, draw_text_ex, measure_text},
 };
 
 use crate::{
+    BEAM_LASER, Config, GameParams, MILITARY_LASER, MINING_LASER, My, PULSE_LASER, THICKNESS,
     draw_cross,
     elite::{Commander, SCR_CMDR_STATUS, SCR_GALACTIC_CHART, SCR_PLANET_DATA, SCR_SHORT_RANGE},
     gfx::{GFX_SCALE, GFX_X_CENTRE, GFX_Y_CENTRE},
     move_cross,
     planet::{
-        capitalise_name, describe_planet, find_planet, generate_planet_data, name_planet,
-        waggle_galaxy, GalaxySeed, PlanetData,
+        GalaxySeed, PlanetData, capitalise_name, describe_planet, find_planet,
+        generate_planet_data, name_planet, waggle_galaxy,
     },
     shipdata::{SHIP_DODEC, SHIP_MISSILE, SHIP_ROCK},
-    space::{calc_distance_to_planet, DaType, UnivObject},
-    Config, GameParams, My, BEAM_LASER, MILITARY_LASER, MINING_LASER, PULSE_LASER, THICKNESS,
+    space::{DaType, UnivObject, calc_distance_to_planet},
 };
 
 struct Rank {
@@ -268,7 +268,6 @@ pub fn display_short_range_chart(
         blob_size = (glx.f & 1) as f32 + 2.0 + params.carry_flag as f32;
         blob_size *= params.screen_scale;
         draw_circle(px, py, blob_size, GOLD);
-        // dbg!(px, py, &planet_name);
         // waggle ready for start of next loop
         waggle_galaxy(&mut glx, &mut params.carry_flag);
         waggle_galaxy(&mut glx, &mut params.carry_flag);
@@ -290,7 +289,6 @@ pub fn display_short_range_chart(
     if is_key_down(KeyCode::Right) || is_key_down(KeyCode::Period) {
         move_cross(params, 1, 0);
     }
-    dbg!(params.cross_x, params.cross_y);
     draw_cross(params, 0, 0);
 }
 pub fn show_distance_to_planet(
@@ -330,14 +328,12 @@ pub fn show_distance_to_planet(
     // find the closest planet to the targetted spot
     params.hyperspace_planet =
         find_planet(px as My, py as My, &cmdr.galaxy, &mut params.carry_flag);
-    dbg!(params.hyperspace_planet);
     params.hack_planet = params.hyperspace_planet;
     name_planet(
         &mut planet_name,
         &mut params.hyperspace_planet.clone(),
         &mut params.carry_flag,
     );
-    dbg!(params.hyperspace_planet);
     params.dest_planet_string = planet_name;
     capitalise_name(&mut params.dest_planet_string);
     params.dest_planet_string = params.dest_planet_string.clone() + " - ";
@@ -394,7 +390,7 @@ pub fn display_data_on_planet(
     da_str = format!("DATA ON {}", planet_name);
     let mut text_params_clone = text_params.clone();
     text_params_clone.color = GOLD;
-    text_params_clone.font_size = 12;
+    text_params_clone.font_size = (text_params_clone.font_size as f32 * params.screen_scale) as u16;
     let mut pos_x = (params.screen_width
         - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
         * 0.5;
@@ -438,6 +434,7 @@ pub fn display_data_on_planet(
         - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
         * 0.5;
     draw_text_ex(&da_str, pos_x, 170.0, text_params_clone.clone());
+    da_str = "".to_string();
     describe_inhabitants(&mut da_str, &params.hyperspace_planet);
     pos_x = (params.screen_width
         - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)

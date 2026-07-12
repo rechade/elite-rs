@@ -429,6 +429,7 @@ pub fn gen_rnd_number(rnd_seed: &mut GalaxySeed) -> u8 {
     rnd_seed.a = a & 0xFF;
     rnd_seed.c = x;
 
+    // WARNING: was 256
     a = a / 255; /* a = any carry left from above */
     x = rnd_seed.b;
     a = (a + x + rnd_seed.d) & 0xFF;

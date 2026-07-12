@@ -13,11 +13,11 @@
  */
 
 use crate::{
-    planet::{find_planet, generate_planet_data, GalaxySeed},
+    GameParams, My,
+    planet::{GalaxySeed, find_planet, generate_planet_data},
     space::DaType,
     swat::MISSILE_UNARMED,
     trade::NO_OF_STOCK_ITEMS,
-    GameParams, My,
 };
 
 #[derive(Copy, Clone)]

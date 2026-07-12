@@ -2,34 +2,34 @@ use macroquad::{
     audio::Sound,
     color::{Color, GOLD, GREEN, MAGENTA, PINK, RED, WHITE, YELLOW},
     shapes::{draw_circle, draw_line, draw_rectangle},
-    text::{draw_text_ex, measure_text, Font, TextParams},
+    text::{Font, TextParams, draw_text_ex, measure_text},
 };
 
 use crate::{
+    Config, FLG_CLOAKED, FLG_DEAD, FLG_FIRING, FLG_HOSTILE, FLG_REMOVE, GameParams, My,
+    SCR_BREAK_PATTERN, THICKNESS,
     elite::{
-        Commander, PlayerShip, ShipData, MAX_UNIV_OBJECTS, SCR_ESCAPE_POD, SCR_FRONT_VIEW,
-        SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW,
+        Commander, MAX_UNIV_OBJECTS, PlayerShip, SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER,
+        SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData,
     },
-    gfx::{gfx_draw_scanner, GFX_SCALE, STAR_SIZE},
+    gfx::{GFX_SCALE, STAR_SIZE, gfx_draw_scanner},
     info_message,
     pilot::{disengage_auto_pilot, tactics},
-    planet::{capitalise_name, find_planet, name_planet, GalaxySeed},
+    planet::{GalaxySeed, capitalise_name, find_planet, name_planet},
     shipdata::{
         NO_OF_SHIPS, SHIP_ALLOY, SHIP_ASTEROID, SHIP_BOULDER, SHIP_CARGO, SHIP_CONSTRICTOR,
         SHIP_CORIOLIS, SHIP_COUGAR, SHIP_DODEC, SHIP_ESCAPE_CAPSULE, SHIP_MISSILE, SHIP_PLANET,
         SHIP_ROCK, SHIP_SUN, SHIP_VIPER,
     },
     sound::{SND_CRASH, SND_DOCK, SND_EXPLODE, SND_GAMEOVER, SND_HYPERSPACE, SND_LAUNCH},
-    stars::{create_new_stars, rand255, randint, Stars},
+    stars::{Stars, create_new_stars, rand255, randint},
     swat::{
-        add_new_ship, add_new_station, check_target, clear_universe, create_thargoid, remove_ship,
-        reset_weapons, snd_play_sample, MISSILE_UNARMED,
+        MISSILE_UNARMED, add_new_ship, add_new_station, check_target, clear_universe,
+        create_thargoid, remove_ship, reset_weapons, snd_play_sample,
     },
     threed::draw_ship,
     trade::{carrying_contraband, scoop_item},
-    vector::{tidy_matrix, unit_vector, Matrix, Vector, START_MATRIX, START_VECTOR},
-    Config, GameParams, My, FLG_CLOAKED, FLG_DEAD, FLG_FIRING, FLG_HOSTILE, FLG_REMOVE,
-    SCR_BREAK_PATTERN, THICKNESS,
+    vector::{Matrix, START_MATRIX, START_VECTOR, Vector, tidy_matrix, unit_vector},
 };
 
 pub type DaType = i16;
@@ -1394,6 +1394,12 @@ pub fn complete_hyperspace(
         params.cross_x = params.mid_screen_x as My;
         params.cross_y = params.mid_screen_y as My;
     }
+    // params.cross_x =
+    //     (((params.hyperspace_planet.d as f32 - params.docked_planet.d as f32) * 1.0 * GFX_SCALE)
+    //          ) as My;
+    // params.cross_y =
+    //     (((params.hyperspace_planet.b as f32 - params.docked_planet.b as f32) * 0.5 * GFX_SCALE)
+    //         ) as My;
 
     cmdr.market_rnd = rand255();
     // crst
@@ -1407,7 +1413,6 @@ pub fn complete_hyperspace(
     clear_universe(universe, ship_count, &mut params.in_battle);
 
     // generate_landscape(docked_planet.a * 251 + docked_planet.b);
-    // set_init_matrix(rotmat);
 
     let mut pz = (((params.docked_planet.b as u32) & 7) + 7) / 2;
     let mut px = pz / 2;

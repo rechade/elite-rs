@@ -1,10 +1,10 @@
 use macroquad::prelude::rand;
 
 use crate::{
+    Config, GameParams, My,
     docked::DESC_LIST,
     elite::Commander,
     stars::{gen_rnd_number, rand255},
-    Config, GameParams, My,
 };
 #[derive(Copy, Clone, Debug)]
 pub struct GalaxySeed {
@@ -163,22 +163,22 @@ pub fn describe_planet(
     expand_description("<14> is <22>.", &mut rnd_seed, carry_flag)
 }
 pub struct PlanetData {
-    pub government: u8,
-    pub economy: u8,
-    pub techlevel: u8,
-    pub population: u8,
-    pub productivity: u8,
-    pub radius: My,
+    pub government: u16,
+    pub economy: u16,
+    pub techlevel: u16,
+    pub population: u16,
+    pub productivity: u16,
+    pub radius: u16,
 }
 
 impl PlanetData {
     pub fn new(
-        government: u8,
-        economy: u8,
-        techlevel: u8,
-        population: u8,
-        productivity: u8,
-        radius: My,
+        government: u16,
+        economy: u16,
+        techlevel: u16,
+        population: u16,
+        productivity: u16,
+        radius: u16,
     ) -> Self {
         Self {
             government,
@@ -192,17 +192,17 @@ impl PlanetData {
 }
 pub fn generate_planet_data(planet_seed: &GalaxySeed) -> PlanetData {
     let mut pl = PlanetData::new(0, 0, 0, 0, 0, 0);
-    pl.government = (planet_seed.c / 8) & 7;
+    pl.government = ((planet_seed.c / 8) & 7) as u16;
 
-    pl.economy = planet_seed.b & 7;
+    pl.economy = (planet_seed.b & 7) as u16;
 
     if pl.government < 2 {
         pl.economy |= 2;
     }
 
     pl.techlevel = pl.economy ^ 7;
-    pl.techlevel += planet_seed.d & 3;
-    pl.techlevel += (pl.government / 2) + (pl.government & 1);
+    pl.techlevel += (planet_seed.d & 3) as u16;
+    pl.techlevel += ((pl.government / 2) + (pl.government & 1)) as u16;
 
     pl.population = pl.techlevel * 4;
     pl.population += pl.government;
@@ -214,7 +214,7 @@ pub fn generate_planet_data(planet_seed: &GalaxySeed) -> PlanetData {
     pl.productivity *= pl.population;
     pl.productivity *= 8;
 
-    pl.radius = (((planet_seed.f as My & 15) + 11) * 255) + planet_seed.d as My;
+    pl.radius = ((((planet_seed.f & 15) as u16 + 11) as u16 * 256) + planet_seed.d as u16);
     pl
 }
 pub fn find_planet(cx: My, cy: My, base_location: &GalaxySeed, carry_flag: &mut My) -> GalaxySeed {

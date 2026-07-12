@@ -7,7 +7,10 @@ use macroquad::{
 };
 
 use crate::{
-    elite::{Commander, ShipData, SCR_FRONT_VIEW, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW},
+    Config, FLG_ANGRY, FLG_BOLD, FLG_CLOAKED, FLG_DEAD, FLG_FLY_TO_PLANET, FLG_HAS_ECM,
+    FLG_INACTIVE, FLG_POLICE, FLG_SLOW, GameParams, MAX_UNIV_OBJECTS, MILITARY_LASER, MINING_LASER,
+    My, THICKNESS,
+    elite::{Commander, SCR_FRONT_VIEW, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData},
     gfx::{GFX_SCALE, GFX_VIEW_BY},
     info_message,
     planet::PlanetData,
@@ -18,13 +21,10 @@ use crate::{
         SHIP_VIPER,
     },
     sound::{SND_BEEP, SND_BOOP, SND_EXPLODE, SND_HIT_ENEMY, SND_MISSILE, SND_PULSE},
-    space::{damage_ship, DaType, UnivObject},
+    space::{DaType, UnivObject, damage_ship},
     stars::{rand255, randint},
     trade::carrying_contraband,
-    vector::{unit_vector, vector_dot_product, Matrix, Vector, START_MATRIX, START_VECTOR},
-    Config, GameParams, My, FLG_ANGRY, FLG_BOLD, FLG_CLOAKED, FLG_DEAD, FLG_FLY_TO_PLANET,
-    FLG_HAS_ECM, FLG_INACTIVE, FLG_POLICE, FLG_SLOW, MAX_UNIV_OBJECTS, MILITARY_LASER,
-    MINING_LASER, THICKNESS,
+    vector::{Matrix, START_MATRIX, START_VECTOR, Vector, unit_vector, vector_dot_product},
 };
 
 pub const INITIAL_FLAGS: [My; NO_OF_SHIPS + 1] = [
@@ -476,20 +476,8 @@ fn check_for_others(
     /* Pack hunters... */
 
     let mut z = 12000.0;
-    let mut x = 1000.0 + {
-        if (randint() & 8191 != 0) {
-            1.0
-        } else {
-            0.0
-        }
-    };
-    let mut y = 1000.0 + {
-        if (randint() & 8191 != 0) {
-            1.0
-        } else {
-            0.0
-        }
-    };
+    let mut x = 1000.0 + { if (randint() & 8191 != 0) { 1.0 } else { 0.0 } };
+    let mut y = 1000.0 + { if (randint() & 8191 != 0) { 1.0 } else { 0.0 } };
 
     if (rand255() > 127) {
         x = -x;
