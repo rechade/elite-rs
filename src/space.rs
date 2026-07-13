@@ -2,34 +2,34 @@ use macroquad::{
     audio::Sound,
     color::{Color, GOLD, GREEN, MAGENTA, PINK, RED, WHITE, YELLOW},
     shapes::{draw_circle, draw_line, draw_rectangle},
-    text::{Font, TextParams, draw_text_ex, measure_text},
+    text::{draw_text_ex, measure_text, Font, TextParams},
 };
 
 use crate::{
-    Config, FLG_CLOAKED, FLG_DEAD, FLG_FIRING, FLG_HOSTILE, FLG_REMOVE, GameParams, My,
-    SCR_BREAK_PATTERN, THICKNESS,
     elite::{
-        Commander, MAX_UNIV_OBJECTS, PlayerShip, SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER,
-        SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData,
+        Commander, PlayerShip, ShipData, MAX_UNIV_OBJECTS, SCR_ESCAPE_POD, SCR_FRONT_VIEW,
+        SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW,
     },
-    gfx::{GFX_SCALE, STAR_SIZE, gfx_draw_scanner},
+    gfx::{gfx_draw_scanner, GFX_SCALE, STAR_SIZE},
     info_message,
     pilot::{disengage_auto_pilot, tactics},
-    planet::{GalaxySeed, capitalise_name, find_planet, name_planet},
+    planet::{capitalise_name, find_planet, generate_planet_data, name_planet, GalaxySeed},
     shipdata::{
         NO_OF_SHIPS, SHIP_ALLOY, SHIP_ASTEROID, SHIP_BOULDER, SHIP_CARGO, SHIP_CONSTRICTOR,
         SHIP_CORIOLIS, SHIP_COUGAR, SHIP_DODEC, SHIP_ESCAPE_CAPSULE, SHIP_MISSILE, SHIP_PLANET,
         SHIP_ROCK, SHIP_SUN, SHIP_VIPER,
     },
     sound::{SND_CRASH, SND_DOCK, SND_EXPLODE, SND_GAMEOVER, SND_HYPERSPACE, SND_LAUNCH},
-    stars::{Stars, create_new_stars, rand255, randint},
+    stars::{create_new_stars, rand255, randint, Stars},
     swat::{
-        MISSILE_UNARMED, add_new_ship, add_new_station, check_target, clear_universe,
-        create_thargoid, remove_ship, reset_weapons, snd_play_sample,
+        add_new_ship, add_new_station, check_target, clear_universe, create_thargoid, remove_ship,
+        reset_weapons, snd_play_sample, MISSILE_UNARMED,
     },
     threed::draw_ship,
-    trade::{carrying_contraband, scoop_item},
-    vector::{Matrix, START_MATRIX, START_VECTOR, Vector, tidy_matrix, unit_vector},
+    trade::{carrying_contraband, generate_stock_market, scoop_item},
+    vector::{tidy_matrix, unit_vector, Matrix, Vector, START_MATRIX, START_VECTOR},
+    Config, GameParams, My, FLG_CLOAKED, FLG_DEAD, FLG_FIRING, FLG_HOSTILE, FLG_REMOVE, FONT_BASE,
+    SCR_BREAK_PATTERN, THICKNESS,
 };
 
 pub type DaType = i16;
@@ -311,6 +311,7 @@ pub fn update_universe(
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     config: &Config,
     sample_list: &[Sound],
+    point_list: &mut [Point; 60],
 ) {
     let mut da_type;
     let mut bounty;
@@ -388,12 +389,12 @@ pub fn update_universe(
                     make_station_appear(universe, ship_list, ship_count, params);
                 }
 
-                draw_ship(&mut flip, params, config, ship_list);
+                draw_ship(&mut flip, params, config, ship_list, point_list);
                 continue;
             }
 
             if da_type == SHIP_SUN {
-                draw_ship(&mut flip, params, config, ship_list);
+                draw_ship(&mut flip, params, config, ship_list, point_list);
                 continue;
             }
 
@@ -419,7 +420,7 @@ pub fn update_universe(
                 continue;
             }
 
-            draw_ship(&mut flip, params, config, ship_list);
+            draw_ship(&mut flip, params, config, ship_list, point_list);
 
             universe[i].flags = flip.flags;
             universe[i].exp_seed = flip.exp_seed;
@@ -913,6 +914,7 @@ pub fn update_console(
     universe: &[UnivObject],
     cmdr: &Commander,
     labels: &[&str],
+    text_params: &mut TextParams,
 ) {
     display_speed(params); // SP
     display_flight_climb(params); // DC
@@ -924,7 +926,7 @@ pub fn update_console(
     display_laser_temp(params); // LT
     display_fuel(cmdr, params); // FU
     display_missiles(params, cmdr); // X X X X
-    gfx_draw_scanner(params, labels);
+    gfx_draw_scanner(params, labels, text_params);
 
     if params.docked {
         return;
@@ -938,10 +940,11 @@ pub fn update_console(
         // gfx_draw_sprite(IMG_BIG_S, 387, 490);
     }
 
-    if params.myship.ecm_active {
+    if params.myship.ecm_active != 0 {
         // crst
         // gfx_draw_sprite(IMG_BIG_E, 115, 490);
     }
+    text_params.color = WHITE;
 }
 
 pub fn update_altitude(params: &mut GameParams, universe: &[UnivObject]) {
@@ -1276,10 +1279,11 @@ pub fn start_galactic_hyperspace(params: &mut GameParams, cmdr: &Commander) {
     disengage_auto_pilot(params);
 }
 
-pub fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, font: &Font) {
+pub fn display_hyper_status(params: &mut GameParams, text_params: &mut TextParams, font: &Font) {
     let mut msg = format!("{}", params.hyper_countdown);
-    let mut msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE as f32).width;
+    let mut msg_width = measure_text(&msg, Some(font), FONT_BASE, params.screen_scale).width;
     let mut msg_x_pos = (params.screen_width - msg_width) * 0.5;
+    text_params.color = WHITE;
 
     if ((params.current_screen == SCR_FRONT_VIEW)
         || (params.current_screen == SCR_REAR_VIEW)
@@ -1294,7 +1298,7 @@ pub fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, f
         );
         if (params.hyper_galactic) {
             msg = format!("Galactic Hyperspace - {}", params.hyper_name);
-            msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE as f32).width;
+            msg_width = measure_text(&msg, Some(font), FONT_BASE, params.screen_scale).width;
             msg_x_pos = (params.screen_width - msg_width) * 0.5;
             draw_text_ex(
                 &msg,
@@ -1304,7 +1308,7 @@ pub fn display_hyper_status(params: &mut GameParams, text_params: &TextParams, f
             );
         } else {
             msg = format!("Hyperspace - {}", params.hyper_name);
-            msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE as f32).width;
+            msg_width = measure_text(&msg, Some(font), FONT_BASE, params.screen_scale).width;
             msg_x_pos = (params.screen_width - msg_width) * 0.5;
             draw_text_ex(
                 &msg,
@@ -1402,9 +1406,8 @@ pub fn complete_hyperspace(
     //         ) as My;
 
     cmdr.market_rnd = rand255();
-    // crst
-    // generate_planet_data(&mut params.current_planet_data, &params.docked_planet);
-    // generate_stock_market();
+    params.current_planet_data = generate_planet_data(&params.docked_planet);
+    generate_stock_market(params, cmdr);
 
     params.flight_speed = 12;
     params.flight_roll = 0;

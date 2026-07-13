@@ -1,10 +1,10 @@
 use macroquad::prelude::rand;
 
 use crate::{
-    Config, GameParams, My,
     docked::DESC_LIST,
     elite::Commander,
     stars::{gen_rnd_number, rand255},
+    Config, GameParams, My,
 };
 #[derive(Copy, Clone, Debug)]
 pub struct GalaxySeed {
@@ -37,6 +37,7 @@ fn expand_description(
     source: &str,
     hyperspace_planet: &mut GalaxySeed,
     carry_flag: &mut My,
+    rnd_seed: &mut GalaxySeed,
 ) -> String {
     let mut processing = true;
     let mut num: usize;
@@ -65,7 +66,7 @@ fn expand_description(
         if (false) {
             // option = gen_msx_rnd_number();
         } else {
-            rnd = gen_rnd_number(&mut hyperspace_planet.clone());
+            rnd = gen_rnd_number(rnd_seed);
             option = 0;
             if (rnd >= 0x33) {
                 option += 1
@@ -109,9 +110,9 @@ fn expand_description(
             }
             "R" => {
                 result.remove(start);
-                let len = gen_rnd_number(&mut hyperspace_planet.clone()) & 3;
+                let len = gen_rnd_number(rnd_seed) & 3;
                 for i in 0..len {
-                    let x = gen_rnd_number(&mut hyperspace_planet.clone()) & 0x3e;
+                    let x = gen_rnd_number(rnd_seed) & 0x3e;
                     if (i == 0) {
                         result = result + &DIGRAMS[x as usize..x as usize];
                     } else {
@@ -133,7 +134,6 @@ pub fn describe_planet(
     carry_flag: &mut My,
 ) -> String {
     let mut mission_text = "".to_string();
-    // crst
     let mut rnd_seed: GalaxySeed = *planet;
 
     if (cmdr.mission == 1) {
@@ -158,9 +158,7 @@ pub fn describe_planet(
     //     rnd_seed.d ^= rnd_seed.b;
     // }
 
-    // desc_ptr = planet_description;
-
-    expand_description("<14> is <22>.", &mut rnd_seed, carry_flag)
+    expand_description("<14> is <22>.", planet, carry_flag, &mut rnd_seed)
 }
 pub struct PlanetData {
     pub government: u16,

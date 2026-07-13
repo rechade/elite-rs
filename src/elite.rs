@@ -13,11 +13,11 @@
  */
 
 use crate::{
-    GameParams, My,
-    planet::{GalaxySeed, find_planet, generate_planet_data},
+    planet::{find_planet, generate_planet_data, GalaxySeed},
     space::DaType,
     swat::MISSILE_UNARMED,
-    trade::NO_OF_STOCK_ITEMS,
+    trade::{generate_stock_market, StockMarket, NO_OF_STOCK_ITEMS},
+    GameParams, My,
 };
 
 #[derive(Copy, Clone)]
@@ -220,6 +220,7 @@ pub struct Commander {
     pub saved: My,
     pub station_stock: [My; NO_OF_STOCK_ITEMS],
     pub current_cargo: [My; NO_OF_STOCK_ITEMS],
+    pub stock_market: StockMarket,
 }
 
 impl Commander {
@@ -269,6 +270,7 @@ impl Commander {
             market_rnd: 1,
             score: 1,
             saved: 1,
+            stock_market: StockMarket::new(),
         }
     }
     pub fn get_saved() -> Self {
@@ -307,6 +309,7 @@ impl Commander {
             market_rnd: 1,
             score: 1,
             saved: 1,
+            stock_market: StockMarket::new(),
         };
         result.set_name("JAMESON"); /* Name */
         result.mission = 0; /* Mission Number */
@@ -384,6 +387,7 @@ impl Commander {
         saved: My,
         station_stock: [My; NO_OF_STOCK_ITEMS],
         current_cargo: [My; NO_OF_STOCK_ITEMS],
+        stock_market: StockMarket,
     ) -> Self {
         Self {
             name,
@@ -420,6 +424,7 @@ impl Commander {
             saved,
             station_stock,
             current_cargo,
+            stock_market,
         }
     }
 }
@@ -436,7 +441,7 @@ pub struct PlayerShip {
     pub laser: My,
     pub laser_x: My,
     pub laser_y: My,
-    pub ecm_active: bool,
+    pub ecm_active: u8,
     pub missile_target: DaType,
 }
 
@@ -454,7 +459,7 @@ impl PlayerShip {
             laser: 0,
             laser_x: 0,
             laser_y: 0,
-            ecm_active: false,
+            ecm_active: 0,
             missile_target: MISSILE_UNARMED,
         }
     }
@@ -470,7 +475,7 @@ impl PlayerShip {
         laser: My,
         laser_x: My,
         laser_y: My,
-        ecm_active: bool,
+        ecm_active: u8,
         missile_target: DaType,
     ) -> Self {
         Self {
@@ -503,14 +508,10 @@ pub fn restore_saved_commander(cmdr: &mut Commander, params: &mut GameParams) {
     params.hyperspace_planet = params.docked_planet;
 
     params.current_planet_data = generate_planet_data(&params.docked_planet);
-    generate_stock_market();
+    generate_stock_market(params, cmdr);
     set_stock_quantities(cmdr.station_stock);
 }
 
 fn set_stock_quantities(station_stock: [My; 17]) {
     println!("set_stock_quantities");
-}
-
-fn generate_stock_market() {
-    println!("generate_stock_market");
 }

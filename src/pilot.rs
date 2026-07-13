@@ -31,8 +31,7 @@
 use macroquad::{audio::Sound, prelude::rand};
 
 use crate::{
-    FLG_ANGRY, FLG_BOLD, FLG_DEAD, FLG_FIRING, FLG_FLY_TO_PLANET, FLG_FLY_TO_STATION, FLG_HAS_ECM,
-    FLG_HOSTILE, FLG_INACTIVE, FLG_POLICE, FLG_SLOW, GameParams, My, auto_pilot_ship,
+    auto_pilot_ship,
     elite::{Commander, ShipData},
     info_message,
     shipdata::{
@@ -41,10 +40,12 @@ use crate::{
         SHIP_VIPER, SHIP_WORM,
     },
     sound::{SND_BLUE_DANUBE, SND_INCOMMING_FIRE_1, SND_INCOMMING_FIRE_2},
-    space::{DaType, UnivObject, damage_ship},
+    space::{damage_ship, DaType, UnivObject},
     stars::rand255,
     swat::{launch_enemy, missile_tactics, snd_play_sample, track_object},
-    vector::{START_VECTOR, Vector, unit_vector, vector_dot_product},
+    vector::{unit_vector, vector_dot_product, Vector, START_VECTOR},
+    GameParams, My, FLG_ANGRY, FLG_BOLD, FLG_DEAD, FLG_FIRING, FLG_FLY_TO_PLANET,
+    FLG_FLY_TO_STATION, FLG_HAS_ECM, FLG_HOSTILE, FLG_INACTIVE, FLG_POLICE, FLG_SLOW,
 };
 pub fn fly_to_vector(ship: &mut UnivObject, vec: &Vector) {
     let mut nvec: Vector = START_VECTOR;
@@ -388,7 +389,7 @@ pub fn tactics(
         }
 
         if ((ship.missiles != 0)
-            && (!params.myship.ecm_active)
+            && (params.myship.ecm_active == 0)
             && (ship.missiles >= (rand255() & 31)))
         {
             ship.missiles -= 1;

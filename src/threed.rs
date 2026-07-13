@@ -9,10 +9,9 @@ use macroquad::{
 };
 
 use crate::{
-    Config, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, GameParams, My, THICKNESS,
     elite::{
-        SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER, SCR_INTRO_ONE, SCR_INTRO_TWO, SCR_LEFT_VIEW,
-        SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData, ShipFaceNormal,
+        ShipData, ShipFaceNormal, SCR_ESCAPE_POD, SCR_FRONT_VIEW, SCR_GAME_OVER, SCR_INTRO_ONE,
+        SCR_INTRO_TWO, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW,
     },
     gfx::{
         GFX_SCALE, GFX_VIEW_BX, GFX_VIEW_BY, GFX_VIEW_TX, GFX_VIEW_TY, GFX_X_OFFSET, GFX_Y_OFFSET,
@@ -22,8 +21,9 @@ use crate::{
     space::{Point, UnivObject},
     stars::{rand255, randint},
     vector::{
-        Matrix, START_MATRIX, START_VECTOR, Vector, mult_vector, unit_vector, vector_dot_product,
+        mult_vector, unit_vector, vector_dot_product, Matrix, Vector, START_MATRIX, START_VECTOR,
     },
+    Config, GameParams, My, FLG_DEAD, FLG_EXPLOSION, FLG_FIRING, SCANNER_Y_PROPORTION, THICKNESS,
 };
 
 pub fn draw_ship(
@@ -31,6 +31,7 @@ pub fn draw_ship(
     params: &GameParams,
     config: &Config,
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
+    point_list: &mut [Point; 60],
 ) {
     if (params.current_screen != SCR_FRONT_VIEW)
         && (params.current_screen != SCR_REAR_VIEW)
@@ -78,7 +79,7 @@ pub fn draw_ship(
     }
 
     if (config.wireframe) != 0 {
-        draw_wireframe_ship(ship, ship_list, params);
+        draw_wireframe_ship(ship, ship_list, params, point_list);
     } else {
         // crst
         // draw_solid_ship(ship);
@@ -88,6 +89,7 @@ fn draw_wireframe_ship(
     univ: &UnivObject,
     ship_list: &[ShipData; NO_OF_SHIPS + 1],
     params: &GameParams,
+    point_list: &mut [Point; 60],
 ) {
     let mut trans_mat: Matrix = START_MATRIX;
     let mut sx: f32;
@@ -101,7 +103,7 @@ fn draw_wireframe_ship(
     let mut vec: Vector = START_VECTOR;
     let mut cos_angle: f32;
     let mut tmp: f32;
-    let mut ship_norm: Vec<ShipFaceNormal>;
+    // let mut ship_norm: Vec<ShipFaceNormal>;
     let ship = ship_list[univ.da_type as usize].clone();
 
     for i in 0..3 {
@@ -114,12 +116,11 @@ fn draw_wireframe_ship(
 
     let num_faces = ship.num_faces;
 
+    // ship_norm = ship.normals.clone();
     for i in 0..num_faces {
-        ship_norm = ship.normals.clone();
-
-        vec.x = ship_norm[i].x;
-        vec.y = ship_norm[i].y;
-        vec.z = ship_norm[i].z;
+        vec.x = ship.normals[i].x;
+        vec.y = ship.normals[i].y;
+        vec.z = ship.normals[i].z;
 
         if (vec.x == 0.0) && (vec.y == 0.0) && (vec.z == 0.0) {
             visible[i] = true;
@@ -142,11 +143,11 @@ fn draw_wireframe_ship(
     trans_mat[1].z = trans_mat[2].y;
     trans_mat[2].y = tmp;
 
-    let mut point_list: [Point; 60] = [Point {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-    }; 60];
+    // let mut point_list: [Point; 60] = [Point {
+    //     x: 0.0,
+    //     y: 0.0,
+    //     z: 0.0,
+    // }; 60];
     for i in 0..ship.num_points {
         vec.x = ship.points[i].x;
         vec.y = ship.points[i].y;
@@ -163,9 +164,11 @@ fn draw_wireframe_ship(
 
         sy = -sy;
 
-        sx += params.screen_width * 0.5;
-        sy += params.screen_height * 0.5;
+        // sx += 128.0; // params.screen_width * 0.5;
+        // sy += 96.0; // params.screen_height * 0.5 * (1.0 - SCANNER_Y_PROPORTION);
 
+        // sx *= params.screen_scale;
+        // sy *= params.screen_scale;
         point_list[i].x = sx;
         point_list[i].y = sy;
     }
@@ -178,7 +181,21 @@ fn draw_wireframe_ship(
             ex = point_list[ship.lines[i].end_point].x;
             ey = point_list[ship.lines[i].end_point].y;
 
-            draw_line(sx, sy, ex, ey, THICKNESS, WHITE);
+            sx += params.mid_screen_x;
+            sy += params.mid_screen_y * (1.0 - SCANNER_Y_PROPORTION);
+            ex += params.mid_screen_x;
+            ey += params.mid_screen_y * (1.0 - SCANNER_Y_PROPORTION);
+            if sx > 0.0
+                && sx < params.screen_width
+                && ex > 0.0
+                && ex < params.screen_width
+                && sy > 0.0
+                && sy < params.screen_height * (1.0 - SCANNER_Y_PROPORTION)
+                && ey > 0.0
+                && ey < params.screen_height * (1.0 - SCANNER_Y_PROPORTION)
+            {
+                draw_line(sx, sy, ex, ey, THICKNESS, WHITE);
+            }
         }
     }
 
@@ -187,7 +204,13 @@ fn draw_wireframe_ship(
         draw_line(
             point_list[lasv].x,
             point_list[lasv].y,
-            { if univ.location.x > 0.0 { 0.0 } else { 511.0 } },
+            {
+                if univ.location.x > 0.0 {
+                    0.0
+                } else {
+                    511.0
+                }
+            },
             (rand255() * 2) as f32,
             THICKNESS,
             WHITE,

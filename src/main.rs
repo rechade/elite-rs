@@ -11,8 +11,7 @@ use std::{thread, time};
 
 use crate::{
     docked::{
-        display_commander_status, display_data_on_planet, display_galactic_chart,
-        display_short_range_chart, move_cursor_to_origin, show_distance_to_planet,
+        buy_stock, display_commander_status, display_data_on_planet, display_galactic_chart, display_market_prices, display_short_range_chart, move_cursor_to_origin, select_next_stock, select_previous_stock, sell_stock, show_distance_to_planet
     },
     elite::{Commander, PlayerShip, SCR_FRONT_VIEW, SCR_REAR_VIEW, *},
     gfx::{GFX_SCALE, GFX_X_CENTRE, GFX_Y_CENTRE},
@@ -23,15 +22,11 @@ use crate::{
     shipdata::{NO_OF_SHIPS, SHIP_COBRA3, SHIP_CORIOLIS, SHIP_DODEC},
     sound::{SND_BEEP, SND_BLUE_DANUBE, SND_ELITE_THEME},
     space::{
-        DaType, UnivObject, countdown_hyperspace, display_hyper_status, dock_player,
-        engage_docking_computer, jump_warp, launch_player, regenerate_shields,
-        start_galactic_hyperspace, start_hyperspace, update_altitude, update_cabin_temp,
-        update_console, update_universe,
+        DaType, Point, UnivObject, countdown_hyperspace, display_hyper_status, dock_player, engage_docking_computer, jump_warp, launch_player, regenerate_shields, start_galactic_hyperspace, start_hyperspace, update_altitude, update_cabin_temp, update_console, update_universe
     },
     stars::{Stars, create_new_stars, flip_stars, update_starfield},
     swat::{
-        add_new_ship, arm_missile, clear_universe, cool_laser, draw_laser_lines, fire_laser,
-        fire_missile, random_encounter, snd_play_sample, unarm_missile,
+        activate_ecm, add_new_ship, arm_missile, clear_universe, cool_laser, draw_laser_lines, fire_laser, fire_missile, random_encounter, snd_play_sample, time_ecm, unarm_missile
     },
     threed::draw_ship,
     vector::{START_MATRIX, START_VECTOR, set_init_matrix, unit_vector, vector_dot_product},
@@ -58,6 +53,7 @@ pub(crate) mod trade;
 pub(crate) mod vector;
 const DIAL_BAR_MARGIN_PROPORTION: f32 = 0.05;
 pub const SCANNER_X_PROPORTION: f32 = 0.2;
+pub const FONT_BASE: u16 = 12;
 const SCANNER_Y_PROPORTION: f32 = 0.25;
 const FIRE_KEY: KeyCode = KeyCode::A;
 const DOCK_KEY: KeyCode = KeyCode::C;
@@ -194,6 +190,8 @@ struct GameParams {
     hyper_galactic: bool,
     hyper_countdown: My,
     hyper_name: String,
+    ecm_ours: u8,
+    hilite_item:usize,
 }
 impl GameParams {
     pub fn update_screen_params(&mut self) {
@@ -299,6 +297,8 @@ impl GameParams {
         hyper_galactic: bool,
         hyper_countdown: My,
         hyper_name: String,
+        ecm_ours:u8,
+        hilite_item:usize,
     ) -> Self {
         Self {
             current_screen,
@@ -362,6 +362,8 @@ impl GameParams {
             hyper_galactic,
             hyper_countdown,
             hyper_name,
+            ecm_ours,
+            hilite_item,
         }
     }
 
@@ -428,6 +430,8 @@ impl GameParams {
             hyper_galactic: false,
             hyper_countdown: 0,
             hyper_name: "".to_string(),
+            ecm_ours: 0,
+            hilite_item: 0,
         }
     }
 }
@@ -471,6 +475,7 @@ async fn main() {
         theme_sfx,
         danube_sfx,
     ];
+    let mut point_list:[Point;60] = [Point {x:0.0,y:0.0,z:0.0};60];
     let labels: Vec<&str> = vec![
         "FS", "SP", "AS", "RL", "FU", "DC", "CT", " 1", "LT", " 2", "AL", " 3", "MI", " 4",
     ];
@@ -3078,7 +3083,7 @@ async fn main() {
     let mut message_x_pos;
     let mut text_params = TextParams {
         font: Some(&font),
-        font_size: 12,
+        font_size: FONT_BASE,
         font_scale: GFX_SCALE,
         font_scale_aspect: 1.0,
         rotation: 0.0,
@@ -3096,7 +3101,7 @@ async fn main() {
         );
         dock_player(&mut params);
 
-        update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
+        update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels,&mut text_params);
 
         params.current_screen = SCR_FRONT_VIEW;
         run_first_intro_screen(
@@ -3113,6 +3118,7 @@ async fn main() {
         audio::play_sound_once(&sample_list[SND_ELITE_THEME]);
         loop {
             params.update_screen_params(); // my macroquad admin stuff
+            text_params.font_size = (FONT_BASE as f32 * params.screen_scale) as u16;
             update_intro1(
                 &mut universe,
                 &mut params,
@@ -3120,11 +3126,12 @@ async fn main() {
                 &mut ship_list,
                 &mut ship_count,
                 &config,
-                &text_params,
+                &mut text_params,
                 &font,
                 &sample_list,
+                &mut point_list
             );
-            update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
+            update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels,&mut text_params);
             if is_key_down(KeyCode::Y) {
                 // snd_stop_midi();
                 // load_commander_screen();
@@ -3150,6 +3157,7 @@ async fn main() {
         audio::play_sound_once(&sample_list[SND_BLUE_DANUBE]);
         loop {
             params.update_screen_params();
+            text_params.font_size = (FONT_BASE as f32 * params.screen_scale) as u16;
             update_intro2(
                 &mut universe,
                 &mut da_stars,
@@ -3158,11 +3166,12 @@ async fn main() {
                 &mut ship_list,
                 &mut cmdr,
                 &config,
-                &text_params,
+                &mut text_params,
                 &font,
                 &sample_list,
+                &mut point_list
             );
-            update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
+            update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels,&mut text_params);
             if is_key_down(KeyCode::Space) {
                 break;
             }
@@ -3174,10 +3183,11 @@ async fn main() {
         params.current_screen = SCR_CMDR_STATUS;
         params.cross_x = params.mid_screen_x as My;
         params.cross_y = params.mid_screen_y as My;
+        text_params.color = WHITE;
         while !params.game_over {
             params.update_screen_params(); // my macroquad admin stuff
-            text_params.font_size = (12.0 * params.screen_scale) as u16;
-            update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
+            text_params.font_size = (FONT_BASE as f32 * params.screen_scale) as u16;
+            update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels,&mut text_params);
             params.rolling = false;
             params.climbing = false;
 
@@ -3266,6 +3276,7 @@ async fn main() {
                     &mut ship_count,
                     &config,
                     &sample_list,
+                    &mut point_list
                 );
 
                 // if params.docked {
@@ -3287,7 +3298,7 @@ async fn main() {
                 }
                 if params.message_count > 0 {
                     message_width =
-                        measure_text(&params.message_string, Some(&font), 18, GFX_SCALE).width;
+                        measure_text(&params.message_string, Some(&font), FONT_BASE, params.screen_scale).width;
                     message_x_pos = (params.screen_width - message_width) * 0.5;
                     draw_text_ex(
                         &params.message_string,
@@ -3298,7 +3309,7 @@ async fn main() {
                 }
 
                 if params.hyper_ready {
-                    display_hyper_status(&mut params, &text_params, &font);
+                    display_hyper_status(&mut params, &mut text_params, &font);
                     if (params.mcount & 3) == 0 {
                         countdown_hyperspace(
                             &mut params,
@@ -3351,10 +3362,9 @@ async fn main() {
                 }
 
                 cool_laser(&mut params);
-                // crst
-                // time_ecm();
+                time_ecm(&mut params);
 
-                update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels);
+                update_console(&params, &ship_list, &ship_count, &universe, &cmdr, &labels,&mut text_params);
             } else {
                 audio::stop_sound(&sample_list[SND_BLUE_DANUBE]);
             }
@@ -3391,13 +3401,13 @@ async fn main() {
                 // display_break_pattern(frame_duration,&mut params,&universe,&cmdr);
             }
 
-            if params.cross_timer > 0 {
-                params.cross_timer -= 1;
-                if params.cross_timer == 0 {
-                    show_distance_to_planet(&mut params, &text_params, &font, &mut cmdr);
-                }
-            }
-            show_distance_to_planet(&mut params, &text_params, &font, &mut cmdr);
+            // if params.cross_timer > 0 {
+            //     params.cross_timer -= 1;
+            //     if params.cross_timer == 0 {
+            //         show_distance_to_planet(&mut params, &text_params, &font, &mut cmdr);
+            //     }
+            // }
+            // show_distance_to_planet(&mut params, &text_params, &font, &mut cmdr);
 
             thread::sleep(debug_duration);
             next_frame().await
@@ -3583,7 +3593,7 @@ fn draw_laser_sights(params: &GameParams, cmdr: &Commander, font: &Font, text_pa
         _ => (),
     }
 
-    let msg_width = measure_text(&msg, Some(font), 18, GFX_SCALE).width;
+    let msg_width = measure_text(&msg, Some(font), FONT_BASE, params.screen_scale).width;
     let msg_x_pos = (params.screen_width - msg_width) * 0.5;
     draw_text_ex(
         &msg,
@@ -3611,11 +3621,10 @@ fn draw_laser_sights(params: &GameParams, cmdr: &Commander, font: &Font, text_pa
     }
 }
 
-fn arrow_right(params: &mut GameParams) {
+fn arrow_right(params: &mut GameParams,cmdr:&mut Commander,text_params: &mut TextParams) {
     match params.current_screen {
         SCR_MARKET_PRICES => {
-            // crst
-            // buy_stock();
+            buy_stock(cmdr,text_params,params);
         }
 
         SCR_SETTINGS => {
@@ -3636,11 +3645,10 @@ fn arrow_right(params: &mut GameParams) {
     }
 }
 
-fn arrow_left(params: &mut GameParams) {
+fn arrow_left(params: &mut GameParams,cmdr:&mut Commander,text_params: &mut TextParams) {
     match params.current_screen {
         SCR_MARKET_PRICES => {
-            // crst
-            // sell_stock();
+            sell_stock(cmdr,text_params,params);
         }
 
         SCR_SETTINGS => {
@@ -3661,11 +3669,10 @@ fn arrow_left(params: &mut GameParams) {
     }
 }
 
-fn arrow_up(params: &mut GameParams) {
+fn arrow_up(params: &mut GameParams,cmdr:&mut Commander,text_params: &mut TextParams) {
     match params.current_screen {
         SCR_MARKET_PRICES => {
-            // crst
-            // select_previous_stock();
+            select_previous_stock(params,cmdr,text_params);
         }
 
         SCR_EQUIP_SHIP => {
@@ -3695,10 +3702,10 @@ fn arrow_up(params: &mut GameParams) {
     }
 }
 
-fn arrow_down(params: &mut GameParams) {
+fn arrow_down(params: &mut GameParams,cmdr:&mut Commander,text_params: &mut TextParams) {
     if params.current_screen == SCR_MARKET_PRICES {
         // crst
-        // select_next_stock();
+        select_next_stock(params,cmdr,text_params);
     } else if params.current_screen == SCR_EQUIP_SHIP {
         // crst
         // select_next_equip();
@@ -3740,17 +3747,13 @@ fn display_screens(
             // equip_ship();
         }
     } else if params.current_screen == SCR_GALACTIC_CHART {
-        // xyz move_cross?
         display_galactic_chart(params, text_params, font, cmdr);
     } else if params.current_screen == SCR_SHORT_RANGE {
-        // xyz move_cross?
         display_short_range_chart(params, cmdr, text_params, font);
     } else if params.current_screen == SCR_PLANET_DATA {
-        //crst
         display_data_on_planet(params, text_params, font, cmdr, config);
     } else if params.current_screen == SCR_MARKET_PRICES {
-        // crst
-        // display_market_prices();
+        display_market_prices(params,text_params,font,cmdr);
     } else if params.current_screen == SCR_CMDR_STATUS {
         display_commander_status(cmdr, params, universe, font, text_params);
     } else if params.current_screen == SCR_INVENTORY {
@@ -3967,8 +3970,7 @@ fn handle_flight_keys(
 
     if is_key_down(ECM_KEY) {
         if !params.docked && cmdr.ecm != 0 {
-            // crst
-            // activate_ecm(1);
+            activate_ecm(params,1,sample_list);
         }
     }
 
@@ -4032,19 +4034,19 @@ fn handle_flight_keys(
     }
 
     if is_key_down(KeyCode::Up) || is_key_down(KeyCode::S) {
-        arrow_down(params);
+        arrow_down(params,cmdr,text_params);
     }
 
     if is_key_down(KeyCode::Down) || is_key_down(KeyCode::X) {
-        arrow_up(params);
+        arrow_up(params,cmdr,text_params);
     }
 
     if is_key_down(KeyCode::Left) || is_key_down(KeyCode::Comma) {
-        arrow_left(params);
+        arrow_left(params,cmdr,text_params);
     }
 
     if is_key_down(KeyCode::Right) || is_key_down(KeyCode::Period) {
-        arrow_right(params);
+        arrow_right(params,cmdr,text_params);
     }
 
     if is_key_down(KeyCode::Enter) {
@@ -4322,9 +4324,10 @@ fn update_intro1(
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
     ship_count: &mut [My; NO_OF_SHIPS + 1],
     config: &Config,
-    text_params: &TextParams,
+    text_params: &mut TextParams,
     font: &Font,
     sample_list: &[Sound],
+    point_list:&mut[Point;60]
 ) {
     universe[0].location.z -= 100.0;
 
@@ -4341,20 +4344,22 @@ fn update_intro1(
         ship_count,
         config,
         sample_list,
+        point_list
     );
 
     // gfx_draw_sprite(IMG_ELITE_TXT, -1, 10);
 
+    text_params.color = WHITE;
     let mut msg = "Original Game (C) I.Bell & D.Braben.";
-    let mut msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
+    let mut msg_width = measure_text(&msg, Some(font), FONT_BASE, params.screen_scale).width;
     let mut msg_x_pos = (params.screen_width - msg_width) * 0.5;
     draw_text_ex(&msg, msg_x_pos, 110.0 * GFX_SCALE, text_params.clone());
     msg = "Re-engineered by C.J.Pinder.";
-    msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
+    msg_width = measure_text(&msg, Some(font), FONT_BASE, params.screen_scale).width;
     msg_x_pos = (params.screen_width - msg_width) * 0.5;
     draw_text_ex(&msg, msg_x_pos, 130.0 * GFX_SCALE, text_params.clone());
     msg = "Load New Commander (Y/N)?";
-    msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
+    msg_width = measure_text(&msg, Some(font), FONT_BASE, params.screen_scale).width;
     msg_x_pos = (params.screen_width - msg_width) * 0.5;
     draw_text_ex(&msg, msg_x_pos, 160.0 * GFX_SCALE, text_params.clone());
 }
@@ -4367,9 +4372,10 @@ fn update_intro2(
     ship_list: &mut [ShipData; NO_OF_SHIPS + 1],
     cmdr: &mut Commander,
     config: &Config,
-    text_params: &TextParams,
+    text_params: &mut TextParams,
     font: &Font,
     sample_list: &[Sound],
+    point_list:&mut [Point;60]
 ) {
     let mut intro_ship_matrix = START_MATRIX;
     params.show_time += 1;
@@ -4419,17 +4425,19 @@ fn update_intro2(
         ship_count,
         config,
         sample_list,
+        point_list
     );
 
+    text_params.color = WHITE;
     // gfx_draw_sprite (IMG_ELITE_TXT, -1, 10);
     let mut msg = "Press Fire or Space, Commander.";
-    let mut msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
+    let mut msg_width = measure_text(&msg, Some(&font), FONT_BASE, params.screen_scale).width;
     let mut msg_x_pos = (params.screen_width - msg_width) * 0.5;
     draw_text_ex(&msg, msg_x_pos, 160.0 * GFX_SCALE, text_params.clone());
 
     let ship_name = ship_list[params.ship_no as usize].get_name();
     msg = &ship_name;
-    msg_width = measure_text(&msg, Some(&font), 12, GFX_SCALE).width;
+    msg_width = measure_text(&msg, Some(&font), FONT_BASE, params.screen_scale).width;
     msg_x_pos = (params.screen_width - msg_width) * 0.5;
     draw_text_ex(&msg, msg_x_pos, 130.0 * GFX_SCALE, text_params.clone());
 }

@@ -7,10 +7,7 @@ use macroquad::{
 };
 
 use crate::{
-    Config, FLG_ANGRY, FLG_BOLD, FLG_CLOAKED, FLG_DEAD, FLG_FLY_TO_PLANET, FLG_HAS_ECM,
-    FLG_INACTIVE, FLG_POLICE, FLG_SLOW, GameParams, MAX_UNIV_OBJECTS, MILITARY_LASER, MINING_LASER,
-    My, THICKNESS,
-    elite::{Commander, SCR_FRONT_VIEW, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW, ShipData},
+    elite::{Commander, ShipData, SCR_FRONT_VIEW, SCR_LEFT_VIEW, SCR_REAR_VIEW, SCR_RIGHT_VIEW},
     gfx::{GFX_SCALE, GFX_VIEW_BY},
     info_message,
     planet::PlanetData,
@@ -20,11 +17,14 @@ use crate::{
         SHIP_PLANET, SHIP_ROCK, SHIP_SIDEWINDER, SHIP_SUN, SHIP_THARGLET, SHIP_THARGOID,
         SHIP_VIPER,
     },
-    sound::{SND_BEEP, SND_BOOP, SND_EXPLODE, SND_HIT_ENEMY, SND_MISSILE, SND_PULSE},
-    space::{DaType, UnivObject, damage_ship},
+    sound::{SND_BEEP, SND_BOOP, SND_ECM, SND_EXPLODE, SND_HIT_ENEMY, SND_MISSILE, SND_PULSE},
+    space::{damage_ship, decrease_energy, DaType, UnivObject},
     stars::{rand255, randint},
     trade::carrying_contraband,
-    vector::{Matrix, START_MATRIX, START_VECTOR, Vector, unit_vector, vector_dot_product},
+    vector::{unit_vector, vector_dot_product, Matrix, Vector, START_MATRIX, START_VECTOR},
+    Config, GameParams, My, FLG_ANGRY, FLG_BOLD, FLG_CLOAKED, FLG_DEAD, FLG_FLY_TO_PLANET,
+    FLG_HAS_ECM, FLG_INACTIVE, FLG_POLICE, FLG_SLOW, MAX_UNIV_OBJECTS, MILITARY_LASER,
+    MINING_LASER, THICKNESS,
 };
 
 pub const INITIAL_FLAGS: [My; NO_OF_SHIPS + 1] = [
@@ -95,7 +95,7 @@ pub fn reset_weapons(params: &mut GameParams) {
     params.myship.laser_temp = 0;
     params.myship.laser_counter = 0;
     params.myship.laser = 0;
-    params.myship.ecm_active = false;
+    params.myship.ecm_active = 0;
     params.myship.missile_target = MISSILE_UNARMED;
 }
 pub fn draw_laser_lines(params: &GameParams, config: &Config) {
@@ -476,8 +476,20 @@ fn check_for_others(
     /* Pack hunters... */
 
     let mut z = 12000.0;
-    let mut x = 1000.0 + { if (randint() & 8191 != 0) { 1.0 } else { 0.0 } };
-    let mut y = 1000.0 + { if (randint() & 8191 != 0) { 1.0 } else { 0.0 } };
+    let mut x = 1000.0 + {
+        if (randint() & 8191 != 0) {
+            1.0
+        } else {
+            0.0
+        }
+    };
+    let mut y = 1000.0 + {
+        if (randint() & 8191 != 0) {
+            1.0
+        } else {
+            0.0
+        }
+    };
 
     if (rand255() > 127) {
         x = -x;
@@ -731,28 +743,22 @@ pub fn launch_enemy(
         }
     }
 }
-/*
-void activate_ecm (int ours)
-{
-    if (ecm_active == 0)
-    {
-        ecm_active = 32;
-        ecm_ours = ours;
-        snd_play_sample (SND_ECM);
+pub fn activate_ecm(params: &mut GameParams, ours: u8, sample_list: &[Sound]) {
+    if (params.myship.ecm_active == 0) {
+        params.myship.ecm_active = 32;
+        params.ecm_ours = ours;
+        snd_play_sample(sample_list, SND_ECM);
     }
 }
 
-
-void time_ecm (void)
-{
-    if (ecm_active != 0)
-    {
-        ecm_active--;
-        if (ecm_ours)
-            decrease_energy (-1);
+pub fn time_ecm(params: &mut GameParams) {
+    if (params.myship.ecm_active != 0) {
+        params.myship.ecm_active -= 1;
+        if (params.ecm_ours != 0) {
+            decrease_energy(-1, params);
+        }
     }
 }
-*/
 
 pub fn arm_missile(cmdr: &Commander, params: &mut GameParams) {
     if (cmdr.missiles != 0) && (params.myship.missile_target == MISSILE_UNARMED) {
@@ -862,7 +868,7 @@ pub fn missile_tactics(
     let mut direction;
     let cnt2: f32 = 0.223;
 
-    if (params.myship.ecm_active) {
+    if (params.myship.ecm_active != 0) {
         snd_play_sample(sample_list, SND_EXPLODE);
         universe[un as usize].flags |= FLG_DEAD;
         return;
@@ -913,8 +919,7 @@ pub fn missile_tactics(
         }
 
         if ((rand255() < 16) && (target.flags & FLG_HAS_ECM) != 0) {
-            // activate_ecm(0);
-            // crst
+            activate_ecm(params, 0, sample_list);
             return;
         }
     }
@@ -1025,7 +1030,6 @@ fn explode_object(
     }
 
     snd_play_sample(sample_list, SND_EXPLODE);
-    // crst
     universe[un as usize].flags |= FLG_DEAD;
 
     if (universe[un as usize].da_type == SHIP_CONSTRICTOR) {

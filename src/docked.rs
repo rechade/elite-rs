@@ -1,29 +1,38 @@
 use macroquad::{
-    color::{GOLD, GREEN, WHITE},
-    input::{KeyCode, is_key_down},
+    color::{GOLD, GREEN, RED, WHITE},
+    input::{is_key_down, KeyCode},
     shapes::{draw_circle, draw_circle_lines, draw_line, draw_rectangle},
-    text::{Font, TextParams, draw_text, draw_text_ex, measure_text},
+    text::{draw_text, draw_text_ex, measure_text, Font, TextParams},
 };
 
 use crate::{
-    BEAM_LASER, Config, GameParams, MILITARY_LASER, MINING_LASER, My, PULSE_LASER, THICKNESS,
     draw_cross,
-    elite::{Commander, SCR_CMDR_STATUS, SCR_GALACTIC_CHART, SCR_PLANET_DATA, SCR_SHORT_RANGE},
+    elite::{
+        Commander, SCR_CMDR_STATUS, SCR_GALACTIC_CHART, SCR_MARKET_PRICES, SCR_PLANET_DATA,
+        SCR_SHORT_RANGE,
+    },
     gfx::{GFX_SCALE, GFX_X_CENTRE, GFX_Y_CENTRE},
     move_cross,
     planet::{
-        GalaxySeed, PlanetData, capitalise_name, describe_planet, find_planet,
-        generate_planet_data, name_planet, waggle_galaxy,
+        capitalise_name, describe_planet, find_planet, generate_planet_data, name_planet,
+        waggle_galaxy, GalaxySeed, PlanetData,
     },
     shipdata::{SHIP_DODEC, SHIP_MISSILE, SHIP_ROCK},
-    space::{DaType, UnivObject, calc_distance_to_planet},
+    space::{calc_distance_to_planet, DaType, UnivObject},
+    trade::{total_cargo, StockItem},
+    Config, GameParams, My, BEAM_LASER, FONT_BASE, MILITARY_LASER, MINING_LASER, PULSE_LASER,
+    SCANNER_Y_PROPORTION, THICKNESS,
 };
 
 struct Rank {
     score: My,
     title: String,
 }
+pub const unit_name: [&str; 3] = ["t", "kg", "g"];
 
+pub const TONNES: usize = 0;
+pub const KILOGRAMS: usize = 1;
+pub const GRAMS: usize = 2;
 pub const SHORT_RANGE_X_FACTOR: f32 = 4.0;
 pub const SHORT_RANGE_Y_FACTOR: f32 = 2.0;
 pub const DESC_LIST: [[&str; 5]; 36] = [
@@ -191,15 +200,24 @@ pub fn display_short_range_chart(
     let mut blob_size;
     params.current_screen = SCR_SHORT_RANGE;
     let da_str = format!("SHORT RANGE CHART");
-    let mut text_params_clone = text_params.clone();
-    text_params_clone.color = GOLD;
-    text_params_clone.font_size = 12;
+    text_params.color = GOLD;
     let pos_x = (params.screen_width
-        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        - measure_text(&da_str, Some(&font), FONT_BASE, params.screen_scale).width)
         * 0.5;
-    draw_text_ex(&da_str, pos_x, 140.0, text_params_clone.clone());
-    draw_text_ex(&"SHORT RANGE CHART", pos_x, 140.0, text_params_clone);
-    draw_line(0.0, 36.0, params.screen_width, 36.0, THICKNESS, WHITE);
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        15.0 * params.screen_scale,
+        text_params.clone(),
+    );
+    draw_line(
+        0.0,
+        25.0 * params.screen_scale,
+        params.screen_width,
+        25.0 * params.screen_scale,
+        THICKNESS,
+        WHITE,
+    );
     draw_fuel_limit_circle(params.mid_screen_x, params.mid_screen_y, params, cmdr);
     for i in 0..NUM_ROWS {
         row_used[i] = 0;
@@ -250,6 +268,7 @@ pub fn display_short_range_chart(
             waggle_galaxy(&mut glx, &mut params.carry_flag);
             continue;
         }
+        text_params.color = WHITE;
         // now use the glx that met above to get the planet
         if (row_used[row] == 0) {
             row_used[row] = 1;
@@ -290,6 +309,7 @@ pub fn display_short_range_chart(
         move_cross(params, 1, 0);
     }
     draw_cross(params, 0, 0);
+    show_distance_to_planet(params, text_params, font, cmdr);
 }
 pub fn show_distance_to_planet(
     params: &mut GameParams,
@@ -351,7 +371,20 @@ pub fn show_distance_to_planet(
             + (18.0 * params.screen_scale)
             + 1.0) as My;
     }
-    draw_text(&params.dest_planet_string, 1.0, 20.0, 24.0, WHITE);
+    let msg_width = measure_text(
+        &params.dest_planet_string,
+        Some(font),
+        FONT_BASE,
+        params.screen_scale,
+    )
+    .width;
+    let x_pos = (params.screen_width - msg_width) * 0.5;
+    draw_text_ex(
+        &params.dest_planet_string,
+        x_pos,
+        params.screen_height * 0.95 * (1.0 - SCANNER_Y_PROPORTION),
+        text_params.clone(),
+    );
 }
 fn draw_fuel_limit_circle(cx: f32, cy: f32, params: &mut GameParams, cmdr: &mut Commander) {
     let radius;
@@ -372,7 +405,7 @@ fn draw_fuel_limit_circle(cx: f32, cy: f32, params: &mut GameParams, cmdr: &mut 
  */
 pub fn display_data_on_planet(
     params: &mut GameParams,
-    text_params: &TextParams,
+    text_params: &mut TextParams,
     font: &Font,
     cmdr: &mut Commander,
     config: &Config,
@@ -382,49 +415,91 @@ pub fn display_data_on_planet(
     let mut description: String = "".to_string();
     let mut hyper_planet_data: PlanetData;
     params.current_screen = SCR_PLANET_DATA;
+
     name_planet(
         &mut planet_name,
         &mut params.hyperspace_planet.clone(),
         &mut params.carry_flag,
     );
     da_str = format!("DATA ON {}", planet_name);
-    let mut text_params_clone = text_params.clone();
-    text_params_clone.color = GOLD;
-    text_params_clone.font_size = (text_params_clone.font_size as f32 * params.screen_scale) as u16;
     let mut pos_x = (params.screen_width
-        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        - measure_text(&da_str, Some(&font), FONT_BASE, params.screen_scale).width)
         * 0.5;
-    draw_text_ex(&da_str, pos_x, 10.0, text_params.clone());
-    draw_line(0.0, 36.0, params.screen_width, 36.0, THICKNESS, WHITE);
+    text_params.color = GOLD;
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        15.0 * params.screen_scale,
+        text_params.clone(),
+    );
+    draw_line(
+        0.0,
+        25.0 * params.screen_scale,
+        params.screen_width,
+        25.0 * params.screen_scale,
+        THICKNESS,
+        WHITE,
+    );
     hyper_planet_data = generate_planet_data(&params.hyperspace_planet);
-    // crst
+    text_params.color = WHITE;
+    params.dest_planet_string = "".to_string();
     show_distance(
         42,
         &params.docked_planet,
         &params.hyperspace_planet,
         &mut params.dest_planet_string,
     );
+    pos_x = (params.screen_width
+        - measure_text(
+            &params.dest_planet_string,
+            Some(&font),
+            FONT_BASE,
+            params.screen_scale,
+        )
+        .width)
+        * 0.5;
+    draw_text_ex(
+        &params.dest_planet_string,
+        pos_x,
+        42.0 * params.screen_scale,
+        text_params.clone(),
+    );
     da_str = format!(
         "Economy:{}",
         ECONOMY_TYPE[hyper_planet_data.economy as usize]
     );
     pos_x = (params.screen_width
-        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        - measure_text(&da_str, Some(&font), FONT_BASE, params.screen_scale).width)
         * 0.5;
-    draw_text_ex(&da_str, pos_x, 74.0, text_params_clone.clone());
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        74.0 * params.screen_scale,
+        text_params.clone(),
+    );
     pos_x = (params.screen_width
-        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        - measure_text(&da_str, Some(&font), FONT_BASE, params.screen_scale).width)
         * 0.5;
     da_str = format!(
         "Government:{}",
         GOVERNMENT_TYPE[hyper_planet_data.government as usize],
     );
-    draw_text_ex(&da_str, pos_x, 106.0, text_params_clone.clone());
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        106.0 * params.screen_scale,
+        text_params.clone(),
+    );
     da_str = format!("Tech.Level:{}", hyper_planet_data.techlevel + 1);
     pos_x = (params.screen_width
-        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        - measure_text(&da_str, Some(&font), FONT_BASE, params.screen_scale).width)
         * 0.5;
-    draw_text_ex(&da_str, pos_x, 138.0, text_params_clone.clone());
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        138.0 * params.screen_scale,
+        text_params.clone(),
+    );
     da_str = format!(
         "Population:{}.{} Billion",
         hyper_planet_data.population / 10,
@@ -433,27 +508,77 @@ pub fn display_data_on_planet(
     pos_x = (params.screen_width
         - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
         * 0.5;
-    draw_text_ex(&da_str, pos_x, 170.0, text_params_clone.clone());
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        170.0 * params.screen_scale,
+        text_params.clone(),
+    );
     da_str = "".to_string();
     describe_inhabitants(&mut da_str, &params.hyperspace_planet);
     pos_x = (params.screen_width
         - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
         * 0.5;
-    draw_text_ex(&da_str, pos_x, 202.0, text_params_clone.clone());
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        202.0 * params.screen_scale,
+        text_params.clone(),
+    );
     da_str = format!("Gross Productivity:{} M CR", hyper_planet_data.productivity,);
     pos_x = (params.screen_width
         - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
         * 0.5;
-    draw_text_ex(&da_str, pos_x, 234.0, text_params_clone.clone());
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        234.0 * params.screen_scale,
+        text_params.clone(),
+    );
     da_str = format!("Average Radius:{} km", hyper_planet_data.radius);
-    draw_text_ex(&da_str, pos_x, 266.0, text_params_clone.clone());
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        266.0 * params.screen_scale,
+        text_params.clone(),
+    );
     da_str = describe_planet(
         &mut params.hyperspace_planet.clone(),
         cmdr,
         config,
         &mut params.carry_flag,
     );
-    draw_text_ex(&da_str, pos_x, 298.0, text_params_clone.clone());
+    let words = da_str.split(" ");
+    let mut line = "".to_string();
+    let mut y_pos = 298.0;
+    let mut count = 0;
+    for w in words {
+        line += w;
+        line += &" ".to_string();
+        count += 1;
+        if count == 9 {
+            pos_x = (params.screen_width
+                - measure_text(&line, Some(&font), 12, params.screen_scale).width)
+                * 0.5;
+            draw_text_ex(
+                &line,
+                pos_x,
+                y_pos * params.screen_scale,
+                text_params.clone(),
+            );
+            count = 0;
+            line = "".to_string();
+            y_pos += 32.0;
+        }
+    }
+    pos_x = (params.screen_width - measure_text(&line, Some(&font), 12, params.screen_scale).width)
+        * 0.5;
+    draw_text_ex(
+        &line,
+        pos_x,
+        y_pos * params.screen_scale,
+        text_params.clone(),
+    );
 }
 fn describe_inhabitants(da_string: &mut String, planet: &GalaxySeed) {
     let mut inhab;
@@ -480,7 +605,7 @@ fn describe_inhabitants(da_string: &mut String, planet: &GalaxySeed) {
 }
 pub fn display_galactic_chart(
     params: &mut GameParams,
-    text_params: &TextParams,
+    text_params: &mut TextParams,
     font: &Font,
     cmdr: &mut Commander,
 ) {
@@ -488,13 +613,16 @@ pub fn display_galactic_chart(
     let mut py;
     params.current_screen = SCR_GALACTIC_CHART;
     let da_str = format!("GALACTIC CHART {}", cmdr.galaxy_number + 1);
-    let mut text_params_clone = text_params.clone();
-    text_params_clone.color = GOLD;
-    text_params_clone.font_size = 12;
+    text_params.color = GOLD;
     let pos_x = (params.screen_width
-        - measure_text(&da_str, Some(&font), 12, params.screen_scale).width)
+        - measure_text(&da_str, Some(&font), FONT_BASE, params.screen_scale).width)
         * 0.5;
-    draw_text_ex(&da_str, pos_x, 140.0, text_params_clone);
+    draw_text_ex(
+        &da_str,
+        pos_x,
+        15.0 * params.screen_scale,
+        text_params.clone(),
+    );
     draw_line(0.0, 36.0, 511.0, 36.0, THICKNESS, WHITE);
     draw_line(0.0, 36.0 + 258.0, 511.0, 36.0 + 258.0, THICKNESS, WHITE);
     draw_fuel_limit_circle(
@@ -615,35 +743,37 @@ pub fn display_commander_status(
         da_str += &c.to_string();
     }
     da_str = da_str.trim_end().to_string();
-    let msg_width = measure_text(&da_str, Some(font), 12, params.screen_scale).width;
+    let msg_width = measure_text(&da_str, Some(font), FONT_BASE, params.screen_scale).width;
     let x_pos = (params.screen_width - msg_width) * 0.5;
     let width_factor = params.screen_width / 324.0;
     let height_factor = params.row_y_pos / 300.0;
-    let pointsize_factor = params.screen_scale;
-    let mut clone_params = text_params.clone();
-    clone_params.font_size = (clone_params.font_size as f32 * pointsize_factor) as u16;
-    clone_params.color = GOLD;
+    text_params.color = GOLD;
 
     // text_params for measuring centred
-    draw_text_ex(da_str, x_pos, 20.0 * height_factor, clone_params);
-
+    draw_text_ex(
+        da_str,
+        x_pos,
+        15.0 * params.screen_scale,
+        text_params.clone(),
+    );
     draw_line(
         0.0,
-        36.0 * height_factor,
+        25.0 * params.screen_scale,
         params.screen_width,
-        36.0 * height_factor,
+        25.0 * params.screen_scale,
         THICKNESS,
         WHITE,
     );
 
-    draw_text(
+    text_params.color = GREEN;
+    draw_text_ex(
         "Present System:",
         16.0 * width_factor,
         58.0 * height_factor,
-        10.0 * pointsize_factor,
-        GREEN,
+        text_params.clone(),
     );
 
+    text_params.color = WHITE;
     if !params.witchspace {
         name_planet(
             &mut planet_name,
@@ -651,20 +781,18 @@ pub fn display_commander_status(
             &mut params.carry_flag,
         );
         capitalise_name(&mut planet_name);
-        draw_text(
+        draw_text_ex(
             planet_name,
             128.0 * width_factor,
             58.0 * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
     } else {
-        draw_text(
+        draw_text_ex(
             "Hyperspace System:",
             16.0 * width_factor,
             74.0 * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         name_planet(
             &mut planet_name,
@@ -672,12 +800,11 @@ pub fn display_commander_status(
             &mut params.carry_flag,
         );
         capitalise_name(&mut planet_name);
-        draw_text(
+        draw_text_ex(
             planet_name,
             128.0 * width_factor,
             58.0 * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
     }
 
@@ -700,51 +827,51 @@ pub fn display_commander_status(
         }
     }
 
-    draw_text(
+    text_params.color = GREEN;
+    draw_text_ex(
         "Condition:",
         16.0 * width_factor,
         90.0 * height_factor,
-        10.0 * pointsize_factor,
-        GREEN,
+        text_params.clone(),
     );
-    draw_text(
+    text_params.color = WHITE;
+    draw_text_ex(
         CONDITION_TXT[condition],
         128.0 * width_factor,
         90.0 * height_factor,
-        10.0 * pointsize_factor,
-        WHITE,
+        text_params.clone(),
     );
 
     da_str = format!("{}.{} Light Years", cmdr.fuel / 10, cmdr.fuel % 10);
-    draw_text(
+    text_params.color = GREEN;
+    draw_text_ex(
         "Fuel:",
         16.0 * width_factor,
         106.0 * height_factor,
-        10.0 * pointsize_factor,
-        GREEN,
+        text_params.clone(),
     );
-    draw_text(
+    text_params.color = WHITE;
+    draw_text_ex(
         da_str,
         128.0 * width_factor,
         106.0 * height_factor,
-        10.0 * pointsize_factor,
-        WHITE,
+        text_params.clone(),
     );
 
     da_str = format!("{}.{} Cr", cmdr.credits / 10, cmdr.credits % 10);
-    draw_text(
+    text_params.color = GREEN;
+    draw_text_ex(
         "Cash:",
         16.0 * width_factor,
         122.0 * height_factor,
-        10.0 * pointsize_factor,
-        GREEN,
+        text_params.clone(),
     );
-    draw_text(
+    text_params.color = WHITE;
+    draw_text_ex(
         da_str,
         128.0 * width_factor,
         122.0 * height_factor,
-        10.0 * pointsize_factor,
-        WHITE,
+        text_params.clone(),
     );
 
     if cmdr.legal_status == 0 {
@@ -757,19 +884,19 @@ pub fn display_commander_status(
         }
     }
 
-    draw_text(
+    text_params.color = GREEN;
+    draw_text_ex(
         "Legal Status:",
         16.0 * width_factor,
         138.0 * height_factor,
-        10.0 * pointsize_factor,
-        GREEN,
+        text_params.clone(),
     );
-    draw_text(
+    text_params.color = WHITE;
+    draw_text_ex(
         da_str,
         128.0 * width_factor,
         138.0 * height_factor,
-        10.0 * pointsize_factor,
-        WHITE,
+        text_params.clone(),
     );
 
     da_str = rating[0].title.clone();
@@ -779,89 +906,85 @@ pub fn display_commander_status(
         }
     }
 
-    draw_text(
+    text_params.color = GREEN;
+    draw_text_ex(
         "Rating:",
         16.0 * width_factor,
         154.0 * height_factor,
-        10.0 * pointsize_factor,
-        GREEN,
+        text_params.clone(),
     );
-    draw_text(
+    text_params.color = WHITE;
+    draw_text_ex(
         da_str.clone(),
         128.0 * width_factor,
         154.0 * height_factor,
-        10.0 * pointsize_factor,
-        WHITE,
+        text_params.clone(),
     );
 
-    draw_text(
+    text_params.color = GREEN;
+    draw_text_ex(
         "EQUIPMENT:",
         16.0 * width_factor,
         186.0 * height_factor,
-        10.0 * pointsize_factor,
-        GREEN,
+        text_params.clone(),
     );
 
     x = EQUIP_START_X;
     y = EQUIP_START_Y;
 
+    text_params.color = WHITE;
     if cmdr.cargo_capacity > 20 {
-        draw_text(
+        draw_text_ex(
             "Large Cargo Bay",
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
     }
 
     if cmdr.escape_pod != 0 {
-        draw_text(
+        draw_text_ex(
             "Escape Pod",
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
     }
 
     if cmdr.fuel_scoop != 0 {
-        draw_text(
+        draw_text_ex(
             "Fuel Scoops",
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
     }
 
     if cmdr.ecm != 0 {
-        draw_text(
+        draw_text_ex(
             "E.C.M. System",
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
     }
 
     if cmdr.energy_bomb != 0 {
-        draw_text(
+        draw_text_ex(
             "Energy Bomb",
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
     }
 
     if cmdr.energy_unit != 0 {
-        draw_text(
+        draw_text_ex(
             if cmdr.energy_unit == 1 {
                 "Extra Energy Unit"
             } else {
@@ -869,8 +992,7 @@ pub fn display_commander_status(
             },
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
@@ -880,12 +1002,11 @@ pub fn display_commander_status(
     }
 
     if cmdr.docking_computer != 0 {
-        draw_text(
+        draw_text_ex(
             "Docking Computers",
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
@@ -895,12 +1016,11 @@ pub fn display_commander_status(
     }
 
     if cmdr.galactic_hyperdrive != 0 {
-        draw_text(
+        draw_text_ex(
             "Galactic Hyperspace",
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
@@ -911,12 +1031,11 @@ pub fn display_commander_status(
 
     if cmdr.front_laser != 0 {
         da_str = format!("Front {} Laser", laser_type(cmdr.front_laser));
-        draw_text(
+        draw_text_ex(
             da_str,
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
@@ -927,12 +1046,11 @@ pub fn display_commander_status(
 
     if cmdr.rear_laser != 0 {
         da_str = format!("Rear {} Laser", laser_type(cmdr.rear_laser));
-        draw_text(
+        draw_text_ex(
             da_str,
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
@@ -943,12 +1061,11 @@ pub fn display_commander_status(
 
     if cmdr.left_laser != 0 {
         da_str = format!("Left {} Laser", laser_type(cmdr.left_laser));
-        draw_text(
+        draw_text_ex(
             da_str,
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
         y += Y_INC * height_factor;
         if y > EQUIP_MAX_Y {
@@ -959,12 +1076,11 @@ pub fn display_commander_status(
 
     if cmdr.right_laser != 0 {
         da_str = format!("Right {} Laser", laser_type(cmdr.right_laser));
-        draw_text(
+        draw_text_ex(
             da_str,
             x * width_factor,
             y * height_factor,
-            10.0 * pointsize_factor,
-            WHITE,
+            text_params.clone(),
         );
     }
 }
@@ -996,7 +1112,7 @@ pub fn show_distance(
     dest_planet_string: &mut String,
 ) {
     let light_years = calc_distance_to_planet(from_planet, to_planet);
-    let mut dist_string = "                                                     ".to_string();
+    let mut dist_string = "".to_string();
     if (light_years > 0) {
         dist_string = format!(
             "Distance: {}.{} Light Years ",
@@ -1018,5 +1134,214 @@ pub fn move_cursor_to_origin(params: &mut GameParams) {
         params.cross_y = params.mid_screen_y as My;
     }
     // show_distance_to_planet();
+}
+pub fn display_market_prices(
+    params: &mut GameParams,
+    text_params: &mut TextParams,
+    font: &Font,
+    cmdr: &Commander,
+) {
+    let mut planet_name: String = "".to_string();
+    let mut msg: String = "".to_string();
+
+    params.current_screen = SCR_MARKET_PRICES;
+
+    // gfx_clear_display();
+    name_planet(
+        &mut planet_name,
+        &mut params.docked_planet.clone(),
+        &mut params.carry_flag,
+    );
+    msg = format!("{} MARKET PRICES", planet_name);
+    text_params.color = GOLD;
+    let msg_width = measure_text(&msg, Some(font), FONT_BASE, params.screen_scale).width;
+    let msg_x_pos = (params.screen_width - msg_width) * 0.5;
+    draw_text_ex(
+        &msg,
+        msg_x_pos,
+        15.0 * params.screen_scale,
+        text_params.clone(),
+    );
+
+    draw_line(
+        0.0,
+        25.0 * params.screen_scale,
+        params.screen_width,
+        25.0 * params.screen_scale,
+        THICKNESS,
+        WHITE,
+    );
+
+    text_params.color = GREEN;
+    draw_text_ex(
+        &"PRODUCT",
+        16.0,
+        55.0 * params.screen_scale,
+        text_params.clone(),
+    );
+    draw_text_ex(
+        &"UNIT",
+        166.0,
+        55.0 * params.screen_scale,
+        text_params.clone(),
+    );
+    draw_text_ex(
+        &"PRICE",
+        246.0,
+        55.0 * params.screen_scale,
+        text_params.clone(),
+    );
+    draw_text_ex(
+        &"FOR SALE",
+        314.0,
+        55.0 * params.screen_scale,
+        text_params.clone(),
+    );
+    draw_text_ex(
+        &"IN HOLD",
+        420.0,
+        55.0 * params.screen_scale,
+        text_params.clone(),
+    );
+
+    for i in 0..17 {
+        display_stock_price(i, cmdr, text_params, params);
+    }
+
+    if (params.docked) {
+        highlight_stock(cmdr, text_params, params);
+    }
+}
+fn display_stock_price(
+    i: usize,
+    cmdr: &Commander,
+    text_params: &mut TextParams,
+    params: &GameParams,
+) {
+    let mut msg = "".to_string();
+    let y = i as f32 * 15.0 * params.screen_scale + 75.0 * params.screen_scale;
+    text_params.color = WHITE;
+    draw_text_ex(
+        &cmdr.stock_market.stock_market[i].name,
+        16.0,
+        y,
+        text_params.clone(),
+    );
+
+    draw_text_ex(
+        unit_name[cmdr.stock_market.stock_market[i].units],
+        180.0,
+        y,
+        text_params.clone(),
+    );
+    msg = format!(
+        "{}.{}",
+        cmdr.stock_market.stock_market[i].current_price / 10,
+        cmdr.stock_market.stock_market[i].current_price % 10,
+    );
+    draw_text_ex(msg, 256.0, y, text_params.clone());
+
+    if (cmdr.stock_market.stock_market[i].current_quantity > 0) {
+        msg = format!(
+            "{}{}",
+            cmdr.stock_market.stock_market[i].current_quantity,
+            unit_name[cmdr.stock_market.stock_market[i].units],
+        );
+    } else {
+        msg = "-".to_string();
+    }
+
+    draw_text_ex(msg, 338.0, y, text_params.clone());
+
+    if (cmdr.current_cargo[i] > 0) {
+        msg = format!(
+            "{}{}",
+            cmdr.current_cargo[i], unit_name[cmdr.stock_market.stock_market[i].units],
+        );
+    } else {
+        msg = "-".to_string();
+    }
+
+    draw_text_ex(msg, 444.0, y, text_params.clone());
+}
+
+fn highlight_stock(cmdr: &Commander, text_params: &mut TextParams, params: &GameParams) {
+    let mut y: f32;
+    let mut msg: String;
+
+    y = params.hilite_item as f32 * 15.0 * params.screen_scale + 75.0 * params.screen_scale;
+    y += 15.0 * params.screen_scale * 0.25;
+    draw_rectangle(
+        2.0 * params.screen_scale,
+        y - 15.0 * params.screen_scale,
+        510.0 * params.screen_scale,
+        15.0 * params.screen_scale,
+        RED,
+    );
+    display_stock_price(params.hilite_item, cmdr, text_params, params);
+
+    msg = format!("Cash: {}.{}", cmdr.credits / 10, cmdr.credits % 10);
+    draw_text_ex(msg, 16.0, 340.0 * params.screen_scale, text_params.clone());
+}
+pub fn select_previous_stock(
+    params: &mut GameParams,
+    cmdr: &Commander,
+    text_params: &mut TextParams,
+) {
+    if ((!params.docked) || (params.hilite_item == 0)) {
+        return;
+    }
+    params.hilite_item -= 1;
+    highlight_stock(cmdr, text_params, params);
+}
+
+pub fn select_next_stock(params: &mut GameParams, cmdr: &Commander, text_params: &mut TextParams) {
+    if ((!params.docked) || (params.hilite_item == 16)) {
+        return;
+    }
+    params.hilite_item += 1;
+    highlight_stock(cmdr, text_params, params);
+}
+
+pub fn buy_stock(cmdr: &mut Commander, text_params: &mut TextParams, params: &GameParams) {
+    let mut cargo_held: My;
+
+    if (!params.docked) {
+        return;
+    }
+
+    if ((cmdr.stock_market.stock_market[params.hilite_item].current_quantity == 0)
+        || (cmdr.credits < cmdr.stock_market.stock_market[params.hilite_item].current_price))
+    {
+        return;
+    }
+
+    cargo_held = total_cargo(cmdr);
+
+    if ((cmdr.stock_market.stock_market[params.hilite_item].units == TONNES)
+        && (cargo_held == cmdr.cargo_capacity))
+    {
+        return;
+    }
+
+    cmdr.current_cargo[params.hilite_item] += 1;
+    cmdr.stock_market.stock_market[params.hilite_item].current_quantity -= 1;
+    cmdr.credits -= cmdr.stock_market.stock_market[params.hilite_item].current_price;
+
+    highlight_stock(cmdr, text_params, params);
+}
+
+pub fn sell_stock(cmdr: &mut Commander, text_params: &mut TextParams, params: &GameParams) {
+    let mut item: StockItem;
+
+    if ((!params.docked) || (cmdr.current_cargo[params.hilite_item] == 0)) {
+        return;
+    }
+
+    cmdr.current_cargo[params.hilite_item] -= 1;
+    cmdr.stock_market.stock_market[params.hilite_item].current_quantity += 1;
+    cmdr.credits += cmdr.stock_market.stock_market[params.hilite_item].current_price;
+
+    highlight_stock(cmdr, text_params, params);
 }
 /***********************************************************************************/

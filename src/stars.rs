@@ -5,10 +5,9 @@ use macroquad::{
 };
 
 use crate::{
-    GameParams, SCR_LEFT_VIEW, THICKNESS,
     elite::SCR_FRONT_VIEW,
     gfx::{GFX_SCALE, GFX_VIEW_BX, GFX_VIEW_BY, GFX_VIEW_TX, GFX_VIEW_TY, STAR_SIZE},
-    *,
+    GameParams, SCR_LEFT_VIEW, THICKNESS, *,
 };
 
 pub struct Stars {
@@ -46,7 +45,13 @@ impl Star {
 }
 
 pub fn create_new_stars(da_stars: &mut Stars, params: &GameParams) {
-    let nstars = { if params.witchspace { 3 } else { 12 } };
+    let nstars = {
+        if params.witchspace {
+            3
+        } else {
+            12
+        }
+    };
 
     for i in 0..nstars {
         da_stars.stars[i].x = rand::gen_range(0.0, params.screen_width);
@@ -64,7 +69,13 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut sx: f32;
     let mut sy: f32;
 
-    let nstars = { if params.witchspace { 3 } else { 12 } };
+    let nstars = {
+        if params.witchspace {
+            3
+        } else {
+            12
+        }
+    };
 
     let mut delta = if da_stars.warp_stars {
         50.0
@@ -84,11 +95,10 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
         sx = (da_stars.stars[i].x);
         zz = da_stars.stars[i].z;
 
+        sx *= params.screen_scale;
+        sy *= params.screen_scale;
         sx += params.screen_width * 0.5;
-        sy += params.screen_height * 0.5;
-
-        // sx *= GFX_SCALE;
-        // sy *= GFX_SCALE;
+        sy += params.screen_height * 0.5 * (1.0 - SCANNER_Y_PROPORTION);
 
         if (!da_stars.warp_stars)
             && (GFX_VIEW_TX..=GFX_VIEW_BX).contains(&sx)
@@ -148,9 +158,9 @@ fn front_starfield(da_stars: &mut Stars, params: &GameParams) {
         sy = yy;
         let half_w = params.screen_width * 0.5;
         let half_h = params.screen_height * 0.5;
-        if !(-half_w..=half_w).contains(&sx) || !(-half_h..=half_h).contains(&sy) || (zz < 16.0) {
-            da_stars.stars[i].x = rand::gen_range(-half_w, half_w);
-            da_stars.stars[i].y = rand::gen_range(-half_h, half_h);
+        if ((sx > 120.0) || (sx < -120.0) || (sy > 120.0) || (sy < -120.0) || (zz < 16.0)) {
+            da_stars.stars[i].x = rand::gen_range(-115.0, 115.0);
+            da_stars.stars[i].y = rand::gen_range(-126.0, 126.0);
             da_stars.stars[i].z = (rand255() | 0x90) as f32;
             continue;
         }
@@ -169,7 +179,13 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
     let mut ex: f32;
     let mut ey: f32;
 
-    let nstars = { if params.witchspace { 3 } else { 12 } };
+    let nstars = {
+        if params.witchspace {
+            3
+        } else {
+            12
+        }
+    };
 
     let mut delta = if da_stars.warp_stars {
         50.0
@@ -189,8 +205,10 @@ fn rear_starfield(da_stars: &mut Stars, params: &GameParams) {
         sx = da_stars.stars[i].x;
         zz = da_stars.stars[i].z;
 
+        sx *= params.screen_scale;
+        sy *= params.screen_scale;
         sx += params.screen_width * 0.5;
-        sy += params.screen_height * 0.5;
+        sy += params.screen_height * 0.5 * (1.0 - SCANNER_Y_PROPORTION);
 
         // sx *= GFX_SCALE;
         // sy *= GFX_SCALE;
@@ -307,8 +325,10 @@ fn side_starfield(da_stars: &mut Stars, params: &GameParams) {
         sx = da_stars.stars[i].x;
         zz = da_stars.stars[i].z;
 
+        sx *= params.screen_scale;
+        sy *= params.screen_scale;
         sx += params.screen_width * 0.5;
-        sy += params.screen_height * 0.5;
+        sy += params.screen_height * 0.5 * (1.0 - SCANNER_Y_PROPORTION);
 
         // sx *= GFX_SCALE as f32;
         // sy *= GFX_SCALE as f32;
@@ -420,22 +440,20 @@ pub fn update_starfield(da_stars: &mut Stars, params: &GameParams) {
  */
 
 pub fn gen_rnd_number(rnd_seed: &mut GalaxySeed) -> u8 {
-    // crst
-    let mut x = (rnd_seed.a * 2) & 0xFF;
-    let mut a = x + rnd_seed.c;
+    let mut x = ((rnd_seed.a * 2) & 0xFF) as u16;
+    let mut a = x + rnd_seed.c as u16;
     if (rnd_seed.a > 127) {
         a += 1;
     }
-    rnd_seed.a = a & 0xFF;
-    rnd_seed.c = x;
+    rnd_seed.a = (a & 0xFF) as u8;
+    rnd_seed.c = x as u8;
 
-    // WARNING: was 256
-    a = a / 255; /* a = any carry left from above */
-    x = rnd_seed.b;
-    a = (a + x + rnd_seed.d) & 0xFF;
-    rnd_seed.b = a;
-    rnd_seed.d = x;
-    a
+    a = a / 256; /* a = any carry left from above */
+    x = rnd_seed.b as u16;
+    a = (a + x + rnd_seed.d as u16) & 0xFF;
+    rnd_seed.b = a as u8;
+    rnd_seed.d = x as u8;
+    a as u8
 }
 pub fn rand255() -> My {
     rand::gen_range(0, 255)

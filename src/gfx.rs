@@ -1,7 +1,7 @@
 use macroquad::{
     color::{RED, YELLOW},
     shapes::{draw_circle_lines, draw_ellipse_lines, draw_line},
-    text::draw_text,
+    text::{draw_text, draw_text_ex, TextParams},
 };
 
 use crate::{GameParams, My, THICKNESS};
@@ -15,7 +15,7 @@ pub const GFX_Y_CENTRE: f32 = 192.0;
 pub const STAR_SIZE: f32 = 1.0 * GFX_SCALE as f32;
 pub const GFX_X_OFFSET: f32 = 1.0;
 pub const GFX_Y_OFFSET: f32 = 1.0;
-pub fn gfx_draw_scanner(params: &GameParams, labels: &[&str]) {
+pub fn gfx_draw_scanner(params: &GameParams, labels: &[&str], text_params: &mut TextParams) {
     // top line
     // divides screen at 0.75
     let mut row_y_pos = params.row_y_pos; // need a copy to use to step through the rows
@@ -50,6 +50,7 @@ pub fn gfx_draw_scanner(params: &GameParams, labels: &[&str]) {
         YELLOW,
     );
     // draw the rows and labels
+    let bot_margin = params.row_inc * 0.3;
     for i in 0..7 {
         row_y_pos += params.row_inc;
         // left rows
@@ -61,12 +62,12 @@ pub fn gfx_draw_scanner(params: &GameParams, labels: &[&str]) {
             THICKNESS,
             YELLOW,
         );
-        draw_text(
+        text_params.color = RED;
+        draw_text_ex(
             labels[i * 2],
-            params.screen_width * 0.01,
-            row_y_pos,
-            55.0,
-            RED,
+            params.screen_width * 0.015,
+            row_y_pos - bot_margin,
+            text_params.clone(),
         );
         // right rows
         draw_line(
@@ -77,12 +78,11 @@ pub fn gfx_draw_scanner(params: &GameParams, labels: &[&str]) {
             THICKNESS,
             YELLOW,
         );
-        draw_text(
+        draw_text_ex(
             labels[i * 2 + 1],
-            params.screen_width * 0.96,
-            row_y_pos,
-            55.0,
-            RED,
+            params.screen_width * 0.965,
+            row_y_pos - bot_margin,
+            text_params.clone(),
         );
     }
     // scanner
